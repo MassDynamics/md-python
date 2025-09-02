@@ -3,9 +3,10 @@ Metadata model for handling 2D array data with CSV import capabilities
 """
 
 import csv
-from typing import List
 from abc import ABC
 from dataclasses import dataclass
+from typing import List
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 

@@ -2,9 +2,11 @@
 Tests for the Dataset class
 """
 
-import pytest
 from datetime import datetime
 from uuid import UUID
+
+import pytest
+
 from md_python.models import Dataset
 
 

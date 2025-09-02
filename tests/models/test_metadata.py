@@ -2,9 +2,11 @@
 Tests for the Metadata class
 """
 
-import pytest
-import tempfile
 import os
+import tempfile
+
+import pytest
+
 from md_python.models.metadata import Metadata
 
 

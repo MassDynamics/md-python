@@ -3,7 +3,9 @@ Example of checking the health of the API
 """
 
 import os
+
 from dotenv import load_dotenv
+
 from md_python import MDClient
 
 # Load environment variables from .env file

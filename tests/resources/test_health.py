@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import Mock
-from md_python.resources.health import Health
+
+import pytest
+
 from md_python.client import MDClient
+from md_python.resources.health import Health
 
 
 class TestHealth:

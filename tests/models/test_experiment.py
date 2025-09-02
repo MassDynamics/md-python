@@ -2,10 +2,12 @@
 Tests for the Experiment class
 """
 
-import pytest
 from datetime import datetime
 from uuid import UUID
-from md_python.models import Experiment, SampleMetadata, ExperimentDesign
+
+import pytest
+
+from md_python.models import Experiment, ExperimentDesign, SampleMetadata
 
 
 class TestExperiment:

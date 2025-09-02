@@ -2,9 +2,11 @@
 Example of retrying a failed dataset using the MD Python client
 """
 
-from md_python import MDClient
-from dotenv import load_dotenv
 import os
+
+from dotenv import load_dotenv
+
+from md_python import MDClient
 
 load_dotenv()
 

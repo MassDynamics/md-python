@@ -2,9 +2,11 @@
 Example of updating sample metadata for an experiment using the MD Python client
 """
 
-from md_python import MDClient, SampleMetadata
-from dotenv import load_dotenv
 import os
+
+from dotenv import load_dotenv
+
+from md_python import MDClient, SampleMetadata
 
 load_dotenv()
 

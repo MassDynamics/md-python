@@ -2,10 +2,12 @@
 Example of creating a dataset using the MD Python client
 """
 
-from md_python import MDClient, Dataset
-from dotenv import load_dotenv
 import os
 from uuid import UUID
+
+from dotenv import load_dotenv
+
+from md_python import Dataset, MDClient
 
 load_dotenv()
 

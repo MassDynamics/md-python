@@ -105,6 +105,9 @@ mypy .
 
 # Format code with Black
 black .
+
+# Sort imports
+isort .
 ```
 
 ### Using Custom Base URL

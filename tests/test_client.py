@@ -1,6 +1,8 @@
+from unittest.mock import Mock, patch
+
 import pytest
 import requests
-from unittest.mock import Mock, patch
+
 from md_python.client import MDClient
 
 

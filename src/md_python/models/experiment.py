@@ -2,12 +2,14 @@
 Experiment model for create, update, and retrieval operations
 """
 
-from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 from uuid import UUID
-from .metadata import SampleMetadata, ExperimentDesign
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+from .metadata import ExperimentDesign, SampleMetadata
 
 
 @pydantic_dataclass

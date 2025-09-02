@@ -2,9 +2,11 @@
 Example of creating an experiment using the MD Python client
 """
 
-from md_python import MDClient, Experiment, SampleMetadata, ExperimentDesign
-from dotenv import load_dotenv
 import os
+
+from dotenv import load_dotenv
+
+from md_python import Experiment, ExperimentDesign, MDClient, SampleMetadata
 
 load_dotenv()
 

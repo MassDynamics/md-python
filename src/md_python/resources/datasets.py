@@ -2,7 +2,8 @@
 Datasets resource for the MD Python client
 """
 
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List
+
 from ..models import Dataset
 
 if TYPE_CHECKING:

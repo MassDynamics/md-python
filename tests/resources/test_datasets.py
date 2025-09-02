@@ -2,12 +2,14 @@
 Test cases for Datasets resource
 """
 
-import pytest
 from unittest.mock import Mock
-from md_python.resources.datasets import Datasets
-from md_python.models import Dataset
-from md_python.client import MDClient
 from uuid import UUID
+
+import pytest
+
+from md_python.client import MDClient
+from md_python.models import Dataset
+from md_python.resources.datasets import Datasets
 
 
 class TestDatasets:

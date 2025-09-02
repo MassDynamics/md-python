@@ -3,10 +3,12 @@ Main client class for the MD Python client
 """
 
 import os
+from typing import Optional
+
 import requests
 from dotenv import load_dotenv
-from .resources import Health, Experiments, Datasets
-from typing import Optional
+
+from .resources import Datasets, Experiments, Health
 
 # Load environment variables from .env file
 load_dotenv()
