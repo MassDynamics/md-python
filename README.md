@@ -1,3 +1,5 @@
+[![LICENSE](https://img.shields.io/badge/license-Apache--2.0-blue?logo=apache)](https://github.com/MassDynamics/md-python/blob/main/LICENSE)
+
 # MD Python Client
 
 A Python client for the Mass Dynamics API that provides a simple and type-safe interface for managing experiments and datasets.
