@@ -63,6 +63,8 @@ jobs:
 
   tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs: [test, lint]
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.base_ref == 'main')
     concurrency: 
