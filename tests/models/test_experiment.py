@@ -10,6 +10,18 @@ import pytest
 from md_python.models import Experiment, ExperimentDesign, SampleMetadata
 
 
+def test_experiment_design_filenames_extraction():
+    design = ExperimentDesign(
+        data=[
+            ["filename", "sample_name", "condition"],
+            ["MD00001_0", "A", "cond1"],
+            ["MD00002_0", "B", "cond2"],
+        ]
+    )
+
+    assert design.filenames() == ["MD00001_0", "MD00002_0"]
+
+
 class TestExperiment:
     """Test cases for Experiment class"""
 
