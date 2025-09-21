@@ -34,6 +34,7 @@ dev = [
     "isort>=5.0.0",
     "mypy>=1.0.0",
     "types-requests>=2.32.0",
+    "pre-commit>=3.0.0",
 ]
 notebook = [
     "jupyter>=1.0.0",
