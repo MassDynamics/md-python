@@ -49,10 +49,10 @@ class Metadata(ABC):
             with open(file_path, "r", encoding="utf-8") as file:
                 reader = csv.reader(file, delimiter=delimiter)
                 data = [row for row in reader]
-        except FileNotFoundError:
-            raise FileNotFoundError(f"CSV file not found: {file_path}")
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"CSV file not found: {file_path}") from e
         except Exception as e:
-            raise Exception(f"Error reading CSV file: {e}")
+            raise Exception("Error reading CSV file") from e
 
         return cls(data=data)
 
@@ -62,12 +62,40 @@ class Metadata(ABC):
 class SampleMetadata(Metadata):
     """Sample metadata class"""
 
-    pass
-
-
 @pydantic_dataclass
 @dataclass
 class ExperimentDesign(Metadata):
     """Experiment design class"""
+    
+    def filenames(self) -> List[str]:
+        """Return the values under the 'filename' header.
 
-    pass
+        Looks for a column named 'filename' (case-insensitive) in the
+        first row (header). Returns the entries from subsequent rows
+        for that column. If header not found or data missing, returns [].
+        """
+        if not self.data:
+            return []
+
+        header = self.data[0]
+        if not isinstance(header, list):
+            return []
+
+        # Find 'filename' column index (case-insensitive)
+        try:
+            filename_idx = next(
+                i for i, h in enumerate(header) if isinstance(h, str) and h.lower() == "filename"
+            )
+        except StopIteration:
+            return []
+
+        filenames: List[str] = []
+        for row in self.data[1:]:
+            if not isinstance(row, list):
+                continue
+            if len(row) <= filename_idx:
+                continue
+            value = row[filename_idx]
+            if isinstance(value, str) and value.strip():
+                filenames.append(value)
+        return filenames
