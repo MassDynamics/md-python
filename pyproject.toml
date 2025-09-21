@@ -18,6 +18,7 @@ classifiers = [
     "Natural Language :: English",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 dependencies = [
@@ -34,6 +35,11 @@ dev = [
     "mypy>=1.0.0",
     "types-requests>=2.32.0",
 ]
+notebook = [
+    "jupyter>=1.0.0",
+    "ipykernel>=6.0.0",
+    "notebook>=6.0.0"
+]
 
 [project.urls]
 Repository = "https://github.com/MassDynamics/md-python"
@@ -44,14 +50,14 @@ where = ["src"]
 
 [tool.black]
 line-length = 88
-target-version = ['py311']
+target-version = ['py311', 'py312', 'py313']
 
 [tool.isort]
 profile = "black"
 line_length = 88
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
