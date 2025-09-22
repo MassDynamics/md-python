@@ -2,7 +2,7 @@
 Experiments resource for the MD Python client
 """
 
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 from ..models import Experiment, SampleMetadata
 
