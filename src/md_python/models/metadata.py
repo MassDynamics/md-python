@@ -82,6 +82,24 @@ class SampleMetadata(Metadata):
                 cols[h].append(str(row[i]) if i < len(row) else "")
         return cols
 
+    def pairwise_vs_control(self, column: str, control: str) -> List[List[str]]:
+        """Generate pairwise comparisons of each unique value vs control.
+
+        Preserves first-seen order, ignores empty values, and excludes the control itself.
+        """
+        cols = self.to_columns()
+        if column not in cols:
+            raise ValueError(f"Column '{column}' not found in sample metadata")
+
+        seen: set[str] = set()
+        ordered: List[str] = []
+        for value in cols[column]:
+            if value and value not in seen:
+                seen.add(value)
+                ordered.append(value)
+
+        return [[value, control] for value in ordered if value != control]
+
 @pydantic_dataclass
 @dataclass
 class ExperimentDesign(Metadata):
