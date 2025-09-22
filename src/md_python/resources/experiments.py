@@ -2,6 +2,7 @@
 Experiments resource for the MD Python client
 """
 
+import time
 from typing import TYPE_CHECKING, Optional
 
 from ..models import Experiment, SampleMetadata
@@ -119,3 +120,33 @@ class Experiments:
             raise Exception(
                 f"Failed to update sample metadata: {response.status_code} - {response.text}"
             )
+
+    def wait_until_complete(
+        self, experiment_id: str, poll_s: int = 5, timeout_s: int = 1800
+    ) -> "Experiment | dict":
+        """Poll the experiment until it reaches a terminal state.
+
+        Returns the latest Experiment object when terminal, or raises TimeoutError on timeout.
+        Terminal states considered: COMPLETED, FAILED, ERROR, CANCELLED.
+        """
+        end = time.monotonic() + timeout_s
+        last: Optional[str] = None
+        while time.monotonic() < end:
+            exp = self.get_by_id(experiment_id)
+            status = getattr(exp, "status", None)
+            if status != last:
+                print(f"status={status}")
+                last = status
+            
+            if status.upper() in {"COMPLETED"}:
+                return exp
+            elif status.upper() in {"FAILED", "ERROR", "CANCELLED"}:
+                raise Exception(f"Experiment {experiment_id} failed: {status}")
+            else:
+                if last is None:
+                    print("waiting for experiment to appear...")
+            last = status
+            time.sleep(poll_s)
+        raise TimeoutError(
+            f"Experiment {experiment_id} not terminal within {timeout_s}s (last status={last})"
+        )
