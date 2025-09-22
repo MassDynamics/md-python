@@ -5,7 +5,7 @@ Metadata model for handling 2D array data with CSV import capabilities
 import csv
 from abc import ABC
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -62,40 +62,80 @@ class Metadata(ABC):
 class SampleMetadata(Metadata):
     """Sample metadata class"""
 
+    def to_columns(self) -> Dict[str, List[str]]:
+        """Return a dict mapping column name -> list of values.
+
+        Uses the first row as header; subsequent rows become column values.
+        Short rows are padded with empty strings.
+        """
+        if not self.data:
+            return {}
+        header_row = self.data[0]
+        if not isinstance(header_row, list) or not header_row:
+            return {}
+        headers = [str(h).strip() for h in header_row]
+        cols: Dict[str, List[str]] = {h: [] for h in headers}
+        for row in self.data[1:]:
+            if not isinstance(row, list):
+                continue
+            for i, h in enumerate(headers):
+                cols[h].append(str(row[i]) if i < len(row) else "")
+        return cols
+
 @pydantic_dataclass
 @dataclass
 class ExperimentDesign(Metadata):
     """Experiment design class"""
     
-    def filenames(self) -> List[str]:
-        """Return the values under the 'filename' header.
+    @staticmethod
+    def _normalize_rows(raw: List[List[str]]) -> List[List[str]]:
+        """Normalize to required header and column order.
 
-        Looks for a column named 'filename' (case-insensitive) in the
-        first row (header). Returns the entries from subsequent rows
-        for that column. If header not found or data missing, returns [].
+        Required header: ["filename", "sample_name", "condition"].
+        Accepts common synonyms and reorders columns accordingly.
         """
-        if not self.data:
-            return []
+        if not raw:
+            raise ValueError("experiment_design is empty")
 
-        header = self.data[0]
-        if not isinstance(header, list):
-            return []
+        header = [h.strip().lower() if isinstance(h, str) else "" for h in raw[0]]
+        synonyms = {
+            "filename": "filename",
+            "file": "filename",
+            "sample_name": "sample_name",
+            "sample": "sample_name",
+            "condition": "condition",
+            "group": "condition",
+        }
+        normalized_header = [synonyms.get(h, h) for h in header]
 
-        # Find 'filename' column index (case-insensitive)
+        required = ["filename", "sample_name", "condition"]
         try:
-            filename_idx = next(
-                i for i, h in enumerate(header) if isinstance(h, str) and h.lower() == "filename"
-            )
-        except StopIteration:
-            return []
+            idx_filename = normalized_header.index("filename")
+            idx_sample = normalized_header.index("sample_name")
+            idx_condition = normalized_header.index("condition")
+        except ValueError as e:
+            raise ValueError(
+                f"Missing required columns {required}; got {raw[0]}"
+            ) from e
 
-        filenames: List[str] = []
-        for row in self.data[1:]:
+        fixed_rows: List[List[str]] = [required]
+        for row in raw[1:]:
             if not isinstance(row, list):
                 continue
-            if len(row) <= filename_idx:
-                continue
-            value = row[filename_idx]
-            if isinstance(value, str) and value.strip():
-                filenames.append(value)
-        return filenames
+            vals = [
+                row[idx_filename] if len(row) > idx_filename else "",
+                row[idx_sample] if len(row) > idx_sample else "",
+                row[idx_condition] if len(row) > idx_condition else "",
+            ]
+            fixed_rows.append(vals)
+
+        return fixed_rows
+
+    def __post_init__(self) -> None:
+        # Always normalize on construction
+        self.data = self._normalize_rows(self.data)
+
+    def to_core_design(self) -> "ExperimentDesign":
+        """Return normalized design (already normalized in __post_init__)."""
+        return self
+
