@@ -19,8 +19,8 @@ class Dataset:
     name: str
     job_slug: str
     job_run_params: Dict[str, Any]
-    type: Optional[str]
-    state: Optional[str]
+    type: Optional[str] = None
+    state: Optional[str] = None
     id: Optional[UUID] = None
     sample_names: Optional[List[str]] = None
     job_run_start_time: Optional[datetime] = None
