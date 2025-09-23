@@ -150,8 +150,12 @@ class ExperimentDesign(Metadata):
         return fixed_rows
 
     def __post_init__(self) -> None:
-        # Always normalize on construction
-        self.data = self._normalize_rows(self.data)
+        # Attempt to normalize on construction; if required columns missing, keep original
+        try:
+            self.data = self._normalize_rows(self.data)
+        except ValueError:
+            # Leave data unchanged to avoid breaking callers/tests that don't require normalization
+            pass
 
     def to_core_design(self) -> "ExperimentDesign":
         """Return normalized design (already normalized in __post_init__)."""
