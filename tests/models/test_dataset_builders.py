@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from md_python.models import SampleMetadata
-from md_python.utils.builders import PairwiseComparisonDataset, MinimalDataset
+from md_python.models.dataset_builders import PairwiseComparisonDataset, MinimalDataset
 
 
 
@@ -38,4 +38,29 @@ def test_minimal_dataset_build_and_run(mocker):
     client.datasets.create.return_value = "min-id"
     out = md.run(client)
     assert out == "min-id"
+
+
+def test_builders_validation_errors():
+    # MinimalDataset validation
+    md = MinimalDataset(input_dataset_ids=[], dataset_name="", job_slug="")
+    try:
+        md.validate()
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "input_dataset_ids" in str(e) or "dataset_name" in str(e) or "job_slug" in str(e)
+
+    # PairwiseComparisonDataset validation
+    sm = SampleMetadata(data=[["group"], ["a"]])
+    pw = PairwiseComparisonDataset(
+        input_dataset_ids=[],
+        dataset_name="",
+        sample_metadata=sm,
+        condition_column="",
+        condition_comparisons=[],
+    )
+    try:
+        pw.validate()
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert any(k in str(e) for k in ["input_dataset_ids", "dataset_name", "condition_column", "condition_comparisons"]) 
 
