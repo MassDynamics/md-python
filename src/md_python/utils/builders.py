@@ -54,3 +54,23 @@ class PairwiseComparisonDataset:
         """Create the dataset via the API and return the new dataset_id."""
         return client.datasets.create(self.to_dataset())
 
+
+@pydantic_dataclass
+@dataclass
+class MinimalDataset:
+    """Builder for a minimal dataset (name, inputs, job slug only). that takes not parameters in the job run params"""
+    input_dataset_ids: List[str]
+    dataset_name: str
+    job_slug: str
+
+    def to_dataset(self) -> Dataset:
+        return Dataset(
+            input_dataset_ids=[UUID(x) for x in self.input_dataset_ids],
+            name=self.dataset_name,
+            job_slug=self.job_slug,
+            job_run_params={},
+        )
+
+    def run(self, client: MDClient) -> str:
+        return client.datasets.create(self.to_dataset())
+
