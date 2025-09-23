@@ -143,7 +143,7 @@ class Datasets:
         end = time.monotonic() + timeout_s
         last: Optional[str] = None
         while time.monotonic() < end:
-            dds = self._client.datasets.list_by_experiment(experiment_id=experiment_id)
+            dds = self.list_by_experiment(experiment_id=experiment_id)
             ds = next((d for d in dds if str(d.id) == dataset_id), None)
             if ds:
                 state = ds.state  # use dataset.state key
