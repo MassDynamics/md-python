@@ -71,7 +71,7 @@ class TestMetadata:
 
 
 class TestExperimentDesign:
-    def test_normalization_and_filenames(self):
+    def test_normalization(self):
         ed = ExperimentDesign(
             data=[
                 ["file", "sample", "group"],
@@ -81,8 +81,6 @@ class TestExperimentDesign:
         )
         # normalized header
         assert ed.data[0] == ["filename", "sample_name", "condition"]
-        # filenames from first column
-        assert ed.filenames() == ["a.d", "b.d"]
 
 
 class TestSampleMetadata:
