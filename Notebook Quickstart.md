@@ -17,7 +17,7 @@ pip install git+https://github.com/MassDynamics/md-python.git
 ```bash
 git clone https://github.com/MassDynamics/md-python.git
 cd md-python
-pip install -e ".[dev]"
+pip install -e ".[dev,notebook]"
 ```
 
 ### 3) .env
