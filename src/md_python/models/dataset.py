@@ -19,6 +19,8 @@ class Dataset:
     name: str
     job_slug: str
     job_run_params: Dict[str, Any]
+    type: Optional[str] = None
+    state: Optional[str] = None
     id: Optional[UUID] = None
     sample_names: Optional[List[str]] = None
     job_run_start_time: Optional[datetime] = None
@@ -72,5 +74,7 @@ class Dataset:
             job_slug=data.get("job_slug", ""),
             sample_names=data.get("sample_names"),
             job_run_params=data.get("job_run_params", {}),
-            job_run_start_time=job_run_start_time,
+            type=data.get("type"),
+            state=data.get("state"),
+            job_run_start_time=job_run_start_time
         )

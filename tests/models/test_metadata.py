@@ -7,7 +7,7 @@ import tempfile
 
 import pytest
 
-from md_python.models.metadata import Metadata
+from md_python.models.metadata import Metadata, ExperimentDesign, SampleMetadata
 
 
 class TestMetadata:
@@ -68,6 +68,36 @@ class TestMetadata:
         finally:
             # Clean up
             os.unlink(temp_file)
+
+
+class TestExperimentDesign:
+    def test_normalization(self):
+        ed = ExperimentDesign(
+            data=[
+                ["file", "sample", "group"],
+                ["a.d", "1", "q"],
+                ["b.d", "2", "e"],
+            ]
+        )
+        # normalized header
+        assert ed.data[0] == ["filename", "sample_name", "condition"]
+
+
+class TestSampleMetadata:
+    def test_to_columns_and_pairwise(self):
+        sm = SampleMetadata(
+            data=[
+                ["group", "sample_name"],
+                ["a", "s1"],
+                ["a", "s2"],
+                ["b", "s3"],
+                ["c", "s4"],
+            ]
+        )
+        cols = sm.to_columns()
+        assert cols["group"] == ["a", "a", "b", "c"]
+        pairs = sm.pairwise_vs_control(column="group", control="c")
+        assert pairs == [["a", "c"], ["b", "c"]]
 
     def test_from_csv_custom_delimiter(self):
         """Test creating Metadata from CSV file with custom delimiter"""
