@@ -11,17 +11,26 @@ if TYPE_CHECKING:
     from ..client import MDClient
 
 
+@pydantic_dataclass
 class BaseDatasetBuilder(ABC):
-    """Abstract base for dataset builders that produce Dataset objects."""
+    """Abstract base for dataset builders that produce Dataset objects.
+
+    Shared parameters across dataset builders.
+    """
+
+    # Shared fields
+    input_dataset_ids: List[str]
+    dataset_name: str
 
     @abstractmethod
-    def to_dataset(self) -> Dataset:  # pragma: no cover - interface only
+    def to_dataset(self) -> Dataset: 
         ...
 
     @abstractmethod
-    def validate(self) -> None:  # pragma: no cover - interface only
-        """Validate input fields; raise ValueError with a concise message on failure."""
+    def validate(self) -> None:
+        """Validate input fields; subclasses must implement."""
         ...
+
 
     def run(self, client: "MDClient") -> str:
         """Create the dataset via the API and return the new dataset_id."""
@@ -30,14 +39,11 @@ class BaseDatasetBuilder(ABC):
 
 
 @pydantic_dataclass
-@dataclass
 class MinimalDataset(BaseDatasetBuilder):
     """Builder for a minimal dataset (name, inputs, job slug only)."""
 
-    input_dataset_ids: List[str]
-    dataset_name: str
     job_slug: str
-
+    
     def to_dataset(self) -> Dataset:
         return Dataset(
             input_dataset_ids=[UUID(x) for x in self.input_dataset_ids],
@@ -54,9 +60,7 @@ class MinimalDataset(BaseDatasetBuilder):
         if not self.job_slug:
             raise ValueError("job_slug is required")
 
-
 @pydantic_dataclass
-@dataclass
 class PairwiseComparisonDataset(BaseDatasetBuilder):
     """Builder for a pairwise comparison dataset with run support.
 
@@ -96,15 +100,14 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         Job slug for the backend flow. Default: "pairwise_comparison".
     """
 
-    input_dataset_ids: List[str]
-    dataset_name: str
+    # Shared fields inherited: input_dataset_ids, dataset_name, job_slug
     sample_metadata: SampleMetadata
     condition_column: str
     condition_comparisons: List[List[str]]
-    filter_valid_values_logic: str = "at least one condition"
-    filter_values_criteria: Optional[Dict[str, Any]] = field(
+    filter_values_criteria: Dict[str, Any] = field(
         default_factory=lambda: {"method": "percentage", "filter_threshold_percentage": 0.5}
     )
+    filter_valid_values_logic: str = "at least one condition"
     fit_separate_models: bool = True
     limma_trend: bool = True
     robust_empirical_bayes: bool = True

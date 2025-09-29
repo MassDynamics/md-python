@@ -13,6 +13,7 @@ def test_pairwise_comparison_dataset_class_build_and_run(mocker):
         sample_metadata=sm,
         condition_column="group",
         condition_comparisons=[["a", "b"]],
+        # filter_values_criteria={"method": "percentage", "filter_threshold_percentage": 0.5},
     )
     ds = pw.to_dataset()
     assert ds.name == "Pairwise"
@@ -57,6 +58,7 @@ def test_builders_validation_errors():
         sample_metadata=sm,
         condition_column="",
         condition_comparisons=[],
+        filter_values_criteria={"method": "percentage", "filter_threshold_percentage": 0.5},
     )
     try:
         pw.validate()
