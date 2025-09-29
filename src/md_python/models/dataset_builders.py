@@ -89,7 +89,7 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         Whether to apply robust empirical Bayes moderation. Default: True.
     control_variables : Optional[Dict[str, List[Dict[str, str]]]]
         Optional dictionary of control variables in the form:
-        {"control_variables": [{"column": str, "type": "numeric"|"categorical"}, ...]}
+        {"control_variables": [{"column": str, "type": "numerical"|"categorical"}, ...]}
     entity_type : str
         One of: "protein", "peptide". Default: "protein".
     job_slug : str
@@ -133,7 +133,8 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
             },
         )
 
-    def help(self) -> str:
+    @classmethod
+    def help(cls) -> str:
         """Return a human-readable description of parameters and valid values."""
         lines = [
             "PairwiseComparisonDataset parameters:",
@@ -147,7 +148,7 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
             "- fit_separate_models (bool): whether to fit separate models (default True)",
             "- limma_trend (bool): apply limma trend (default True)",
             "- robust_empirical_bayes (bool): apply robust EB moderation (default True)",
-            "- control_variables (dict): {'control_variables': [{column: str, type: numeric|categorical}, ...]} (optional)",
+            "- control_variables (dict): {'control_variables': [{column: str, type: numerical|categorical}, ...]} (optional)",
             "- entity_type (str): protein|peptide (default protein)",
             "- job_slug (str): backend job slug (default pairwise_comparison)",
         ]
@@ -218,5 +219,5 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
                 ctype = item.get("type")
                 if not isinstance(column, str) or not column.strip():
                     raise ValueError("control variable 'column' must be a non-empty string")
-                if ctype not in {"numeric", "categorical"}:
-                    raise ValueError("control variable 'type' must be one of: numeric, categorical")
+                if ctype not in {"numerical", "categorical"}:
+                    raise ValueError("control variable 'type' must be one of: numerical, categorical")
