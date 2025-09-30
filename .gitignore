@@ -6,6 +6,9 @@ __pycache__/
 # custom docs
 docs/
 
+# development customer examples
+development/GI/do_not_save/
+
 # C extensions
 *.so
 
