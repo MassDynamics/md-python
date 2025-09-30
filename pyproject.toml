@@ -69,3 +69,8 @@ exclude = [
     "examples/",
     "setup.py",
 ]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pydantic.*"]
+ignore_missing_imports = true
