@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from md_python.models import SampleMetadata
-from md_python.models.dataset_builders import PairwiseComparisonDataset, MinimalDataset
+from md_python.models.dataset_builders import PairwiseComparisonDataset, MinimalDataset, NormalisationImputationDataset
 
 
 
@@ -65,4 +65,37 @@ def test_builders_validation_errors():
         assert False, "Expected ValueError"
     except ValueError as e:
         assert any(k in str(e) for k in ["input_dataset_ids", "dataset_name", "condition_column", "condition_comparisons"]) 
+
+    # NormalisationImputationDataset validation
+    ni = NormalisationImputationDataset(
+        input_dataset_ids=[],
+        dataset_name="",
+        normalisation_methods={},
+        imputation_methods={},
+    )
+    try:
+        ni.validate()
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert any(k in str(e) for k in ["input_dataset_ids", "dataset_name", "method"]) 
+
+
+def test_normalisation_imputation_builder_build_and_run(mocker):
+    ni = NormalisationImputationDataset(
+        input_dataset_ids=[str(UUID(int=3))],
+        dataset_name="NI DS",
+        normalisation_methods={"method": "quantile"},
+        imputation_methods={"method": "mnar", "std_position": 1.8, "std_width": 0.3},
+    )
+    ds = ni.to_dataset()
+    assert ds.name == "NI DS"
+    assert ds.job_slug == "normalisation_imputation"
+    assert ds.job_run_params["normalisation_methods"]["method"] == "quantile"
+    assert ds.job_run_params["imputation_methods"]["method"] == "mnar"
+
+    client = mocker.Mock()
+    client.datasets = mocker.Mock()
+    client.datasets.create.return_value = "new-id"
+    out = ni.run(client)
+    assert out == "new-id"
 
