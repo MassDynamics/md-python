@@ -7,6 +7,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from .dataset import Dataset
 from .metadata import SampleMetadata
+
 if TYPE_CHECKING:
     from ..client import MDClient
 
@@ -23,14 +24,12 @@ class BaseDatasetBuilder(ABC):
     dataset_name: str
 
     @abstractmethod
-    def to_dataset(self) -> Dataset:
-        ...
+    def to_dataset(self) -> Dataset: ...
 
     @abstractmethod
     def validate(self) -> None:
         """Validate input fields; subclasses must implement."""
         ...
-
 
     def run(self, client: "MDClient") -> str:
         """Create the dataset via the API and return the new dataset_id."""
@@ -60,6 +59,7 @@ class MinimalDataset(BaseDatasetBuilder):
             raise ValueError("dataset_name is required")
         if not self.job_slug:
             raise ValueError("job_slug is required")
+
 
 @pydantic_dataclass
 class NormalisationImputationDataset(BaseDatasetBuilder):
@@ -101,6 +101,7 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
             raise ValueError("imputation_methods must be a dictionary")
         if "method" not in self.imputation_methods:
             raise ValueError("imputation_methods must include 'method'")
+
 
 @pydantic_dataclass
 class PairwiseComparisonDataset(BaseDatasetBuilder):
@@ -147,7 +148,10 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
     condition_column: str
     condition_comparisons: List[List[str]]
     filter_values_criteria: Dict[str, Any] = field(
-        default_factory=lambda: {"method": "percentage", "filter_threshold_percentage": 0.5}
+        default_factory=lambda: {
+            "method": "percentage",
+            "filter_threshold_percentage": 0.5,
+        }
     )
     filter_valid_values_logic: str = "at least one condition"
     fit_separate_models: bool = True
@@ -217,7 +221,7 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
             raise ValueError("condition_comparisons must be a list of lists")
         if not all(len(x) == 2 for x in self.condition_comparisons):
             raise ValueError("each condition comparison must have exactly 2 elements")
-            
+
         # booleans
         if not isinstance(self.fit_separate_models, bool):
             raise ValueError("fit_separate_models must be a bool")
@@ -230,20 +234,43 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         if self.entity_type not in {"protein", "peptide"}:
             raise ValueError("entity_type must be one of: protein, peptide")
 
-        if self.filter_valid_values_logic not in ["all conditions", "at least one condition", "full experiment"]:
-            raise ValueError("filter_value_logic must be one of: all conditions, at least one condition, full experiment")
+        if self.filter_valid_values_logic not in [
+            "all conditions",
+            "at least one condition",
+            "full experiment",
+        ]:
+            raise ValueError(
+                "filter_value_logic must be one of: all conditions, at least one condition, full experiment"
+            )
 
         if self.filter_values_criteria is not None:
             if not isinstance(self.filter_values_criteria, dict):
                 raise ValueError("filter_values_criteria must be a dictionary")
             if self.filter_values_criteria.get("method") not in ["percentage", "count"]:
-                raise ValueError("filter_values_criteria method must be one of: percentage, count")
+                raise ValueError(
+                    "filter_values_criteria method must be one of: percentage, count"
+                )
             elif self.filter_values_criteria.get("method") == "percentage":
-                if self.filter_values_criteria.get("filter_threshold_percentage") is not None and self.filter_values_criteria.get("filter_threshold_percentage") < 0 or self.filter_values_criteria.get("filter_threshold_percentage") > 1:
-                    raise ValueError("filter_values_criteria filter_threshold_percentage must be between 0 and 1")
+                if (
+                    self.filter_values_criteria.get("filter_threshold_percentage")
+                    is not None
+                    and self.filter_values_criteria.get("filter_threshold_percentage")
+                    < 0
+                    or self.filter_values_criteria.get("filter_threshold_percentage")
+                    > 1
+                ):
+                    raise ValueError(
+                        "filter_values_criteria filter_threshold_percentage must be between 0 and 1"
+                    )
             elif self.filter_values_criteria.get("method") == "count":
-                if self.filter_values_criteria.get("filter_threshold_count") is not None and self.filter_values_criteria.get("filter_threshold_count") < 0:
-                    raise ValueError("filter_values_criteria filter_threshold_count must be greater than 0")
+                if (
+                    self.filter_values_criteria.get("filter_threshold_count")
+                    is not None
+                    and self.filter_values_criteria.get("filter_threshold_count") < 0
+                ):
+                    raise ValueError(
+                        "filter_values_criteria filter_threshold_count must be greater than 0"
+                    )
         else:
             raise ValueError("filter_values_criteria must be a dictionary")
 
@@ -252,17 +279,27 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
                 raise ValueError("control_variables must be a dictionary")
             items = self.control_variables.get("control_variables")
             if items is None:
-                raise ValueError("control_variables must include 'control_variables' list")
+                raise ValueError(
+                    "control_variables must include 'control_variables' list"
+                )
             if not isinstance(items, list):
-                raise ValueError("control_variables['control_variables'] must be a list")
+                raise ValueError(
+                    "control_variables['control_variables'] must be a list"
+                )
             for _, item in enumerate(items):
                 if not isinstance(item, dict):
                     raise ValueError("each control variable must be a dictionary")
                 if "column" not in item or "type" not in item:
-                    raise ValueError("each control variable must include 'column' and 'type'")
+                    raise ValueError(
+                        "each control variable must include 'column' and 'type'"
+                    )
                 column = item.get("column")
                 ctype = item.get("type")
                 if not isinstance(column, str) or not column.strip():
-                    raise ValueError("control variable 'column' must be a non-empty string")
+                    raise ValueError(
+                        "control variable 'column' must be a non-empty string"
+                    )
                 if ctype not in {"numerical", "categorical"}:
-                    raise ValueError("control variable 'type' must be one of: numerical, categorical")
+                    raise ValueError(
+                        "control variable 'type' must be one of: numerical, categorical"
+                    )

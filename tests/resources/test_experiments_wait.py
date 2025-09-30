@@ -19,7 +19,11 @@ class TestExperimentsWait:
         return Experiments(mock_client)
 
     def test_wait_until_complete_success(self, res, mocker):
-        mocker.patch.object(res, "get_by_id", side_effect=[make_exp("PROCESSING"), make_exp("COMPLETED")])
+        mocker.patch.object(
+            res,
+            "get_by_id",
+            side_effect=[make_exp("PROCESSING"), make_exp("COMPLETED")],
+        )
         out = res.wait_until_complete("exp-1", poll_s=0, timeout_s=2)
         assert isinstance(out, Experiment)
         assert out.status == "COMPLETED"
@@ -28,4 +32,3 @@ class TestExperimentsWait:
         mocker.patch.object(res, "get_by_id", return_value=make_exp("FAILED"))
         with pytest.raises(Exception):
             res.wait_until_complete("exp-1", poll_s=0, timeout_s=1)
-

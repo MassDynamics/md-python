@@ -137,7 +137,7 @@ class Experiments:
             if status != last:
                 print(f"status={status}")
                 last = status
-            
+
             if status.upper() in {"COMPLETED"}:
                 return exp
             elif status.upper() in {"FAILED", "ERROR", "CANCELLED"}:

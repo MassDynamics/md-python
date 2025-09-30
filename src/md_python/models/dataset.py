@@ -76,5 +76,5 @@ class Dataset:
             job_run_params=data.get("job_run_params", {}),
             type=data.get("type"),
             state=data.get("state"),
-            job_run_start_time=job_run_start_time
+            job_run_start_time=job_run_start_time,
         )

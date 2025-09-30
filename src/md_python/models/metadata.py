@@ -100,11 +100,12 @@ class SampleMetadata(Metadata):
 
         return [[value, control] for value in ordered if value != control]
 
+
 @pydantic_dataclass
 @dataclass
 class ExperimentDesign(Metadata):
     """Experiment design class"""
-    
+
     @staticmethod
     def _normalize_rows(raw: List[List[str]]) -> List[List[str]]:
         """Normalize to required header and column order.
@@ -160,4 +161,3 @@ class ExperimentDesign(Metadata):
     def to_core_design(self) -> "ExperimentDesign":
         """Return normalized design (already normalized in __post_init__)."""
         return self
-

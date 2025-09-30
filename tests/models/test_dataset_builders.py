@@ -1,8 +1,11 @@
 from uuid import UUID
 
 from md_python.models import SampleMetadata
-from md_python.models.dataset_builders import PairwiseComparisonDataset, MinimalDataset, NormalisationImputationDataset
-
+from md_python.models.dataset_builders import (
+    PairwiseComparisonDataset,
+    MinimalDataset,
+    NormalisationImputationDataset,
+)
 
 
 def test_pairwise_comparison_dataset_class_build_and_run(mocker):
@@ -48,7 +51,11 @@ def test_builders_validation_errors():
         md.validate()
         assert False, "Expected ValueError"
     except ValueError as e:
-        assert "input_dataset_ids" in str(e) or "dataset_name" in str(e) or "job_slug" in str(e)
+        assert (
+            "input_dataset_ids" in str(e)
+            or "dataset_name" in str(e)
+            or "job_slug" in str(e)
+        )
 
     # PairwiseComparisonDataset validation
     sm = SampleMetadata(data=[["group"], ["a"]])
@@ -58,13 +65,24 @@ def test_builders_validation_errors():
         sample_metadata=sm,
         condition_column="",
         condition_comparisons=[],
-        filter_values_criteria={"method": "percentage", "filter_threshold_percentage": 0.5},
+        filter_values_criteria={
+            "method": "percentage",
+            "filter_threshold_percentage": 0.5,
+        },
     )
     try:
         pw.validate()
         assert False, "Expected ValueError"
     except ValueError as e:
-        assert any(k in str(e) for k in ["input_dataset_ids", "dataset_name", "condition_column", "condition_comparisons"]) 
+        assert any(
+            k in str(e)
+            for k in [
+                "input_dataset_ids",
+                "dataset_name",
+                "condition_column",
+                "condition_comparisons",
+            ]
+        )
 
     # NormalisationImputationDataset validation
     ni = NormalisationImputationDataset(
@@ -77,7 +95,7 @@ def test_builders_validation_errors():
         ni.validate()
         assert False, "Expected ValueError"
     except ValueError as e:
-        assert any(k in str(e) for k in ["input_dataset_ids", "dataset_name", "method"]) 
+        assert any(k in str(e) for k in ["input_dataset_ids", "dataset_name", "method"])
 
 
 def test_normalisation_imputation_builder_build_and_run(mocker):
@@ -98,4 +116,3 @@ def test_normalisation_imputation_builder_build_and_run(mocker):
     client.datasets.create.return_value = "new-id"
     out = ni.run(client)
     assert out == "new-id"
-

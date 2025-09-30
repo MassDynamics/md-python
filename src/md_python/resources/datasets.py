@@ -177,15 +177,21 @@ class Datasets:
 
         if not datasets:
             raise ValueError(f"No datasets found for experiment {experiment_id}")
-        
+
         intensity = [d for d in datasets if getattr(d, "type", None) == "INTENSITY"]
         if not intensity:
-            raise ValueError(f"No intensity dataset found for experiment {experiment_id}")
+            raise ValueError(
+                f"No intensity dataset found for experiment {experiment_id}"
+            )
 
         by_name = [intd for intd in intensity if intd.name == experiment_name]
         if len(by_name) > 1:
-            raise ValueError(f"Multiple intensity datasets found for experiment {experiment_id} with name {experiment_name}")
+            raise ValueError(
+                f"Multiple intensity datasets found for experiment {experiment_id} with name {experiment_name}"
+            )
         elif len(by_name) == 1:
             return by_name[0]
         else:
-            raise ValueError(f"No initial dataset found for experiment {experiment_id} or name has been changed")
+            raise ValueError(
+                f"No initial dataset found for experiment {experiment_id} or name has been changed"
+            )

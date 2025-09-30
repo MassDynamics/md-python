@@ -21,7 +21,7 @@ class MDClient:
     api_token: str
 
     def __init__(self, api_token: Optional[str] = None, base_url: Optional[str] = None):
-        
+
         self.base_url = base_url or os.getenv("MD_API_BASE_URL")
 
         self.api_token = api_token or os.getenv("MD_AUTH_TOKEN")
