@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import List, TYPE_CHECKING, Dict, Any, Optional
 from uuid import UUID
 
@@ -23,7 +23,7 @@ class BaseDatasetBuilder(ABC):
     dataset_name: str
 
     @abstractmethod
-    def to_dataset(self) -> Dataset: 
+    def to_dataset(self) -> Dataset:
         ...
 
     @abstractmethod
@@ -43,13 +43,14 @@ class MinimalDataset(BaseDatasetBuilder):
     """Builder for a minimal dataset (name, inputs, job slug only)."""
 
     job_slug: str
-    
+    job_run_params: Optional[Dict[str, Any]] = None
+
     def to_dataset(self) -> Dataset:
         return Dataset(
             input_dataset_ids=[UUID(x) for x in self.input_dataset_ids],
             name=self.dataset_name,
             job_slug=self.job_slug,
-            job_run_params={},
+            job_run_params=self.job_run_params or {},
         )
 
     def validate(self) -> None:
@@ -59,6 +60,47 @@ class MinimalDataset(BaseDatasetBuilder):
             raise ValueError("dataset_name is required")
         if not self.job_slug:
             raise ValueError("job_slug is required")
+
+@pydantic_dataclass
+class NormalisationImputationDataset(BaseDatasetBuilder):
+    """Builder for normalisation + imputation dataset.
+
+    Required parameters are input datasets, output name, and two parameter blocks:
+    - normalisation_methods: {"method": str, ...}
+    - imputation_methods: {"method": str, ...}
+    """
+
+    normalisation_methods: Dict[str, Any]
+    imputation_methods: Dict[str, Any]
+    job_slug: str = "normalisation_imputation"
+
+    def to_dataset(self) -> Dataset:
+        return Dataset(
+            input_dataset_ids=[UUID(x) for x in self.input_dataset_ids],
+            name=self.dataset_name,
+            job_slug=self.job_slug,
+            job_run_params={
+                "normalisation_methods": self.normalisation_methods,
+                "imputation_methods": self.imputation_methods,
+                "dataset_name": self.dataset_name,
+            },
+        )
+
+    def validate(self) -> None:
+        if not self.input_dataset_ids:
+            raise ValueError("input_dataset_ids cannot be empty")
+        if not self.dataset_name:
+            raise ValueError("dataset_name is required")
+
+        if not isinstance(self.normalisation_methods, dict):
+            raise ValueError("normalisation_methods must be a dictionary")
+        if "method" not in self.normalisation_methods:
+            raise ValueError("normalisation_methods must include 'method'")
+
+        if not isinstance(self.imputation_methods, dict):
+            raise ValueError("imputation_methods must be a dictionary")
+        if "method" not in self.imputation_methods:
+            raise ValueError("imputation_methods must include 'method'")
 
 @pydantic_dataclass
 class PairwiseComparisonDataset(BaseDatasetBuilder):
