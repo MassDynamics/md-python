@@ -244,10 +244,10 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
             )
 
         if self.filter_values_criteria is not None:
-            if not isinstance(self.filter_values_criteria, dict):
-                raise ValueError("filter_values_criteria must be a dictionary")
-
             crit = self.filter_values_criteria
+            if not hasattr(crit, "get"):
+                raise ValueError("filter_values_criteria must be a dict-like object")
+
             method = crit.get("method")
 
             if method not in ["percentage", "count"]:
@@ -266,7 +266,6 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
                     raise ValueError(
                         "filter_values_criteria filter_threshold_count must be greater than 0"
                     )
-            raise ValueError("filter_values_criteria must be a dictionary")
 
         if self.control_variables is not None:
             if not isinstance(self.control_variables, dict):
