@@ -9,6 +9,9 @@ docs/
 # development customer examples
 development/GI/do_not_save/
 
+# Mac .DS_Store
+.DS_Store
+
 # C extensions
 *.so
 
