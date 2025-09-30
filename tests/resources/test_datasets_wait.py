@@ -1,9 +1,10 @@
+from uuid import UUID
+
 import pytest
 
 from md_python.client import MDClient
-from md_python.resources.datasets import Datasets
 from md_python.models import Dataset
-from uuid import UUID
+from md_python.resources.datasets import Datasets
 
 
 def ds(state: str, id_str: str = "11111111-1111-1111-1111-111111111111") -> Dataset:

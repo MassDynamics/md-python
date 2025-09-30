@@ -5,7 +5,7 @@ Metadata model for handling 2D array data with CSV import capabilities
 import csv
 from abc import ABC
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import Dict, List
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 

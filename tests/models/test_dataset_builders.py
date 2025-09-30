@@ -2,9 +2,9 @@ from uuid import UUID
 
 from md_python.models import SampleMetadata
 from md_python.models.dataset_builders import (
-    PairwiseComparisonDataset,
     MinimalDataset,
     NormalisationImputationDataset,
+    PairwiseComparisonDataset,
 )
 
 

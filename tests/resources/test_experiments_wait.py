@@ -1,8 +1,8 @@
 import pytest
 
 from md_python.client import MDClient
-from md_python.resources.experiments import Experiments
 from md_python.models import Experiment
+from md_python.resources.experiments import Experiments
 
 
 def make_exp(status: str) -> Experiment:

@@ -7,7 +7,7 @@ import tempfile
 
 import pytest
 
-from md_python.models.metadata import Metadata, ExperimentDesign, SampleMetadata
+from md_python.models.metadata import ExperimentDesign, Metadata, SampleMetadata
 
 
 class TestMetadata:

@@ -6,8 +6,8 @@ from .dataset import Dataset
 from .dataset_builders import (
     BaseDatasetBuilder,
     MinimalDataset,
-    PairwiseComparisonDataset,
     NormalisationImputationDataset,
+    PairwiseComparisonDataset,
 )
 from .experiment import Experiment
 from .metadata import ExperimentDesign, SampleMetadata
