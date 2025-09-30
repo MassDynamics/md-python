@@ -123,7 +123,7 @@ class Experiments:
 
     def wait_until_complete(
         self, experiment_id: str, poll_s: int = 5, timeout_s: int = 1800
-    ) -> "Experiment | dict":
+    ) -> Experiment:
         """Poll the experiment until it reaches a terminal state.
 
         Returns the latest Experiment object when terminal, or raises TimeoutError on timeout.
@@ -138,15 +138,19 @@ class Experiments:
                 print(f"status={status}")
                 last = status
 
-            if status.upper() in {"COMPLETED"}:
-                return exp
-            elif status.upper() in {"FAILED", "ERROR", "CANCELLED"}:
+            if not status:
+                time.sleep(poll_s)
+                print("waiting for experiment to appear...")
+                continue
+
+            s = status.upper()
+            if s in {"COMPLETED"}:
+                return exp  # type: ignore[return-value]
+            if s in {"FAILED", "ERROR", "CANCELLED"}:
                 raise Exception(f"Experiment {experiment_id} failed: {status}")
-            else:
-                if last is None:
-                    print("waiting for experiment to appear...")
-            last = status
+
             time.sleep(poll_s)
+
         raise TimeoutError(
             f"Experiment {experiment_id} not terminal within {timeout_s}s (last status={last})"
         )

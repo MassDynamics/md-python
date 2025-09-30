@@ -134,7 +134,7 @@ class Datasets:
         dataset_id: str,
         poll_s: int = 5,
         timeout_s: int = 1800,
-    ) -> Dict[str, Any]:
+    ) -> Dataset:
         """Poll the dataset until it reaches a terminal state using list_by_experiment.
 
         Returns the raw dataset dict when terminal, or raises TimeoutError on timeout.
@@ -173,7 +173,10 @@ class Datasets:
         3) First dataset if any
         """
         datasets = self.list_by_experiment(experiment_id=experiment_id)
-        experiment_name = self._client.experiments.get_by_id(experiment_id).name
+        exp = self._client.experiments.get_by_id(experiment_id)
+        if exp is None:
+            raise ValueError(f"Experiment {experiment_id} not found")
+        experiment_name = exp.name
 
         if not datasets:
             raise ValueError(f"No datasets found for experiment {experiment_id}")

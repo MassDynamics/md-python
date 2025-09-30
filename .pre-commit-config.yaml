@@ -1,14 +1,22 @@
 repos:
-- repo: https://github.com/kynan/nbstripout
-  rev: 0.7.1
-  hooks:
-  - id: nbstripout
-- repo: https://github.com/psf/black
-  rev: 24.10.0
-  hooks:
-    - id: black
-      additional_dependencies: ["black[jupyter]"]
-- repo: https://github.com/pycqa/isort
-  rev: 5.13.2
-  hooks:
-    - id: isort
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.7.1
+    hooks:
+    - id: nbstripout
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        additional_dependencies: ["black[jupyter]"]
+  - repo: https://github.com/pycqa/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic>=2.0.0
+          - types-requests
+        files: ^src/md_python/

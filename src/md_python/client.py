@@ -22,9 +22,16 @@ class MDClient:
 
     def __init__(self, api_token: Optional[str] = None, base_url: Optional[str] = None):
 
-        self.base_url = base_url or os.getenv("MD_API_BASE_URL")
+        base = base_url or os.getenv("MD_API_BASE_URL")
+        token = api_token or os.getenv("MD_AUTH_TOKEN")
 
-        self.api_token = api_token or os.getenv("MD_AUTH_TOKEN")
+        if not base:
+            raise ValueError("MD_API_BASE_URL must be set or passed as base_url")
+        if not token:
+            raise ValueError("MD_AUTH_TOKEN must be set or passed as api_token")
+
+        self.base_url: str = base
+        self.api_token: str = token
 
         # Nested resource structure
         self.health = Health(self)

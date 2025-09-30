@@ -246,32 +246,26 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         if self.filter_values_criteria is not None:
             if not isinstance(self.filter_values_criteria, dict):
                 raise ValueError("filter_values_criteria must be a dictionary")
-            if self.filter_values_criteria.get("method") not in ["percentage", "count"]:
+
+            crit = self.filter_values_criteria
+            method = crit.get("method")
+
+            if method not in ["percentage", "count"]:
                 raise ValueError(
                     "filter_values_criteria method must be one of: percentage, count"
                 )
-            elif self.filter_values_criteria.get("method") == "percentage":
-                if (
-                    self.filter_values_criteria.get("filter_threshold_percentage")
-                    is not None
-                    and self.filter_values_criteria.get("filter_threshold_percentage")
-                    < 0
-                    or self.filter_values_criteria.get("filter_threshold_percentage")
-                    > 1
-                ):
+            elif method == "percentage":
+                pct = crit.get("filter_threshold_percentage")
+                if pct is not None and (pct < 0 or pct > 1):
                     raise ValueError(
                         "filter_values_criteria filter_threshold_percentage must be between 0 and 1"
                     )
-            elif self.filter_values_criteria.get("method") == "count":
-                if (
-                    self.filter_values_criteria.get("filter_threshold_count")
-                    is not None
-                    and self.filter_values_criteria.get("filter_threshold_count") < 0
-                ):
+            elif method == "count":
+                cnt = crit.get("filter_threshold_count")
+                if cnt is not None and cnt < 0:
                     raise ValueError(
                         "filter_values_criteria filter_threshold_count must be greater than 0"
                     )
-        else:
             raise ValueError("filter_values_criteria must be a dictionary")
 
         if self.control_variables is not None:
