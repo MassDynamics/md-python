@@ -121,6 +121,6 @@ from md_python import MDClient
 
 client = MDClient(
     api_token="your_api_token",
-    base_url="https://dev.massdynamics.com/api"
+    base_url="https://xxx.massdynamics.com/api"
 )
 ```
