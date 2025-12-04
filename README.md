@@ -114,13 +114,13 @@ isort .
 
 ### Using Custom Base URL
 
-When developing or testing against dev, you can specify a custom base URL:
+When developing or testing against an environment, you can specify a custom base URL:
 
 ```python
 from md_python import MDClient
 
 client = MDClient(
     api_token="your_api_token",
-    base_url="https://xxx.massdynamics.com/api"
+    base_url="https://xxx.massdynamics-example-installation.com/api"
 )
 ```
