@@ -19,13 +19,14 @@ class Experiment:
 
     name: str
     source: str
-    s3_bucket: str
-    filenames: List[str]
     id: Optional[UUID] = None
     description: Optional[str] = None
     experiment_design: Optional[ExperimentDesign] = None
     labelling_method: Optional[str] = None
+    s3_bucket: Optional[str] = None
     s3_prefix: Optional[str] = None
+    filenames: Optional[List[str]] = None
+    file_location: Optional[str] = None
     sample_metadata: Optional[SampleMetadata] = None
     created_at: Optional[datetime] = None
     status: Optional[str] = None
@@ -83,9 +84,10 @@ class Experiment:
             description=data.get("description"),
             labelling_method=data.get("labelling_method"),
             source=data.get("source", ""),
-            s3_bucket=data.get("s3_bucket", ""),
+            s3_bucket=data.get("s3_bucket") if data.get("s3_bucket") is not None else "",
             s3_prefix=data.get("s3_prefix"),
-            filenames=data.get("filenames", []),
+            filenames=data.get("filenames") if data.get("filenames") is not None else [],
+            file_location=data.get("file_location"),
             experiment_design=(
                 ExperimentDesign(data=data.get("experiment_design", []))
                 if data.get("experiment_design") is not None

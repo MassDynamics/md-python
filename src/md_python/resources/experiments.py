@@ -2,8 +2,11 @@
 Experiments resource for the MD Python client
 """
 
+import os
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+import requests
 
 from ..models import Experiment, SampleMetadata
 
@@ -17,31 +20,79 @@ class Experiments:
     def __init__(self, client: "MDClient"):
         self._client = client
 
+    def _validate_create_experiment(self, experiment: Experiment) -> None:
+        """Validate experiment data before creation
+
+        Args:
+            experiment: Experiment object to validate
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if not experiment.file_location and not experiment.s3_bucket:
+            raise ValueError(
+                "Either file_location or s3_bucket must be provided to create an experiment"
+            )
+
+        if experiment.file_location and not experiment.filenames:
+            raise ValueError(
+                "filenames must be provided when using file_location"
+            )
+
+    def _upload_files(self, uploads: List[Dict[str, str]], file_location: str) -> None:
+        """Upload files to presigned URLs
+
+        Args:
+            uploads: List of upload dictionaries containing filename and url
+            file_location: Local directory path where files are located
+        """
+        for upload in uploads:
+            filename = upload["filename"]
+            url = upload["url"]
+            file_path = os.path.join(file_location, filename)
+
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File not found: {file_path}")
+
+            with open(file_path, "rb") as f:
+                upload_response = requests.put(url, data=f)
+
+            if upload_response.status_code not in [200, 204]:
+                raise Exception(
+                    f"Failed to upload {filename}: {upload_response.status_code} - {upload_response.text}"
+                )
+
     def create(self, experiment: Experiment) -> str:
         """Create a new experiment using Experiment model"""
 
-        # Prepare the request payload
-        payload = {
-            "experiment": {
-                "name": experiment.name,
-                "description": experiment.description,
-                "experiment_design": (
-                    experiment.experiment_design.data
-                    if experiment.experiment_design
-                    else None
-                ),
-                "labelling_method": experiment.labelling_method,
-                "source": experiment.source,
-                "s3_bucket": experiment.s3_bucket,
-                "s3_prefix": experiment.s3_prefix,
-                "filenames": experiment.filenames,
-                "sample_metadata": (
-                    experiment.sample_metadata.data
-                    if experiment.sample_metadata
-                    else None
-                ),
-            }
+        self._validate_create_experiment(experiment)
+
+        experiment_payload: Dict[str, Any] = {
+            "name": experiment.name,
+            "description": experiment.description,
+            "experiment_design": (
+                experiment.experiment_design.data
+                if experiment.experiment_design
+                else None
+            ),
+            "labelling_method": experiment.labelling_method,
+            "source": experiment.source,
+            "sample_metadata": (
+                experiment.sample_metadata.data
+                if experiment.sample_metadata
+                else None
+            ),
         }
+
+        if experiment.file_location:
+            experiment_payload["file_location"] = experiment.file_location
+            experiment_payload["filenames"] = experiment.filenames
+        else:
+            experiment_payload["s3_bucket"] = experiment.s3_bucket
+            experiment_payload["s3_prefix"] = experiment.s3_prefix
+            experiment_payload["filenames"] = experiment.filenames
+
+        payload = {"experiment": experiment_payload}
 
         # Make the API call
         response = self._client._make_request(
@@ -53,7 +104,12 @@ class Experiments:
 
         if response.status_code == 200 or response.status_code == 201:
             response_data = response.json()
-            return str(response_data["id"])
+            experiment_id = str(response_data["id"])
+
+            if "uploads" in response_data and experiment.file_location:
+                self._upload_files(response_data["uploads"], experiment.file_location)
+
+            return experiment_id
         else:
             raise Exception(
                 f"Failed to create experiment: {response.status_code} - {response.text}"
@@ -70,7 +126,6 @@ class Experiments:
         if response.status_code == 200:
             experiment_data = response.json()
 
-            # Convert the API response to Experiment object
             return Experiment.from_json(experiment_data)
         else:
             raise Exception(
