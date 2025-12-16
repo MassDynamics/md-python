@@ -180,10 +180,11 @@ class TestExperiments:
         assert payload["sample_metadata"] is None
 
     @patch("md_python.resources.experiments.requests.put")
+    @patch("md_python.resources.experiments.os.path.getsize")
     @patch("md_python.resources.experiments.os.path.exists")
     @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
     def test_create_with_file_location_and_uploads(
-        self, mock_file, mock_exists, mock_requests_put, experiments_resource, mock_client
+        self, mock_file, mock_exists, mock_getsize, mock_requests_put, experiments_resource, mock_client
     ):
         experiment = Experiment(
             name="File Upload Experiment",
@@ -215,6 +216,7 @@ class TestExperiments:
         workflow_response.status_code = 200
 
         mock_exists.return_value = True
+        mock_getsize.side_effect = [1024, 2048]
         mock_upload_response = Mock()
         mock_upload_response.status_code = 200
         mock_requests_put.return_value = mock_upload_response
@@ -233,6 +235,7 @@ class TestExperiments:
         payload = create_call[1]["json"]["experiment"]
         assert payload["file_location"] == "/path/to/files"
         assert payload["filenames"] == ["file1.txt", "file2.txt"]
+        assert payload["file_sizes"] == [1024, 2048]
         assert "s3_bucket" not in payload
         assert "s3_prefix" not in payload
 
@@ -241,7 +244,83 @@ class TestExperiments:
         assert workflow_call[1]["endpoint"] == f"/experiments/{experiment_id}/start_workflow"
 
         assert mock_requests_put.call_count == 2
+        assert mock_exists.call_count == 4
+        assert mock_getsize.call_count == 2
+
+    @patch("md_python.resources.experiments.requests.put")
+    @patch("md_python.resources.experiments.os.path.getsize")
+    @patch("md_python.resources.experiments.os.path.exists")
+    @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
+    def test_create_with_multipart_upload(
+        self, mock_file, mock_exists, mock_getsize, mock_requests_put, experiments_resource, mock_client
+    ):
+        experiment = Experiment(
+            name="Multipart Upload Experiment",
+            source="test_source",
+            file_location="/path/to/files",
+            filenames=["large_file.d"],
+        )
+
+        experiment_id = "075296f0-9d6a-4bf0-8dbb-80074a255359"
+        create_response = Mock()
+        create_response.status_code = 201
+        create_response.json.return_value = {
+            "id": experiment_id,
+            "uploads": [
+                {
+                    "filename": "large_file.d",
+                    "mode": "multipart",
+                    "upload_session_id": "2~abc123def456ghi789",
+                    "parts": [
+                        {
+                            "url": "https://test-bucket.s3.amazonaws.com/upload/large_file.d?partNumber=1",
+                            "part_number": 1,
+                        },
+                        {
+                            "url": "https://test-bucket.s3.amazonaws.com/upload/large_file.d?partNumber=2",
+                            "part_number": 2,
+                        },
+                    ],
+                },
+            ],
+        }
+
+        workflow_response = Mock()
+        workflow_response.status_code = 200
+        complete_response = Mock()
+        complete_response.status_code = 200
+
+        mock_exists.return_value = True
+        mock_getsize.return_value = 1000000
+        mock_upload_response = Mock()
+        mock_upload_response.status_code = 200
+        mock_upload_response.headers = {"ETag": '"etag123"'}
+        mock_requests_put.return_value = mock_upload_response
+
+        mock_client._make_request.side_effect = [create_response, complete_response, workflow_response]
+
+        result = experiments_resource.create(experiment)
+
+        assert result == experiment_id
+
+        assert mock_client._make_request.call_count == 3
+
+        create_call = mock_client._make_request.call_args_list[0]
+        payload = create_call[1]["json"]["experiment"]
+        assert payload["file_sizes"] == [1000000]
+
+        complete_call = mock_client._make_request.call_args_list[1]
+        assert complete_call[1]["method"] == "POST"
+        assert complete_call[1]["endpoint"] == f"/experiments/{experiment_id}/uploads/complete"
+        assert complete_call[1]["json"]["filename"] == "large_file.d"
+        assert complete_call[1]["json"]["upload_id"] == "2~abc123def456ghi789"
+
+        workflow_call = mock_client._make_request.call_args_list[2]
+        assert workflow_call[1]["endpoint"] == f"/experiments/{experiment_id}/start_workflow"
+
+        assert mock_requests_put.call_count == 2
         assert mock_exists.call_count == 2
+        assert mock_getsize.call_count == 2
 
     def test_get_by_id_success(
         self, experiments_resource, sample_experiment_response, mock_client
