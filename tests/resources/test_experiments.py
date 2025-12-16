@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
@@ -87,20 +87,16 @@ class TestExperiments:
         self, experiments_resource, sample_experiment, sample_api_response, mock_client
     ):
         """Test successful experiment creation"""
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 201
         mock_response.json.return_value = sample_api_response
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the create method
         result = experiments_resource.create(sample_experiment)
 
-        # Verify the result
         assert result == "1234567890abcdef1234567890abcdef"
 
-        # Verify the API call was made correctly
         mock_client._make_request.assert_called_once()
         call_args = mock_client._make_request.call_args
 
@@ -108,7 +104,6 @@ class TestExperiments:
         assert call_args[1]["endpoint"] == "/experiments"
         assert call_args[1]["headers"] == {"Content-Type": "application/json"}
 
-        # Verify the payload structure
         payload = call_args[1]["json"]
         assert "experiment" in payload
         assert payload["experiment"]["name"] == sample_experiment.name
@@ -130,29 +125,24 @@ class TestExperiments:
         self, experiments_resource, sample_experiment, sample_api_response, mock_client
     ):
         """Test successful experiment creation with 200 status code"""
-        # Mock the API response with 200 status
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = sample_api_response
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the create method
         result = experiments_resource.create(sample_experiment)
 
-        # Verify the result
         assert result == "1234567890abcdef1234567890abcdef"
 
     def test_create_failure(self, experiments_resource, sample_experiment, mock_client):
         """Test experiment creation failure"""
-        # Mock the API response with error
         mock_response = Mock()
         mock_response.status_code = 400
         mock_response.text = "Bad Request: Invalid experiment data"
 
         mock_client._make_request.return_value = mock_response
 
-        # Verify exception is raised
         with pytest.raises(Exception) as exc_info:
             experiments_resource.create(sample_experiment)
 
@@ -163,7 +153,6 @@ class TestExperiments:
 
     def test_create_with_minimal_experiment(self, experiments_resource, mock_client):
         """Test experiment creation with minimal required fields"""
-        # Create minimal experiment
         minimal_experiment = Experiment(
             name="Minimal Experiment",
             source="minimal_source",
@@ -171,20 +160,16 @@ class TestExperiments:
             filenames=[],
         )
 
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 201
         mock_response.json.return_value = {"id": "abcdef1234567890abcdef1234567890"}
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the create method
         result = experiments_resource.create(minimal_experiment)
 
-        # Verify the result
         assert result == "abcdef1234567890abcdef1234567890"
 
-        # Verify the payload contains only the required fields
         call_args = mock_client._make_request.call_args
         payload = call_args[1]["json"]["experiment"]
 
@@ -194,21 +179,82 @@ class TestExperiments:
         assert payload["experiment_design"] is None
         assert payload["sample_metadata"] is None
 
+    @patch("md_python.resources.experiments.requests.put")
+    @patch("md_python.resources.experiments.os.path.exists")
+    @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
+    def test_create_with_file_location_and_uploads(
+        self, mock_file, mock_exists, mock_requests_put, experiments_resource, mock_client
+    ):
+        experiment = Experiment(
+            name="File Upload Experiment",
+            source="test_source",
+            file_location="/path/to/files",
+            filenames=["file1.txt", "file2.txt"],
+        )
+
+        experiment_id = "075296f0-9d6a-4bf0-8dbb-80074a255359"
+        create_response = Mock()
+        create_response.status_code = 201
+        create_response.json.return_value = {
+            "id": experiment_id,
+            "uploads": [
+                {
+                    "filename": "file1.txt",
+                    "url": "http://example.com/upload/file1.txt",
+                    "mode": "single",
+                },
+                {
+                    "filename": "file2.txt",
+                    "url": "http://example.com/upload/file2.txt",
+                    "mode": "single",
+                },
+            ],
+        }
+
+        workflow_response = Mock()
+        workflow_response.status_code = 200
+
+        mock_exists.return_value = True
+        mock_upload_response = Mock()
+        mock_upload_response.status_code = 200
+        mock_requests_put.return_value = mock_upload_response
+
+        mock_client._make_request.side_effect = [create_response, workflow_response]
+
+        result = experiments_resource.create(experiment)
+
+        assert result == experiment_id
+
+        assert mock_client._make_request.call_count == 2
+
+        create_call = mock_client._make_request.call_args_list[0]
+        assert create_call[1]["method"] == "POST"
+        assert create_call[1]["endpoint"] == "/experiments"
+        payload = create_call[1]["json"]["experiment"]
+        assert payload["file_location"] == "/path/to/files"
+        assert payload["filenames"] == ["file1.txt", "file2.txt"]
+        assert "s3_bucket" not in payload
+        assert "s3_prefix" not in payload
+
+        workflow_call = mock_client._make_request.call_args_list[1]
+        assert workflow_call[1]["method"] == "POST"
+        assert workflow_call[1]["endpoint"] == f"/experiments/{experiment_id}/start_workflow"
+
+        assert mock_requests_put.call_count == 2
+        assert mock_exists.call_count == 2
+
     def test_get_by_id_success(
         self, experiments_resource, sample_experiment_response, mock_client
     ):
         """Test successful experiment retrieval by ID"""
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = sample_experiment_response
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the get_by_id method
         result = experiments_resource.get_by_id("1234567890abcdef1234567890abcdef")
 
-        # Verify the result is an Experiment object
         assert isinstance(result, Experiment)
         assert result.name == "Test Experiment"
         assert result.description == "A test experiment for unit testing"
@@ -219,7 +265,6 @@ class TestExperiments:
         assert result.labelling_method == "manual"
         assert result.status == "active"
 
-        # Verify experiment design metadata
         assert result.experiment_design is not None
         assert result.experiment_design.data == [
             ["condition", "replicate"],
@@ -227,7 +272,6 @@ class TestExperiments:
             ["treatment", "1"],
         ]
 
-        # Verify sample metadata
         assert result.sample_metadata is not None
         assert result.sample_metadata.data == [
             ["sample", "condition"],
@@ -235,21 +279,18 @@ class TestExperiments:
             ["sample2", "treatment"],
         ]
 
-        # Verify the API call was made correctly
         mock_client._make_request.assert_called_once_with(
             method="GET", endpoint="/experiments/1234567890abcdef1234567890abcdef"
         )
 
     def test_get_by_id_failure(self, experiments_resource, mock_client):
         """Test experiment retrieval failure"""
-        # Mock the API response with error
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.text = "Experiment not found"
 
         mock_client._make_request.return_value = mock_response
 
-        # Verify exception is raised
         with pytest.raises(Exception) as exc_info:
             experiments_resource.get_by_id("non-existent-id")
 
@@ -261,7 +302,6 @@ class TestExperiments:
         self, experiments_resource, mock_client
     ):
         """Test experiment retrieval with missing optional fields"""
-        # Mock API response with minimal data
         minimal_response = {
             "id": "fedcba0987654321fedcba0987654321",
             "name": "Minimal Experiment",
@@ -274,10 +314,8 @@ class TestExperiments:
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the get_by_id method
         result = experiments_resource.get_by_id("fedcba0987654321fedcba0987654321")
 
-        # Verify the result
         assert isinstance(result, Experiment)
         assert result.name == "Minimal Experiment"
         assert result.source == "minimal_source"
@@ -293,7 +331,6 @@ class TestExperiments:
 
     def test_get_by_id_with_complex_metadata(self, experiments_resource, mock_client):
         """Test experiment retrieval with complex metadata structures"""
-        # Mock API response with complex metadata
         complex_response = {
             "id": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
             "name": "Complex Experiment",
@@ -320,15 +357,12 @@ class TestExperiments:
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the get_by_id method
         result = experiments_resource.get_by_id("a1b2c3d4e5f67890a1b2c3d4e5f67890")
 
-        # Verify the result
         assert isinstance(result, Experiment)
         assert result.name == "Complex Experiment"
         assert result.source == "complex_source"
 
-        # Verify complex experiment design
         assert result.experiment_design is not None
         assert len(result.experiment_design.data) == 5
         assert result.experiment_design.data[0] == [
@@ -339,7 +373,6 @@ class TestExperiments:
         ]
         assert result.experiment_design.data[1] == ["S001", "control", "0h", "1"]
 
-        # Verify complex sample metadata
         assert result.sample_metadata is not None
         assert len(result.sample_metadata.data) == 5
         assert result.sample_metadata.data[0] == [
@@ -355,17 +388,14 @@ class TestExperiments:
         self, experiments_resource, sample_experiment_response, mock_client
     ):
         """Test successful experiment retrieval by name"""
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = sample_experiment_response
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the get_by_name method
         result = experiments_resource.get_by_name("Test Experiment")
 
-        # Verify the result is an Experiment object
         assert isinstance(result, Experiment)
         assert result.name == "Test Experiment"
         assert result.description == "A test experiment for unit testing"
@@ -376,7 +406,6 @@ class TestExperiments:
         assert result.labelling_method == "manual"
         assert result.status == "active"
 
-        # Verify experiment design metadata
         assert result.experiment_design is not None
         assert result.experiment_design.data == [
             ["condition", "replicate"],
@@ -384,7 +413,6 @@ class TestExperiments:
             ["treatment", "1"],
         ]
 
-        # Verify sample metadata
         assert result.sample_metadata is not None
         assert result.sample_metadata.data == [
             ["sample", "condition"],
@@ -392,21 +420,18 @@ class TestExperiments:
             ["sample2", "treatment"],
         ]
 
-        # Verify the API call was made correctly
         mock_client._make_request.assert_called_once_with(
             method="GET", endpoint="/experiments?name=Test Experiment"
         )
 
     def test_get_by_name_failure(self, experiments_resource, mock_client):
         """Test experiment retrieval by name failure"""
-        # Mock the API response with error
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.text = "Experiment not found"
 
         mock_client._make_request.return_value = mock_response
 
-        # Verify exception is raised
         with pytest.raises(Exception) as exc_info:
             experiments_resource.get_by_name("Non-existent Experiment")
 
@@ -418,7 +443,6 @@ class TestExperiments:
         self, experiments_resource, mock_client
     ):
         """Test experiment retrieval by name with special characters and spaces"""
-        # Mock API response
         special_name_response = {
             "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
             "name": "Test experiment Yansin",
@@ -434,10 +458,8 @@ class TestExperiments:
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the get_by_name method with special characters
         result = experiments_resource.get_by_name("Test experiment Yansin")
 
-        # Verify the result
         assert isinstance(result, Experiment)
         assert result.name == "Test experiment Yansin"
         assert result.description == "Experiment description"
@@ -445,14 +467,12 @@ class TestExperiments:
         assert result.source == "raw"
         assert result.status == "processing"
 
-        # Verify the API call was made with proper URL encoding
         mock_client._make_request.assert_called_once_with(
             method="GET", endpoint="/experiments?name=Test experiment Yansin"
         )
 
     def test_get_by_name_with_minimal_response(self, experiments_resource, mock_client):
         """Test experiment retrieval by name with minimal API response"""
-        # Mock API response with minimal data
         minimal_response = {
             "id": "b2c3d4e5-f6f7-8901-bcde-f23456789012",
             "name": "Minimal Experiment",
@@ -465,10 +485,8 @@ class TestExperiments:
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the get_by_name method
         result = experiments_resource.get_by_name("Minimal Experiment")
 
-        # Verify the result
         assert isinstance(result, Experiment)
         assert result.name == "Minimal Experiment"
         assert result.source == "minimal_source"
@@ -484,7 +502,6 @@ class TestExperiments:
 
     def test_get_by_name_with_empty_name(self, experiments_resource, mock_client):
         """Test experiment retrieval by name with empty string"""
-        # Mock API response
         empty_name_response = {
             "id": "c3d4e5f6-f7f8-9012-cdef-345678901234",
             "name": "",
@@ -497,22 +514,18 @@ class TestExperiments:
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the get_by_name method with empty name
         result = experiments_resource.get_by_name("")
 
-        # Verify the result
         assert isinstance(result, Experiment)
         assert result.name == ""
         assert result.source == "test_source"
 
-        # Verify the API call was made correctly
         mock_client._make_request.assert_called_once_with(
             method="GET", endpoint="/experiments?name="
         )
 
     def test_update_sample_metadata_success(self, experiments_resource, mock_client):
         """Test successful sample metadata update"""
-        # Create sample metadata for testing
         sample_metadata = SampleMetadata(
             data=[
                 ["sample_name", "dose"],
@@ -527,22 +540,18 @@ class TestExperiments:
 
         experiment_id = "9022c4b9-f929-4be2-8483-9b2dcb1e76c2"
 
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "OK"
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the update_sample_metadata method
         result = experiments_resource.update_sample_metadata(
             experiment_id=experiment_id, sample_metadata=sample_metadata
         )
 
-        # Verify the result
         assert result is True
 
-        # Verify the API call was made correctly
         mock_client._make_request.assert_called_once()
         call_args = mock_client._make_request.call_args
 
@@ -555,26 +564,22 @@ class TestExperiments:
             "accept": "application/vnd.md-v1+json",
         }
 
-        # Verify the payload structure
         payload = call_args[1]["json"]
         assert "sample_metadata" in payload
         assert payload["sample_metadata"] == sample_metadata.data
 
     def test_update_sample_metadata_failure(self, experiments_resource, mock_client):
         """Test sample metadata update failure"""
-        # Create sample metadata for testing
         sample_metadata = SampleMetadata(data=[["sample_name", "dose"], ["1", "1"]])
 
         experiment_id = "invalid-experiment-id"
 
-        # Mock the API response with error
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.text = "Experiment not found"
 
         mock_client._make_request.return_value = mock_response
 
-        # Verify exception is raised
         with pytest.raises(Exception) as exc_info:
             experiments_resource.update_sample_metadata(
                 experiment_id=experiment_id, sample_metadata=sample_metadata
@@ -588,27 +593,22 @@ class TestExperiments:
         self, experiments_resource, mock_client
     ):
         """Test sample metadata update with empty metadata"""
-        # Create empty sample metadata
         empty_metadata = SampleMetadata(data=[])
 
         experiment_id = "9022c4b9-f929-4be2-8483-9b2dcb1e76c2"
 
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "OK"
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the update_sample_metadata method
         result = experiments_resource.update_sample_metadata(
             experiment_id=experiment_id, sample_metadata=empty_metadata
         )
 
-        # Verify the result
         assert result is True
 
-        # Verify the payload contains empty metadata
         call_args = mock_client._make_request.call_args
         payload = call_args[1]["json"]
         assert payload["sample_metadata"] == []
@@ -617,7 +617,6 @@ class TestExperiments:
         self, experiments_resource, mock_client
     ):
         """Test sample metadata update with complex metadata structure"""
-        # Create complex sample metadata
         complex_metadata = SampleMetadata(
             data=[
                 [
@@ -637,22 +636,18 @@ class TestExperiments:
 
         experiment_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "OK"
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the update_sample_metadata method
         result = experiments_resource.update_sample_metadata(
             experiment_id=experiment_id, sample_metadata=complex_metadata
         )
 
-        # Verify the result
         assert result is True
 
-        # Verify the payload contains complex metadata
         call_args = mock_client._make_request.call_args
         payload = call_args[1]["json"]
         assert payload["sample_metadata"] == complex_metadata.data
@@ -670,7 +665,6 @@ class TestExperiments:
         self, experiments_resource, mock_client
     ):
         """Test sample metadata update with special characters in data"""
-        # Create metadata with special characters
         special_metadata = SampleMetadata(
             data=[
                 ["sample_name", "description", "notes"],
@@ -682,22 +676,18 @@ class TestExperiments:
 
         experiment_id = "b2c3d4e5-f6f7-8901-bcde-f23456789012"
 
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "OK"
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the update_sample_metadata method
         result = experiments_resource.update_sample_metadata(
             experiment_id=experiment_id, sample_metadata=special_metadata
         )
 
-        # Verify the result
         assert result is True
 
-        # Verify the payload contains special characters correctly
         call_args = mock_client._make_request.call_args
         payload = call_args[1]["json"]
         assert payload["sample_metadata"] == special_metadata.data
@@ -708,24 +698,20 @@ class TestExperiments:
         self, experiments_resource, mock_client
     ):
         """Test that correct headers are sent in the request"""
-        # Create sample metadata
         sample_metadata = SampleMetadata(data=[["sample_name", "dose"], ["1", "1"]])
 
         experiment_id = "test-experiment-id"
 
-        # Mock the API response
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.text = "OK"
 
         mock_client._make_request.return_value = mock_response
 
-        # Call the update_sample_metadata method
         experiments_resource.update_sample_metadata(
             experiment_id=experiment_id, sample_metadata=sample_metadata
         )
 
-        # Verify the headers are correct
         call_args = mock_client._make_request.call_args
         headers = call_args[1]["headers"]
 

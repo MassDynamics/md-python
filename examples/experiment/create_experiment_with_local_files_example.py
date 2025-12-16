@@ -52,7 +52,7 @@ def create_experiment_with_local_files_example():
 
     try:
         experiment_id = client.experiments.create(experiment)
-        print(f"Experiment created successfully!")
+        print("Experiment created successfully!")
         print(f"Experiment ID: {experiment_id}")
         print("Files have been uploaded automatically.")
     except Exception as e:

@@ -77,6 +77,7 @@ class Experiments:
             ),
             "labelling_method": experiment.labelling_method,
             "source": experiment.source,
+            "filenames": experiment.filenames,
             "sample_metadata": (
                 experiment.sample_metadata.data
                 if experiment.sample_metadata
@@ -84,17 +85,15 @@ class Experiments:
             ),
         }
 
+        # decide how we deal with files, either uploaded from local or an existing S3 bucket
         if experiment.file_location:
             experiment_payload["file_location"] = experiment.file_location
-            experiment_payload["filenames"] = experiment.filenames
         else:
             experiment_payload["s3_bucket"] = experiment.s3_bucket
             experiment_payload["s3_prefix"] = experiment.s3_prefix
-            experiment_payload["filenames"] = experiment.filenames
 
         payload = {"experiment": experiment_payload}
 
-        # Make the API call
         response = self._client._make_request(
             method="POST",
             endpoint="/experiments",
@@ -108,6 +107,12 @@ class Experiments:
 
             if "uploads" in response_data and experiment.file_location:
                 self._upload_files(response_data["uploads"], experiment.file_location)
+                print("Starting workflow")
+                response = self._client._make_request(
+                        method="POST",
+                        endpoint=f"/experiments/{experiment_id}/start_workflow",
+                        headers={"Content-Type": "application/json"},
+                    )
 
             return experiment_id
         else:
@@ -118,7 +123,6 @@ class Experiments:
     def get_by_name(self, name: str) -> Optional[Experiment]:
         """Get an experiment by its name, returns Experiment object"""
 
-        # Make the API call with name query parameter
         response = self._client._make_request(
             method="GET", endpoint=f"/experiments?name={name}"
         )
@@ -135,7 +139,6 @@ class Experiments:
     def get_by_id(self, experiment_id: str) -> Optional[Experiment]:
         """Get an experiment by its ID, returns Experiment object"""
 
-        # Make the API call
         response = self._client._make_request(
             method="GET", endpoint=f"/experiments/{experiment_id}"
         )
@@ -143,7 +146,6 @@ class Experiments:
         if response.status_code == 200:
             experiment_data = response.json()
 
-            # Convert the API response to Experiment object
             return Experiment.from_json(experiment_data)
         else:
             raise Exception(
@@ -155,10 +157,8 @@ class Experiments:
     ) -> bool:
         """Update experiment's sample metadata, returns success status"""
 
-        # Prepare the request payload
         payload = {"sample_metadata": sample_metadata.data}
 
-        # Make the API call
         response = self._client._make_request(
             method="PUT",
             endpoint=f"/experiments/{experiment_id}/sample_metadata",
