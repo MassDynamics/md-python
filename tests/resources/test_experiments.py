@@ -235,7 +235,7 @@ class TestExperiments:
         payload = create_call[1]["json"]["experiment"]
         assert payload["file_location"] == "/path/to/files"
         assert payload["filenames"] == ["file1.txt", "file2.txt"]
-        assert payload["file_sizes"] == [1024, 2048]
+        assert payload["file_sizes"] == [None, None]
         assert "s3_bucket" not in payload
         assert "s3_prefix" not in payload
 
@@ -291,7 +291,7 @@ class TestExperiments:
         complete_response.status_code = 200
 
         mock_exists.return_value = True
-        mock_getsize.return_value = 1000000
+        mock_getsize.return_value = 50_000_000
         mock_upload_response = Mock()
         mock_upload_response.status_code = 200
         mock_upload_response.headers = {"ETag": '"etag123"'}
@@ -307,7 +307,7 @@ class TestExperiments:
 
         create_call = mock_client._make_request.call_args_list[0]
         payload = create_call[1]["json"]["experiment"]
-        assert payload["file_sizes"] == [1000000]
+        assert payload["file_sizes"] == [50_000_000]
 
         complete_call = mock_client._make_request.call_args_list[1]
         assert complete_call[1]["method"] == "POST"

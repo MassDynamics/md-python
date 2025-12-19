@@ -39,15 +39,29 @@ class Experiments:
                 "filenames must be provided when using file_location"
             )
 
-    def _calculate_file_sizes(self, filenames: List[str], file_location: str) -> List[int]:
+    def _should_use_multipart(self, file_size: int) -> bool:
+        """Determine if a file should use multipart upload based on size
+
+        Args:
+            file_size: File size in bytes
+
+        Returns:
+            True if file should use multipart upload, False otherwise
+        """
+        return file_size >= 31_457_280
+
+    def _calculate_file_sizes(self, filenames: List[str], file_location: str) -> List[Optional[int]]:
         """Calculate file sizes in bytes for given filenames
+
+        Returns None for files that should use simple upload (under 30MB),
+        and the actual size for files that need multipart upload.
 
         Args:
             filenames: List of filenames to calculate sizes for
             file_location: Local directory path where files are located
 
         Returns:
-            List of file sizes in bytes
+            List of file sizes in bytes (None for files that should use simple upload)
 
         Raises:
             FileNotFoundError: If any file is not found
@@ -57,7 +71,11 @@ class Experiments:
             file_path = os.path.join(file_location, filename)
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"File not found: {file_path}")
-            file_sizes.append(os.path.getsize(file_path))
+            file_size = os.path.getsize(file_path)
+            if self._should_use_multipart(file_size):
+                file_sizes.append(file_size)
+            else:
+                file_sizes.append(None)
         return file_sizes
 
     def _upload_single_file(self, url: str, file_path: str, filename: str) -> None:
