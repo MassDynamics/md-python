@@ -129,8 +129,8 @@ class Uploads:
         """
         file_size = self._get_file_size(file_path)
         num_parts = len(parts)
-        part_size = file_size // num_parts
-        last_part_size = file_size - (part_size * (num_parts - 1))
+        base_chunk_size = file_size // num_parts
+        remainder = file_size % num_parts
 
         uploaded_parts = []
         with open(file_path, "rb") as f:
@@ -138,10 +138,8 @@ class Uploads:
                 part_number = part["part_number"]
                 url = part["url"]
 
-                if part_number == num_parts:
-                    chunk_size = last_part_size
-                else:
-                    chunk_size = part_size
+                is_last_part = part_number == num_parts
+                chunk_size = base_chunk_size + (remainder if is_last_part else 0)
 
                 chunk_data = f.read(chunk_size)
                 upload_response = requests.put(url, data=chunk_data)
