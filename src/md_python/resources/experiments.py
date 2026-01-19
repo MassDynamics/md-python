@@ -61,7 +61,7 @@ class Experiments:
         if experiment.file_location:
             experiment_payload["file_location"] = experiment.file_location
             if experiment.filenames:
-                file_sizes = self._uploads.calculate_file_sizes(
+                file_sizes = self._uploads.file_sizes_for_api(
                     experiment.filenames, experiment.file_location
                 )
                 experiment_payload["file_sizes"] = file_sizes

@@ -1,5 +1,5 @@
 """
-Upload utilities for file uploads in the MD Python client
+File upload for the MD Python client
 """
 
 import os
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class Uploads:
-    """Upload utilities for handling file uploads"""
+    """File upload for the MD Python client"""
 
     def __init__(self, client: "MDClient"):
         self._client = client
@@ -63,10 +63,10 @@ class Uploads:
         """
         return file_size >= 31_457_280
 
-    def calculate_file_sizes(
+    def file_sizes_for_api(
         self, filenames: List[str], file_location: str
     ) -> List[Optional[int]]:
-        """Calculate file sizes in bytes for given filenames
+        """Get file sizes formatted for API payload
 
         Returns None for files that should use simple upload (under 30MB),
         and the actual size for files that need multipart upload.
