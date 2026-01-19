@@ -17,6 +17,41 @@ class Uploads:
     def __init__(self, client: "MDClient"):
         self._client = client
 
+    def _get_file_path(self, file_location: str, filename: str) -> str:
+        """Construct file path from location and filename
+
+        Args:
+            file_location: Local directory path where files are located
+            filename: Name of the file
+
+        Returns:
+            Full path to the file
+        """
+        return os.path.join(file_location, filename)
+
+    def _validate_file_exists(self, file_path: str) -> None:
+        """Validate that a file exists
+
+        Args:
+            file_path: Full path to the file
+
+        Raises:
+            FileNotFoundError: If file does not exist
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+    def _get_file_size(self, file_path: str) -> int:
+        """Get file size in bytes
+
+        Args:
+            file_path: Full path to the file
+
+        Returns:
+            File size in bytes
+        """
+        return os.path.getsize(file_path)
+
     def should_use_multipart(self, file_size: int) -> bool:
         """Determine if a file should use multipart upload based on size
 
@@ -48,10 +83,9 @@ class Uploads:
         """
         file_sizes = []
         for filename in filenames:
-            file_path = os.path.join(file_location, filename)
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"File not found: {file_path}")
-            file_size = os.path.getsize(file_path)
+            file_path = self._get_file_path(file_location, filename)
+            self._validate_file_exists(file_path)
+            file_size = self._get_file_size(file_path)
             if self.should_use_multipart(file_size):
                 file_sizes.append(file_size)
             else:
@@ -93,7 +127,7 @@ class Uploads:
         Raises:
             Exception: If upload fails
         """
-        file_size = os.path.getsize(file_path)
+        file_size = self._get_file_size(file_path)
         num_parts = len(parts)
         part_size = file_size // num_parts
         last_part_size = file_size - (part_size * (num_parts - 1))
@@ -160,10 +194,8 @@ class Uploads:
         for upload in uploads:
             filename = upload["filename"]
             mode = upload.get("mode", "single")
-            file_path = os.path.join(file_location, filename)
-
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"File not found: {file_path}")
+            file_path = self._get_file_path(file_location, filename)
+            self._validate_file_exists(file_path)
 
             if mode == "multipart":
                 upload_session_id = upload["upload_session_id"]
