@@ -84,9 +84,13 @@ class Experiment:
             description=data.get("description"),
             labelling_method=data.get("labelling_method"),
             source=data.get("source", ""),
-            s3_bucket=data.get("s3_bucket") if data.get("s3_bucket") is not None else "",
+            s3_bucket=(
+                data.get("s3_bucket") if data.get("s3_bucket") is not None else ""
+            ),
             s3_prefix=data.get("s3_prefix"),
-            filenames=data.get("filenames") if data.get("filenames") is not None else [],
+            filenames=(
+                data.get("filenames") if data.get("filenames") is not None else []
+            ),
             file_location=data.get("file_location"),
             experiment_design=(
                 ExperimentDesign(data=data.get("experiment_design", []))

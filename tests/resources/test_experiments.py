@@ -179,12 +179,18 @@ class TestExperiments:
         assert payload["experiment_design"] is None
         assert payload["sample_metadata"] is None
 
-    @patch("md_python.resources.experiments.requests.put")
-    @patch("md_python.resources.experiments.os.path.getsize")
-    @patch("md_python.resources.experiments.os.path.exists")
+    @patch("md_python.uploads.requests.put")
+    @patch("md_python.uploads.os.path.getsize")
+    @patch("md_python.uploads.os.path.exists")
     @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
     def test_create_with_file_location_and_uploads(
-        self, mock_file, mock_exists, mock_getsize, mock_requests_put, experiments_resource, mock_client
+        self,
+        mock_file,
+        mock_exists,
+        mock_getsize,
+        mock_requests_put,
+        experiments_resource,
+        mock_client,
     ):
         experiment = Experiment(
             name="File Upload Experiment",
@@ -241,18 +247,27 @@ class TestExperiments:
 
         workflow_call = mock_client._make_request.call_args_list[1]
         assert workflow_call[1]["method"] == "POST"
-        assert workflow_call[1]["endpoint"] == f"/experiments/{experiment_id}/start_workflow"
+        assert (
+            workflow_call[1]["endpoint"]
+            == f"/experiments/{experiment_id}/start_workflow"
+        )
 
         assert mock_requests_put.call_count == 2
         assert mock_exists.call_count == 4
         assert mock_getsize.call_count == 2
 
-    @patch("md_python.resources.experiments.requests.put")
-    @patch("md_python.resources.experiments.os.path.getsize")
-    @patch("md_python.resources.experiments.os.path.exists")
+    @patch("md_python.uploads.requests.put")
+    @patch("md_python.uploads.os.path.getsize")
+    @patch("md_python.uploads.os.path.exists")
     @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
     def test_create_with_multipart_upload(
-        self, mock_file, mock_exists, mock_getsize, mock_requests_put, experiments_resource, mock_client
+        self,
+        mock_file,
+        mock_exists,
+        mock_getsize,
+        mock_requests_put,
+        experiments_resource,
+        mock_client,
     ):
         experiment = Experiment(
             name="Multipart Upload Experiment",
@@ -297,7 +312,11 @@ class TestExperiments:
         mock_upload_response.headers = {"ETag": '"etag123"'}
         mock_requests_put.return_value = mock_upload_response
 
-        mock_client._make_request.side_effect = [create_response, complete_response, workflow_response]
+        mock_client._make_request.side_effect = [
+            create_response,
+            complete_response,
+            workflow_response,
+        ]
 
         result = experiments_resource.create(experiment)
 
@@ -311,12 +330,18 @@ class TestExperiments:
 
         complete_call = mock_client._make_request.call_args_list[1]
         assert complete_call[1]["method"] == "POST"
-        assert complete_call[1]["endpoint"] == f"/experiments/{experiment_id}/uploads/complete"
+        assert (
+            complete_call[1]["endpoint"]
+            == f"/experiments/{experiment_id}/uploads/complete"
+        )
         assert complete_call[1]["json"]["filename"] == "large_file.d"
         assert complete_call[1]["json"]["upload_id"] == "2~abc123def456ghi789"
 
         workflow_call = mock_client._make_request.call_args_list[2]
-        assert workflow_call[1]["endpoint"] == f"/experiments/{experiment_id}/start_workflow"
+        assert (
+            workflow_call[1]["endpoint"]
+            == f"/experiments/{experiment_id}/start_workflow"
+        )
 
         assert mock_requests_put.call_count == 2
         assert mock_exists.call_count == 2
