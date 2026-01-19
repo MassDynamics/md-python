@@ -43,7 +43,7 @@ def create_experiment_with_local_files_example():
         description="Experiment description",
         experiment_design=experiment_design,
         labelling_method="lfq",
-        source="raw",
+        source="diann_tabular",
         file_location=file_location,
         filenames=[
             "HE_report.log.txt",

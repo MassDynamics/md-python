@@ -41,7 +41,7 @@ def create_experiment_example():
         description="Experiment description",
         experiment_design=experiment_design,
         labelling_method="lfq",
-        source="raw",
+        source="diann_tabular",
         s3_bucket="s3-bucket",
         s3_prefix="s3-prefix",
         filenames=[
