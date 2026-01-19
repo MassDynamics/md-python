@@ -20,7 +20,6 @@ class Datasets:
     def create(self, dataset: Dataset) -> str:
         """Create a new dataset using Dataset model"""
 
-        # Prepare the request payload
         payload = {
             "dataset": {
                 "input_dataset_ids": [
@@ -32,7 +31,6 @@ class Datasets:
             }
         }
 
-        # Make the API call
         response = self._client._make_request(
             method="POST",
             endpoint="/datasets",
@@ -54,7 +52,6 @@ class Datasets:
     def list_by_experiment(self, experiment_id: str) -> List[Dataset]:
         """Get datasets belonging to an experiment, returns list of Dataset objects"""
 
-        # Make the API call with experiment_id query parameter
         response = self._client._make_request(
             method="GET",
             endpoint=f"/datasets?experiment_id={experiment_id}",
@@ -64,7 +61,6 @@ class Datasets:
         if response.status_code == 200:
             datasets_data = response.json()
 
-            # Convert the API response to list of Dataset objects
             datasets = []
             for dataset_data in datasets_data:
                 dataset = Dataset.from_json(dataset_data)
@@ -88,7 +84,6 @@ class Datasets:
         Raises:
             Exception: If the deletion fails
         """
-        # Make the API call to delete the dataset
         response = self._client._make_request(
             method="DELETE",
             endpoint=f"/datasets/{dataset_id}",
@@ -114,7 +109,6 @@ class Datasets:
         Raises:
             Exception: If the retry fails
         """
-        # Make the API call to retry the dataset
         response = self._client._make_request(
             method="POST",
             endpoint=f"/datasets/{dataset_id}/retry",

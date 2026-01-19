@@ -61,6 +61,23 @@ class Experiment:
         return "\n".join(lines)
 
     @classmethod
+    def _parse_iso_datetime(cls, datetime_str: Optional[str]) -> Optional[datetime]:
+        """Parse ISO format datetime string from API response
+
+        Handles UTC timezone indicator 'Z' by converting to '+00:00' format
+        required by datetime.fromisoformat().
+
+        Args:
+            datetime_str: ISO format datetime string, or None
+
+        Returns:
+            Parsed datetime object, or None if input is None or not a string
+        """
+        if datetime_str is not None and isinstance(datetime_str, str):
+            return datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
+        return None
+
+    @classmethod
     def from_json(cls, data: Dict[str, Any]) -> "Experiment":
         """
         Create Experiment object from JSON response data
@@ -72,11 +89,7 @@ class Experiment:
             Experiment object with data from JSON
         """
 
-        # Extract created_at with proper type checking
-        created_at_raw = data.get("created_at")
-        created_at = None
-        if created_at_raw is not None and isinstance(created_at_raw, str):
-            created_at = datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
+        created_at = cls._parse_iso_datetime(data.get("created_at"))
 
         return cls(
             id=UUID(data.get("id")) if data.get("id") else None,

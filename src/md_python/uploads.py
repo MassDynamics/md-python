@@ -18,7 +18,7 @@ class Uploads:
         self._client = client
 
     def _get_file_path(self, file_location: str, filename: str) -> str:
-        """Construct file path from location and filename
+        """File path from location and filename
 
         Args:
             file_location: Local directory path where files are located
@@ -98,7 +98,7 @@ class Uploads:
         Args:
             url: Presigned URL for upload
             file_path: Local path to the file
-            filename: Name of the file (for error messages)
+            filename: Name of the file being uploaded
 
         Raises:
             Exception: If upload fails
@@ -119,7 +119,7 @@ class Uploads:
         Args:
             parts: List of part dictionaries containing url and part_number
             file_path: Local path to the file
-            filename: Name of the file (for error messages)
+            filename: Name of the file being uploaded
 
         Returns:
             List of part responses with ETag headers

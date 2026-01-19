@@ -46,6 +46,23 @@ class Dataset:
         return "\n".join(lines)
 
     @classmethod
+    def _parse_iso_datetime(cls, datetime_str: Optional[str]) -> Optional[datetime]:
+        """Parse ISO format datetime string from API response
+
+        Handles UTC timezone indicator 'Z' by converting to '+00:00' format
+        required by datetime.fromisoformat().
+
+        Args:
+            datetime_str: ISO format datetime string, or None
+
+        Returns:
+            Parsed datetime object, or None if input is None or not a string
+        """
+        if datetime_str is not None and isinstance(datetime_str, str):
+            return datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
+        return None
+
+    @classmethod
     def from_json(cls, data: Dict[str, Any]) -> "Dataset":
         """
         Create Dataset object from JSON response data
@@ -57,15 +74,7 @@ class Dataset:
             Dataset object with data from JSON
         """
 
-        # Extract job_run_start_time with proper type checking
-        job_run_start_time_raw = data.get("job_run_start_time")
-        job_run_start_time = None
-        if job_run_start_time_raw is not None and isinstance(
-            job_run_start_time_raw, str
-        ):
-            job_run_start_time = datetime.fromisoformat(
-                job_run_start_time_raw.replace("Z", "+00:00")
-            )
+        job_run_start_time = cls._parse_iso_datetime(data.get("job_run_start_time"))
 
         return cls(
             id=UUID(data.get("id")) if data.get("id") else None,
