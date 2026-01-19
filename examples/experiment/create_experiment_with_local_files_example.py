@@ -14,7 +14,10 @@ load_dotenv()
 def create_experiment_with_local_files_example():
     """Example of creating an experiment with local file uploads"""
 
-    client = MDClient(api_token=os.getenv("API_TOKEN"))
+    client = MDClient(
+        base_url=os.getenv("MD_API_BASE_URL"),
+        api_token=os.getenv("MD_AUTH_TOKEN"),
+    )
 
     experiment_design = ExperimentDesign(
         data=[["filename", "sample_name", "condition"], ["file.d", "sample1", "zzz"]]
