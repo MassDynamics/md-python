@@ -81,7 +81,7 @@ class Uploads:
         Raises:
             FileNotFoundError: If any file is not found
         """
-        file_sizes = []
+        file_sizes: List[Optional[int]] = []
         for filename in filenames:
             file_path = self._get_file_path(file_location, filename)
             self._validate_file_exists(file_path)
