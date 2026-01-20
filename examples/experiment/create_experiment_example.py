@@ -1,5 +1,5 @@
 """
-Example of creating an experiment using the MD Python client
+Example of creating an experiment using the MD Python client using an configured s3 bucket
 """
 
 import os
