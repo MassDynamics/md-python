@@ -27,6 +27,7 @@ class Datasets:
                 ],
                 "name": dataset.name,
                 "job_slug": dataset.job_slug,
+                "sample_names": dataset.sample_names,
                 "job_run_params": dataset.job_run_params or {},
             }
         }

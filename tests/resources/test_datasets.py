@@ -230,6 +230,28 @@ class TestDatasets:
         assert payload["job_run_params"]["array_param"] == ["item1", "item2"]
         assert payload["job_run_params"]["nested_param"]["nested_key"] == "nested_value"
 
+    def test_create_includes_sample_names_in_payload_when_present(
+        self, datasets_resource, mock_client
+    ):
+        """Payload includes sample_names when dataset has sample_names set."""
+        dataset = Dataset(
+            input_dataset_ids=[UUID("2b1a5c27-ac95-456c-b2ff-eccfb3ab3d1e")],
+            name="With samples",
+            job_slug="demo_flow",
+            job_run_params={},
+            sample_names=["s1", "s2"],
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"dataset_id": "abc123"}
+        mock_client._make_request.return_value = mock_response
+
+        datasets_resource.create(dataset)
+
+        payload = mock_client._make_request.call_args[1]["json"]["dataset"]
+        assert payload["sample_names"] == ["s1", "s2"]
+
     def test_create_with_empty_job_params(self, datasets_resource, mock_client):
         """Test dataset creation with empty job run parameters"""
         # Create dataset with empty job parameters

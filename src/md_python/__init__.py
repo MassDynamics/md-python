@@ -14,7 +14,6 @@ from .models import (
 )
 from .resources import Datasets, Experiments, Health
 
-__version__ = "0.1.0"
 __all__ = [
     "MDClient",
     "Experiment",
