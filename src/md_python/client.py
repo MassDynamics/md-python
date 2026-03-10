@@ -12,7 +12,7 @@ from .client_v2 import MDClientV2
 def MDClient(
     api_token: Optional[str] = None,
     base_url: Optional[str] = None,
-    version: str = "v1",
+    version: str = "v2",
 ) -> BaseMDClient:
     """Factory that returns the correct client for the requested API version.
 

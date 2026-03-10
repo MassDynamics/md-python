@@ -8,9 +8,9 @@ from md_python.client_v2 import MDClientV2
 
 class TestMDClientFactory:
 
-    def test_default_returns_v1(self):
+    def test_default_returns_v2(self):
         client = MDClient(api_token="tok")
-        assert isinstance(client, MDClientV1)
+        assert isinstance(client, MDClientV2)
 
     def test_explicit_v1(self):
         client = MDClient(api_token="tok", version="v1")
