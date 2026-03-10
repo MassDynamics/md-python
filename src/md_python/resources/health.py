@@ -5,13 +5,13 @@ Health check resource for the MD Python client
 from typing import TYPE_CHECKING, Any, Dict
 
 if TYPE_CHECKING:
-    from ..client import MDClient
+    from ..base_client import BaseMDClient
 
 
 class Health:
     """Health check resource"""
 
-    def __init__(self, client: "MDClient"):
+    def __init__(self, client: "BaseMDClient"):
         self._client = client
 
     def check(self) -> Dict[str, Any]:

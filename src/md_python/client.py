@@ -1,63 +1,31 @@
 """
-Main client class for the MD Python client
+MDClient factory for the MD Python client
 """
 
-import os
 from typing import Optional
 
-import requests
-from dotenv import load_dotenv
-
-from .resources import Datasets, Experiments, Health
-
-# Load environment variables from .env file
-load_dotenv()
+from .base_client import BaseMDClient
+from .client_v1 import MDClientV1
+from .client_v2 import MDClientV2
 
 
-class MDClient:
-    """Enhanced MD Client that combines simplicity with type safety"""
+def MDClient(
+    api_token: Optional[str] = None,
+    base_url: Optional[str] = None,
+    version: str = "v1",
+) -> BaseMDClient:
+    """Factory that returns the correct client for the requested API version.
 
-    base_url: str  # Default base URL
-    api_token: str
+    Args:
+        api_token: Bearer token for authentication
+        base_url: API base URL (defaults to MD_API_BASE_URL env var or production)
+        version: API version — "v1" or "v2"
 
-    def __init__(self, api_token: Optional[str] = None, base_url: Optional[str] = None):
-
-        base = base_url or os.getenv("MD_API_BASE_URL")
-        token = api_token or os.getenv("MD_AUTH_TOKEN")
-
-        if not base:
-            raise ValueError("MD_API_BASE_URL must be set or passed as base_url")
-        if not token:
-            raise ValueError("MD_AUTH_TOKEN must be set or passed as api_token")
-
-        self.base_url: str = base
-        self.api_token: str = token
-
-        # Nested resource structure
-        self.health = Health(self)
-        self.experiments = Experiments(self)
-        self.datasets = Datasets(self)
-
-    def _get_headers(self) -> dict:
-        """Get common headers for API requests"""
-        return {
-            "accept": "application/vnd.md-v1+json",
-            "Authorization": f"Bearer {self.api_token}",
-        }
-
-    def _make_request(
-        self,
-        method: str,
-        endpoint: str,
-        headers: Optional[dict] = None,
-        json: Optional[dict] = None,
-    ) -> requests.Response:
-        """Make HTTP request to the API"""
-        url = f"{self.base_url}{endpoint}"
-        request_headers = self._get_headers()
-
-        # Merge any additional headers if provided
-        if headers:
-            request_headers.update(headers)
-
-        return requests.request(method, url, headers=request_headers, json=json)
+    Returns:
+        MDClientV1 or MDClientV2
+    """
+    if version == "v1":
+        return MDClientV1(api_token=api_token, base_url=base_url)
+    if version == "v2":
+        return MDClientV2(api_token=api_token, base_url=base_url)
+    raise ValueError(f"Unsupported API version: {version}. Use 'v1' or 'v2'.")

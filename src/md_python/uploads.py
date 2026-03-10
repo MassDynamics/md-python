@@ -8,14 +8,15 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import requests
 
 if TYPE_CHECKING:
-    from .client import MDClient
+    from .base_client import BaseMDClient
 
 
 class Uploads:
     """File upload for the MD Python client"""
 
-    def __init__(self, client: "MDClient"):
+    def __init__(self, client: "BaseMDClient", resource_path: str = "/experiments"):
         self._client = client
+        self._resource_path = resource_path
 
     def _get_file_path(self, file_location: str, filename: str) -> str:
         """File path from location and filename
@@ -169,7 +170,7 @@ class Uploads:
         """
         response = self._client._make_request(
             method="POST",
-            endpoint=f"/experiments/{experiment_id}/uploads/complete",
+            endpoint=f"{self._resource_path}/{experiment_id}/uploads/complete",
             json={"filename": filename, "upload_id": upload_session_id},
             headers={"Content-Type": "application/json"},
         )

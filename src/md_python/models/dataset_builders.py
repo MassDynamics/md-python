@@ -9,7 +9,7 @@ from .dataset import Dataset
 from .metadata import SampleMetadata
 
 if TYPE_CHECKING:
-    from ..client import MDClient
+    from ..base_client import BaseMDClient
 
 
 @pydantic_dataclass
@@ -31,7 +31,7 @@ class BaseDatasetBuilder(ABC):
         """Validate input fields; subclasses must implement."""
         ...
 
-    def run(self, client: "MDClient") -> str:
+    def run(self, client: "BaseMDClient") -> str:
         """Create the dataset via the API and return the new dataset_id."""
         self.validate()
         return client.datasets.create(self.to_dataset())

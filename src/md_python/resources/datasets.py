@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from ..models import Dataset
 
 if TYPE_CHECKING:
-    from ..client import MDClient
+    from ..base_client import BaseMDClient
 
 
 class Datasets:
     """Datasets resource"""
 
-    def __init__(self, client: "MDClient"):
+    def __init__(self, client: "BaseMDClient"):
         self._client = client
 
     def create(self, dataset: Dataset) -> str:
