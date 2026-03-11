@@ -5,7 +5,7 @@ Uploads resource for the MD Python v2 client
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ...models import SampleMetadata, Upload
+from ...models import ExperimentDesign, SampleMetadata, Upload
 from ...uploads import Uploads as FileUploader
 
 if TYPE_CHECKING:
@@ -36,10 +36,18 @@ class Uploads:
         if upload.file_location and not upload.filenames:
             raise ValueError("filenames must be provided when using file_location")
 
+        if not upload.experiment_design:
+            raise ValueError("experiment_design is required")
+
+        if not upload.sample_metadata:
+            raise ValueError("sample_metadata is required")
+
         payload: Dict[str, Any] = {
             "name": upload.name,
             "source": upload.source,
             "filenames": upload.filenames,
+            "experiment_design": upload.experiment_design.data,
+            "sample_metadata": upload.sample_metadata.data,
         }
 
         if upload.file_location:
@@ -48,7 +56,8 @@ class Uploads:
                 file_sizes = self._uploader.file_sizes_for_api(
                     upload.filenames, upload.file_location
                 )
-                payload["file_sizes"] = file_sizes
+                if any(s is not None for s in file_sizes):
+                    payload["file_sizes"] = file_sizes
         else:
             payload["s3_bucket"] = upload.s3_bucket
             payload["s3_prefix"] = upload.s3_prefix

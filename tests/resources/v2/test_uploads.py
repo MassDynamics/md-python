@@ -3,8 +3,18 @@ from unittest.mock import Mock, patch
 import pytest
 
 from md_python.client_v2 import MDClientV2
-from md_python.models import SampleMetadata, Upload
+from md_python.models import ExperimentDesign, SampleMetadata, Upload
 from md_python.resources.v2.uploads import Uploads
+
+DESIGN = ExperimentDesign(data=[
+    ["filename", "sample_name", "condition"],
+    ["a.txt", "s1", "ctrl"],
+])
+
+METADATA = SampleMetadata(data=[
+    ["sample_name", "dose"],
+    ["s1", "1"],
+])
 
 
 class TestV2Uploads:
@@ -24,6 +34,8 @@ class TestV2Uploads:
             s3_bucket="my-bucket",
             s3_prefix="data/",
             filenames=["a.txt"],
+            experiment_design=DESIGN,
+            sample_metadata=METADATA,
         )
 
         mock_response = Mock()
@@ -42,6 +54,8 @@ class TestV2Uploads:
         assert payload["name"] == "S3 Upload"
         assert payload["s3_bucket"] == "my-bucket"
         assert payload["s3_prefix"] == "data/"
+        assert payload["experiment_design"] == DESIGN.data
+        assert payload["sample_metadata"] == METADATA.data
 
     def test_create_with_file_location(self, uploads, mock_client):
         upload = Upload(
@@ -49,6 +63,8 @@ class TestV2Uploads:
             source="maxquant",
             file_location="/tmp/files",
             filenames=["data.raw"],
+            experiment_design=DESIGN,
+            sample_metadata=METADATA,
         )
 
         mock_response = Mock()
@@ -61,6 +77,8 @@ class TestV2Uploads:
                 result = uploads.create(upload)
 
         assert result == "upload-456"
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert "file_sizes" not in payload
 
     def test_create_with_file_upload_triggers_workflow(self, uploads, mock_client):
         upload = Upload(
@@ -68,6 +86,8 @@ class TestV2Uploads:
             source="maxquant",
             file_location="/tmp/files",
             filenames=["data.raw"],
+            experiment_design=DESIGN,
+            sample_metadata=METADATA,
         )
 
         create_response = Mock()
@@ -108,12 +128,37 @@ class TestV2Uploads:
         with pytest.raises(ValueError, match="filenames must be provided"):
             uploads.create(upload)
 
+    def test_create_validation_missing_experiment_design(self, uploads):
+        upload = Upload(
+            name="Bad",
+            source="maxquant",
+            s3_bucket="bucket",
+            filenames=["a.txt"],
+        )
+
+        with pytest.raises(ValueError, match="experiment_design is required"):
+            uploads.create(upload)
+
+    def test_create_validation_missing_sample_metadata(self, uploads):
+        upload = Upload(
+            name="Bad",
+            source="maxquant",
+            s3_bucket="bucket",
+            filenames=["a.txt"],
+            experiment_design=DESIGN,
+        )
+
+        with pytest.raises(ValueError, match="sample_metadata is required"):
+            uploads.create(upload)
+
     def test_create_failure(self, uploads, mock_client):
         upload = Upload(
             name="Fail",
             source="maxquant",
             s3_bucket="bucket",
             filenames=["a.txt"],
+            experiment_design=DESIGN,
+            sample_metadata=METADATA,
         )
 
         mock_response = Mock()
