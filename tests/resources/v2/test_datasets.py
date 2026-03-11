@@ -87,7 +87,7 @@ class TestV2Datasets:
         with pytest.raises(Exception, match="Failed to create dataset: 400"):
             datasets.create(sample_dataset)
 
-    def test_list_by_experiment_success(self, datasets, mock_client):
+    def test_list_by_upload_success(self, datasets, mock_client):
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [
@@ -100,34 +100,34 @@ class TestV2Datasets:
         ]
         mock_client._make_request.return_value = mock_response
 
-        result = datasets.list_by_experiment("exp-1")
+        result = datasets.list_by_upload("upload-1")
 
         assert len(result) == 1
         assert isinstance(result[0], Dataset)
         assert result[0].name == "DS1"
 
         call_args = mock_client._make_request.call_args
-        assert call_args[1]["endpoint"] == "/datasets?experiment_id=exp-1"
+        assert call_args[1]["endpoint"] == "/datasets?experiment_id=upload-1"
 
-    def test_list_by_experiment_no_custom_headers(self, datasets, mock_client):
+    def test_list_by_upload_no_custom_headers(self, datasets, mock_client):
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = []
         mock_client._make_request.return_value = mock_response
 
-        datasets.list_by_experiment("exp-1")
+        datasets.list_by_upload("upload-1")
 
         call_args = mock_client._make_request.call_args
         assert "headers" not in call_args[1] or call_args[1].get("headers") is None
 
-    def test_list_by_experiment_failure(self, datasets, mock_client):
+    def test_list_by_upload_failure(self, datasets, mock_client):
         mock_response = Mock()
         mock_response.status_code = 500
         mock_response.text = "Internal error"
         mock_client._make_request.return_value = mock_response
 
         with pytest.raises(Exception, match="Failed to get datasets: 500"):
-            datasets.list_by_experiment("exp-1")
+            datasets.list_by_upload("upload-1")
 
     def test_delete_success(self, datasets, mock_client):
         mock_response = Mock()
@@ -201,10 +201,10 @@ class TestV2Datasets:
             state="COMPLETED",
             id=UUID("11111111-1111-1111-1111-111111111111"),
         )
-        mocker.patch.object(datasets, "list_by_experiment", return_value=[completed_ds])
+        mocker.patch.object(datasets, "list_by_upload", return_value=[completed_ds])
 
         result = datasets.wait_until_complete(
-            "exp-1", "11111111-1111-1111-1111-111111111111", poll_s=0, timeout_s=1
+            "upload-1", "11111111-1111-1111-1111-111111111111", poll_s=0, timeout_s=1
         )
 
         assert isinstance(result, Dataset)
@@ -218,11 +218,11 @@ class TestV2Datasets:
             state="FAILED",
             id=UUID("11111111-1111-1111-1111-111111111111"),
         )
-        mocker.patch.object(datasets, "list_by_experiment", return_value=[failed_ds])
+        mocker.patch.object(datasets, "list_by_upload", return_value=[failed_ds])
 
         with pytest.raises(Exception, match="failed"):
             datasets.wait_until_complete(
-                "exp-1", "11111111-1111-1111-1111-111111111111", poll_s=0, timeout_s=1
+                "upload-1", "11111111-1111-1111-1111-111111111111", poll_s=0, timeout_s=1
             )
 
     def test_find_initial_dataset_success(self, datasets, mock_client, mocker):
@@ -234,17 +234,17 @@ class TestV2Datasets:
             id=UUID("11111111-1111-1111-1111-111111111111"),
         )
         ds.type = "INTENSITY"
-        mocker.patch.object(datasets, "list_by_experiment", return_value=[ds])
+        mocker.patch.object(datasets, "list_by_upload", return_value=[ds])
 
-        result = datasets.find_initial_dataset("exp-1")
+        result = datasets.find_initial_dataset("upload-1")
 
         assert result is ds
 
     def test_find_initial_dataset_no_datasets(self, datasets, mock_client, mocker):
-        mocker.patch.object(datasets, "list_by_experiment", return_value=[])
+        mocker.patch.object(datasets, "list_by_upload", return_value=[])
 
         with pytest.raises(ValueError, match="No datasets found"):
-            datasets.find_initial_dataset("exp-1")
+            datasets.find_initial_dataset("upload-1")
 
     def test_find_initial_dataset_no_intensity(self, datasets, mock_client, mocker):
         ds = Dataset(
@@ -254,7 +254,7 @@ class TestV2Datasets:
             job_run_params={},
         )
         ds.type = "OTHER"
-        mocker.patch.object(datasets, "list_by_experiment", return_value=[ds])
+        mocker.patch.object(datasets, "list_by_upload", return_value=[ds])
 
         with pytest.raises(ValueError, match="No intensity dataset"):
-            datasets.find_initial_dataset("exp-1")
+            datasets.find_initial_dataset("upload-1")

@@ -14,6 +14,7 @@ from .models import (
     NormalisationImputationDataset,
     PairwiseComparisonDataset,
     SampleMetadata,
+    Upload,
 )
 from .resources import Datasets, Experiments, Health
 
@@ -23,6 +24,7 @@ __all__ = [
     "MDClientV2",
     "BaseMDClient",
     "Experiment",
+    "Upload",
     "Dataset",
     "SampleMetadata",
     "ExperimentDesign",

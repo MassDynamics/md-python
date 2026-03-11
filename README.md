@@ -32,10 +32,10 @@ The client defaults to the v2 API. For v1 usage, see [V1.md](V1.md).
 Uploads replace v1 experiments. They handle file ingestion and workflow triggering.
 
 ```python
-from md_python import Experiment, SampleMetadata
+from md_python import Upload, SampleMetadata
 
 # Create an upload from S3
-upload = Experiment(
+upload = Upload(
     name="My Upload",
     source="maxquant",
     s3_bucket="my-bucket",
@@ -45,7 +45,7 @@ upload = Experiment(
 upload_id = client.uploads.create(upload)
 
 # Create an upload from local files
-upload = Experiment(
+upload = Upload(
     name="My Upload",
     source="maxquant",
     file_location="/path/to/files",
@@ -84,11 +84,11 @@ dataset = Dataset(
 )
 dataset_id = client.datasets.create(dataset)
 
-# List datasets for an experiment
-datasets = client.datasets.list_by_experiment(experiment_id)
+# List datasets for an upload
+datasets = client.datasets.list_by_upload(upload_id)
 
 # Find the initial intensity dataset
-initial = client.datasets.find_initial_dataset(experiment_id)
+initial = client.datasets.find_initial_dataset(upload_id)
 
 # Retry a failed dataset
 client.datasets.retry(dataset_id)
@@ -100,7 +100,7 @@ client.datasets.cancel(dataset_id)
 client.datasets.delete(dataset_id)
 
 # Wait for a dataset to complete
-ds = client.datasets.wait_until_complete(experiment_id, dataset_id)
+ds = client.datasets.wait_until_complete(upload_id, dataset_id)
 ```
 
 ## Jobs

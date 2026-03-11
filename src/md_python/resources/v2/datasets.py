@@ -51,11 +51,11 @@ class Datasets:
                 f"Failed to create dataset: {response.status_code} - {response.text}"
             )
 
-    def list_by_experiment(self, experiment_id: str) -> List[Dataset]:
-        """Get datasets belonging to an experiment"""
+    def list_by_upload(self, upload_id: str) -> List[Dataset]:
+        """Get datasets belonging to an upload"""
         response = self._client._make_request(
             method="GET",
-            endpoint=f"/datasets?experiment_id={experiment_id}",
+            endpoint=f"/datasets?experiment_id={upload_id}",
         )
 
         if response.status_code == 200:
@@ -109,7 +109,7 @@ class Datasets:
 
     def wait_until_complete(
         self,
-        experiment_id: str,
+        upload_id: str,
         dataset_id: str,
         poll_s: int = 5,
         timeout_s: int = 1800,
@@ -118,7 +118,7 @@ class Datasets:
         end = time.monotonic() + timeout_s
         last: Optional[str] = None
         while time.monotonic() < end:
-            dds = self.list_by_experiment(experiment_id=experiment_id)
+            dds = self.list_by_upload(upload_id=upload_id)
             ds = next((d for d in dds if str(d.id) == dataset_id), None)
             if ds:
                 state = ds.state
@@ -139,22 +139,22 @@ class Datasets:
             f"Dataset {dataset_id} not terminal within {timeout_s}s (last state={last})"
         )
 
-    def find_initial_dataset(self, experiment_id: str) -> Optional[Dataset]:
-        """Return the initial dataset for an experiment."""
-        datasets = self.list_by_experiment(experiment_id=experiment_id)
+    def find_initial_dataset(self, upload_id: str) -> Optional[Dataset]:
+        """Return the initial dataset for an upload."""
+        datasets = self.list_by_upload(upload_id=upload_id)
 
         if not datasets:
-            raise ValueError(f"No datasets found for experiment {experiment_id}")
+            raise ValueError(f"No datasets found for upload {upload_id}")
 
         intensity = [d for d in datasets if getattr(d, "type", None) == "INTENSITY"]
         if not intensity:
             raise ValueError(
-                f"No intensity dataset found for experiment {experiment_id}"
+                f"No intensity dataset found for upload {upload_id}"
             )
 
         if len(intensity) == 1:
             return intensity[0]
 
         raise ValueError(
-            f"Multiple intensity datasets found for experiment {experiment_id}"
+            f"Multiple intensity datasets found for upload {upload_id}"
         )

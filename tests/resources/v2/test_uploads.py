@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from md_python.client_v2 import MDClientV2
-from md_python.models import Experiment, SampleMetadata
+from md_python.models import SampleMetadata, Upload
 from md_python.resources.v2.uploads import Uploads
 
 
@@ -18,7 +18,7 @@ class TestV2Uploads:
         return Uploads(mock_client)
 
     def test_create_with_s3_bucket(self, uploads, mock_client):
-        exp = Experiment(
+        upload = Upload(
             name="S3 Upload",
             source="maxquant",
             s3_bucket="my-bucket",
@@ -31,7 +31,7 @@ class TestV2Uploads:
         mock_response.json.return_value = {"id": "upload-123"}
         mock_client._make_request.return_value = mock_response
 
-        result = uploads.create(exp)
+        result = uploads.create(upload)
 
         assert result == "upload-123"
         call_args = mock_client._make_request.call_args
@@ -44,7 +44,7 @@ class TestV2Uploads:
         assert payload["s3_prefix"] == "data/"
 
     def test_create_with_file_location(self, uploads, mock_client):
-        exp = Experiment(
+        upload = Upload(
             name="Local Upload",
             source="maxquant",
             file_location="/tmp/files",
@@ -58,12 +58,12 @@ class TestV2Uploads:
 
         with patch.object(uploads._uploader, "file_sizes_for_api", return_value=[None]):
             with patch.object(uploads._uploader, "upload_files"):
-                result = uploads.create(exp)
+                result = uploads.create(upload)
 
         assert result == "upload-456"
 
     def test_create_with_file_upload_triggers_workflow(self, uploads, mock_client):
-        exp = Experiment(
+        upload = Upload(
             name="Upload With Files",
             source="maxquant",
             file_location="/tmp/files",
@@ -84,7 +84,7 @@ class TestV2Uploads:
 
         with patch.object(uploads._uploader, "file_sizes_for_api", return_value=[None]):
             with patch.object(uploads._uploader, "upload_files"):
-                uploads.create(exp)
+                uploads.create(upload)
 
         assert mock_client._make_request.call_count == 2
         workflow_call = mock_client._make_request.call_args_list[1]
@@ -92,13 +92,13 @@ class TestV2Uploads:
         assert workflow_call[1]["endpoint"] == "/uploads/upload-789/start_workflow"
 
     def test_create_validation_no_source(self, uploads):
-        exp = Experiment(name="Bad", source="maxquant", filenames=[])
+        upload = Upload(name="Bad", source="maxquant", filenames=[])
 
         with pytest.raises(ValueError, match="file_location or s3_bucket"):
-            uploads.create(exp)
+            uploads.create(upload)
 
     def test_create_validation_file_location_without_filenames(self, uploads):
-        exp = Experiment(
+        upload = Upload(
             name="Bad",
             source="maxquant",
             file_location="/tmp",
@@ -106,10 +106,10 @@ class TestV2Uploads:
         )
 
         with pytest.raises(ValueError, match="filenames must be provided"):
-            uploads.create(exp)
+            uploads.create(upload)
 
     def test_create_failure(self, uploads, mock_client):
-        exp = Experiment(
+        upload = Upload(
             name="Fail",
             source="maxquant",
             s3_bucket="bucket",
@@ -122,7 +122,7 @@ class TestV2Uploads:
         mock_client._make_request.return_value = mock_response
 
         with pytest.raises(Exception, match="Failed to create upload: 422"):
-            uploads.create(exp)
+            uploads.create(upload)
 
     def test_get_by_id_success(self, uploads, mock_client):
         mock_response = Mock()
@@ -136,7 +136,7 @@ class TestV2Uploads:
 
         result = uploads.get_by_id("upload-1")
 
-        assert isinstance(result, Experiment)
+        assert isinstance(result, Upload)
         assert result.name == "Test Upload"
 
         call_args = mock_client._make_request.call_args
@@ -162,7 +162,7 @@ class TestV2Uploads:
 
         result = uploads.get_by_name("Named Upload")
 
-        assert isinstance(result, Experiment)
+        assert isinstance(result, Upload)
         assert result.name == "Named Upload"
 
         call_args = mock_client._make_request.call_args
@@ -204,16 +204,16 @@ class TestV2Uploads:
             uploads.update_sample_metadata("upload-1", sm)
 
     def test_wait_until_complete_success(self, uploads, mock_client, mocker):
-        exp = Experiment(name="x", source="s", s3_bucket="b", filenames=[], status="COMPLETED")
-        mocker.patch.object(uploads, "get_by_id", return_value=exp)
+        upload = Upload(name="x", source="s", s3_bucket="b", filenames=[], status="COMPLETED")
+        mocker.patch.object(uploads, "get_by_id", return_value=upload)
 
         result = uploads.wait_until_complete("upload-1", poll_s=0, timeout_s=1)
 
-        assert isinstance(result, Experiment)
+        assert isinstance(result, Upload)
 
     def test_wait_until_complete_failure(self, uploads, mock_client, mocker):
-        exp = Experiment(name="x", source="s", s3_bucket="b", filenames=[], status="FAILED")
-        mocker.patch.object(uploads, "get_by_id", return_value=exp)
+        upload = Upload(name="x", source="s", s3_bucket="b", filenames=[], status="FAILED")
+        mocker.patch.object(uploads, "get_by_id", return_value=upload)
 
         with pytest.raises(Exception, match="failed"):
             uploads.wait_until_complete("upload-1", poll_s=0, timeout_s=1)

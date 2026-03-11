@@ -5,7 +5,7 @@ Uploads resource for the MD Python v2 client
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ...models import Experiment, SampleMetadata
+from ...models import SampleMetadata, Upload
 from ...uploads import Uploads as FileUploader
 
 if TYPE_CHECKING:
@@ -19,39 +19,39 @@ class Uploads:
         self._client = client
         self._uploader = FileUploader(client, resource_path="/uploads")
 
-    def create(self, experiment: Experiment) -> str:
+    def create(self, upload: Upload) -> str:
         """Create a new upload and optionally upload files.
 
         Args:
-            experiment: Experiment object with upload configuration
+            upload: Upload object with upload configuration
 
         Returns:
-            Upload ID (experiment UUID)
+            Upload ID
         """
-        if not experiment.file_location and not experiment.s3_bucket:
+        if not upload.file_location and not upload.s3_bucket:
             raise ValueError(
                 "Either file_location or s3_bucket must be provided"
             )
 
-        if experiment.file_location and not experiment.filenames:
+        if upload.file_location and not upload.filenames:
             raise ValueError("filenames must be provided when using file_location")
 
         payload: Dict[str, Any] = {
-            "name": experiment.name,
-            "source": experiment.source,
-            "filenames": experiment.filenames,
+            "name": upload.name,
+            "source": upload.source,
+            "filenames": upload.filenames,
         }
 
-        if experiment.file_location:
-            payload["file_location"] = experiment.file_location
-            if experiment.filenames:
+        if upload.file_location:
+            payload["file_location"] = upload.file_location
+            if upload.filenames:
                 file_sizes = self._uploader.file_sizes_for_api(
-                    experiment.filenames, experiment.file_location
+                    upload.filenames, upload.file_location
                 )
                 payload["file_sizes"] = file_sizes
         else:
-            payload["s3_bucket"] = experiment.s3_bucket
-            payload["s3_prefix"] = experiment.s3_prefix
+            payload["s3_bucket"] = upload.s3_bucket
+            payload["s3_prefix"] = upload.s3_prefix
 
         response = self._client._make_request(
             method="POST",
@@ -68,9 +68,9 @@ class Uploads:
         response_data = response.json()
         upload_id = str(response_data["id"])
 
-        if "uploads" in response_data and experiment.file_location:
+        if "uploads" in response_data and upload.file_location:
             self._uploader.upload_files(
-                response_data["uploads"], experiment.file_location, upload_id
+                response_data["uploads"], upload.file_location, upload_id
             )
             self._client._make_request(
                 method="POST",
@@ -80,27 +80,27 @@ class Uploads:
 
         return upload_id
 
-    def get_by_id(self, upload_id: str) -> Optional[Experiment]:
+    def get_by_id(self, upload_id: str) -> Optional[Upload]:
         """Get an upload by its ID"""
         response = self._client._make_request(
             method="GET", endpoint=f"/uploads/{upload_id}"
         )
 
         if response.status_code == 200:
-            return Experiment.from_json(response.json())
+            return Upload.from_json(response.json())
         else:
             raise Exception(
                 f"Failed to get upload: {response.status_code} - {response.text}"
             )
 
-    def get_by_name(self, name: str) -> Optional[Experiment]:
+    def get_by_name(self, name: str) -> Optional[Upload]:
         """Get an upload by its name"""
         response = self._client._make_request(
             method="GET", endpoint=f"/uploads?name={name}"
         )
 
         if response.status_code == 200:
-            return Experiment.from_json(response.json())
+            return Upload.from_json(response.json())
         else:
             raise Exception(
                 f"Failed to get upload by name: {response.status_code} - {response.text}"
@@ -126,13 +126,13 @@ class Uploads:
 
     def wait_until_complete(
         self, upload_id: str, poll_s: int = 5, timeout_s: int = 1800
-    ) -> Experiment:
+    ) -> Upload:
         """Poll the upload until it reaches a terminal state."""
         end = time.monotonic() + timeout_s
         last: Optional[str] = None
         while time.monotonic() < end:
-            exp = self.get_by_id(upload_id)
-            status = getattr(exp, "status", None)
+            upload = self.get_by_id(upload_id)
+            status = getattr(upload, "status", None)
             if status != last:
                 print(f"status={status}")
                 last = status
@@ -143,7 +143,7 @@ class Uploads:
 
             s = status.upper()
             if s in {"COMPLETED"}:
-                return exp  # type: ignore[return-value]
+                return upload  # type: ignore[return-value]
             if s in {"FAILED", "ERROR", "CANCELLED"}:
                 raise Exception(f"Upload {upload_id} failed: {status}")
 
