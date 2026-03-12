@@ -6,15 +6,19 @@ from md_python.client_v2 import MDClientV2
 from md_python.models import ExperimentDesign, SampleMetadata, Upload
 from md_python.resources.v2.uploads import Uploads
 
-DESIGN = ExperimentDesign(data=[
-    ["filename", "sample_name", "condition"],
-    ["a.txt", "s1", "ctrl"],
-])
+DESIGN = ExperimentDesign(
+    data=[
+        ["filename", "sample_name", "condition"],
+        ["a.txt", "s1", "ctrl"],
+    ]
+)
 
-METADATA = SampleMetadata(data=[
-    ["sample_name", "dose"],
-    ["s1", "1"],
-])
+METADATA = SampleMetadata(
+    data=[
+        ["sample_name", "dose"],
+        ["s1", "1"],
+    ]
+)
 
 
 class TestV2Uploads:
@@ -249,7 +253,9 @@ class TestV2Uploads:
             uploads.update_sample_metadata("upload-1", sm)
 
     def test_wait_until_complete_success(self, uploads, mock_client, mocker):
-        upload = Upload(name="x", source="s", s3_bucket="b", filenames=[], status="COMPLETED")
+        upload = Upload(
+            name="x", source="s", s3_bucket="b", filenames=[], status="COMPLETED"
+        )
         mocker.patch.object(uploads, "get_by_id", return_value=upload)
 
         result = uploads.wait_until_complete("upload-1", poll_s=0, timeout_s=1)
@@ -257,7 +263,9 @@ class TestV2Uploads:
         assert isinstance(result, Upload)
 
     def test_wait_until_complete_failure(self, uploads, mock_client, mocker):
-        upload = Upload(name="x", source="s", s3_bucket="b", filenames=[], status="FAILED")
+        upload = Upload(
+            name="x", source="s", s3_bucket="b", filenames=[], status="FAILED"
+        )
         mocker.patch.object(uploads, "get_by_id", return_value=upload)
 
         with pytest.raises(Exception, match="failed"):

@@ -31,7 +31,9 @@ class TestMDClientFactory:
         assert isinstance(v2, BaseMDClient)
 
     def test_custom_base_url_forwarded(self):
-        client = MDClient(api_token="tok", base_url="https://custom.com/api", version="v2")
+        client = MDClient(
+            api_token="tok", base_url="https://custom.com/api", version="v2"
+        )
         assert client.base_url == "https://custom.com/api"
 
 

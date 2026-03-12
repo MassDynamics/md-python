@@ -168,7 +168,7 @@ class Datasets:
         3) First dataset if any
         """
         datasets = self.list_by_experiment(experiment_id=experiment_id)
-        exp = self._client.experiments.get_by_id(experiment_id)
+        exp = self._client.experiments.get_by_id(experiment_id)  # type: ignore[attr-defined]
         if exp is None:
             raise ValueError(f"Experiment {experiment_id} not found")
         experiment_name = exp.name

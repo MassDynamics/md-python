@@ -29,9 +29,7 @@ class Uploads:
             Upload ID
         """
         if not upload.file_location and not upload.s3_bucket:
-            raise ValueError(
-                "Either file_location or s3_bucket must be provided"
-            )
+            raise ValueError("Either file_location or s3_bucket must be provided")
 
         if upload.file_location and not upload.filenames:
             raise ValueError("filenames must be provided when using file_location")

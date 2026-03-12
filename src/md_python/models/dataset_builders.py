@@ -34,7 +34,7 @@ class BaseDatasetBuilder(ABC):
     def run(self, client: "BaseMDClient") -> str:
         """Create the dataset via the API and return the new dataset_id."""
         self.validate()
-        return client.datasets.create(self.to_dataset())
+        return client.datasets.create(self.to_dataset())  # type: ignore[attr-defined, no-any-return]
 
 
 @pydantic_dataclass

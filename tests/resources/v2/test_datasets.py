@@ -222,7 +222,10 @@ class TestV2Datasets:
 
         with pytest.raises(Exception, match="failed"):
             datasets.wait_until_complete(
-                "upload-1", "11111111-1111-1111-1111-111111111111", poll_s=0, timeout_s=1
+                "upload-1",
+                "11111111-1111-1111-1111-111111111111",
+                poll_s=0,
+                timeout_s=1,
             )
 
     def test_find_initial_dataset_success(self, datasets, mock_client, mocker):

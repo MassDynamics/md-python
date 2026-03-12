@@ -148,13 +148,9 @@ class Datasets:
 
         intensity = [d for d in datasets if getattr(d, "type", None) == "INTENSITY"]
         if not intensity:
-            raise ValueError(
-                f"No intensity dataset found for upload {upload_id}"
-            )
+            raise ValueError(f"No intensity dataset found for upload {upload_id}")
 
         if len(intensity) == 1:
             return intensity[0]
 
-        raise ValueError(
-            f"Multiple intensity datasets found for upload {upload_id}"
-        )
+        raise ValueError(f"Multiple intensity datasets found for upload {upload_id}")
