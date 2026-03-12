@@ -9,13 +9,13 @@ from ..models import Experiment, SampleMetadata
 from ..uploads import Uploads
 
 if TYPE_CHECKING:
-    from ..client import MDClient
+    from ..base_client import BaseMDClient
 
 
 class Experiments:
     """Experiments resource"""
 
-    def __init__(self, client: "MDClient"):
+    def __init__(self, client: "BaseMDClient"):
         self._client = client
         self._uploads = Uploads(client)
 

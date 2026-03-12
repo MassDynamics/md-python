@@ -11,11 +11,13 @@ from .dataset_builders import (
 )
 from .experiment import Experiment
 from .metadata import ExperimentDesign, SampleMetadata
+from .upload import Upload
 
 __all__ = [
     "SampleMetadata",
     "ExperimentDesign",
     "Experiment",
+    "Upload",
     "Dataset",
     "BaseDatasetBuilder",
     "MinimalDataset",

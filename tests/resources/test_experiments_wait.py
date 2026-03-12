@@ -1,6 +1,6 @@
 import pytest
 
-from md_python.client import MDClient
+from md_python.client import MDClientV1 as MDClient
 from md_python.models import Experiment
 from md_python.resources.experiments import Experiments
 
