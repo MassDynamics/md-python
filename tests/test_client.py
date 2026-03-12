@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from md_python.client import MDClient
+from md_python.client_v1 import MDClientV1 as MDClient
 
 
 class TestMDClient:
