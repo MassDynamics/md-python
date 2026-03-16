@@ -7,7 +7,7 @@ A Python client for the Mass Dynamics API.
 ## Installation
 
 ```bash
-pip install git+https://github.com/MassDynamics/md-python.git
+pip install https://github.com/MassDynamics/md-python/archive/refs/tags/v0.2.0-20.tar.gz
 ```
 
 ## Quick Start
