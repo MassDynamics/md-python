@@ -32,7 +32,19 @@ The client defaults to the v2 API. For v1 usage, see [V1.md](V1.md).
 Uploads replace v1 experiments. They handle file ingestion and workflow triggering.
 
 ```python
-from md_python import Upload, SampleMetadata
+from md_python import Upload, ExperimentDesign, SampleMetadata
+
+experiment_design = ExperimentDesign(data=[
+    ["filename", "sample_name", "condition"],
+    ["evidence.txt", "sample1", "control"],
+    ["proteinGroups.txt", "sample2", "treated"],
+])
+
+sample_metadata = SampleMetadata(data=[
+    ["sample_name", "condition"],
+    ["sample1", "control"],
+    ["sample2", "treated"],
+])
 
 # Create an upload from S3
 upload = Upload(
@@ -41,6 +53,8 @@ upload = Upload(
     s3_bucket="my-bucket",
     s3_prefix="data/",
     filenames=["evidence.txt", "proteinGroups.txt"],
+    experiment_design=experiment_design,
+    sample_metadata=sample_metadata,
 )
 upload_id = client.uploads.create(upload)
 
@@ -50,6 +64,8 @@ upload = Upload(
     source="maxquant",
     file_location="/path/to/files",
     filenames=["evidence.txt", "proteinGroups.txt"],
+    experiment_design=experiment_design,
+    sample_metadata=sample_metadata,
 )
 upload_id = client.uploads.create(upload)
 
