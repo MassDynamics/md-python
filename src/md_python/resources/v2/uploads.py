@@ -51,11 +51,9 @@ class Uploads:
         if upload.file_location:
             payload["file_location"] = upload.file_location
             if upload.filenames:
-                file_sizes = self._uploader.file_sizes_for_api(
+                payload["file_sizes"] = self._uploader.file_sizes_for_api(
                     upload.filenames, upload.file_location
                 )
-                if any(s is not None for s in file_sizes):
-                    payload["file_sizes"] = file_sizes
         else:
             payload["s3_bucket"] = upload.s3_bucket
             payload["s3_prefix"] = upload.s3_prefix

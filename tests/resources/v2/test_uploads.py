@@ -82,7 +82,7 @@ class TestV2Uploads:
 
         assert result == "upload-456"
         payload = mock_client._make_request.call_args[1]["json"]
-        assert "file_sizes" not in payload
+        assert payload["file_sizes"] == [None]
 
     def test_create_with_file_upload_triggers_workflow(self, uploads, mock_client):
         upload = Upload(
