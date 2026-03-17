@@ -17,7 +17,7 @@ class Uploads:
 
     def __init__(self, client: "BaseMDClient"):
         self._client = client
-        self._uploader = FileUploader(client, resource_path="/uploads")
+        self._uploader = FileUploader(client, resource_path="/uploads", complete_path="/complete")
 
     def create(self, upload: Upload) -> str:
         """Create a new upload and optionally upload files.

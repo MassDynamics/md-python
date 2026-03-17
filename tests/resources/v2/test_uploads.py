@@ -77,8 +77,7 @@ class TestV2Uploads:
         mock_client._make_request.return_value = mock_response
 
         with patch.object(uploads._uploader, "file_sizes_for_api", return_value=[None]):
-            with patch.object(uploads._uploader, "upload_files"):
-                result = uploads.create(upload)
+            result = uploads.create(upload)
 
         assert result == "upload-456"
         payload = mock_client._make_request.call_args[1]["json"]

@@ -14,9 +14,10 @@ if TYPE_CHECKING:
 class Uploads:
     """File upload for the MD Python client"""
 
-    def __init__(self, client: "BaseMDClient", resource_path: str = "/experiments"):
+    def __init__(self, client: "BaseMDClient", resource_path: str = "/experiments", complete_path: str = "/uploads/complete"):
         self._client = client
         self._resource_path = resource_path
+        self._complete_path = complete_path
 
     def _get_file_path(self, file_location: str, filename: str) -> str:
         """File path from location and filename
@@ -170,7 +171,7 @@ class Uploads:
         """
         response = self._client._make_request(
             method="POST",
-            endpoint=f"{self._resource_path}/{experiment_id}/uploads/complete",
+            endpoint=f"{self._resource_path}/{experiment_id}{self._complete_path}",
             json={"filename": filename, "upload_id": upload_session_id},
             headers={"Content-Type": "application/json"},
         )
