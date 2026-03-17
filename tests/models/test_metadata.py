@@ -96,7 +96,11 @@ class TestSampleMetadata:
         )
         cols = sm.to_columns()
         assert cols["group"] == ["a", "a", "b", "c"]
-        pairs = sm.pairwise_vs_control(column="group", control="c")
+        from md_python.models.dataset_builders import PairwiseComparisonDataset
+
+        pairs = PairwiseComparisonDataset.pairwise_vs_control(
+            sm, column="group", control="c"
+        )
         assert pairs == [["a", "c"], ["b", "c"]]
 
     def test_from_csv_custom_delimiter(self):
