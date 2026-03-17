@@ -31,6 +31,8 @@ class Datasets:
                 "job_run_params": dataset.job_run_params or {},
             }
         }
+        if dataset.sample_names is not None:
+            payload["dataset"]["sample_names"] = dataset.sample_names
 
         response = self._client._make_request(
             method="POST",
@@ -72,6 +74,25 @@ class Datasets:
             raise Exception(
                 f"Failed to get datasets by experiment: {response.status_code} - {response.text}"
             )
+
+    def get_by_id(self, dataset_id: str) -> Optional[Dataset]:
+        """Get a single dataset by ID. Returns None if not found or on 404."""
+        dataset_id_str = str(dataset_id)
+        response = self._client._make_request(
+            method="GET",
+            endpoint=f"/datasets/{dataset_id_str}",
+            headers={"accept": "application/vnd.md-v1+json"},
+        )
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise Exception(
+                f"Failed to get dataset: {response.status_code} - {response.text}"
+            )
+        data = response.json()
+        if isinstance(data, dict) and "dataset" in data:
+            data = data["dataset"]
+        return Dataset.from_json(data)
 
     def delete(self, dataset_id: str) -> bool:
         """Delete a dataset by ID
@@ -130,33 +151,55 @@ class Datasets:
         poll_s: int = 5,
         timeout_s: int = 1800,
     ) -> Dataset:
-        """Poll the dataset until it reaches a terminal state using list_by_experiment.
+        """Poll the dataset until it reaches a terminal state.
 
-        Returns the raw dataset dict when terminal, or raises TimeoutError on timeout.
-        Terminal states considered: COMPLETED, FAILED, ERROR, CANCELLED.
+        Tries to fetch the dataset by ID (GET /datasets/{id}); falls back to
+        list_by_experiment if get_by_id is not available or returns 404.
+        Returns the Dataset when terminal, or raises TimeoutError on timeout.
+        Terminal states: COMPLETED, FAILED, ERROR, CANCELLED.
         """
+        experiment_id_str = str(experiment_id)
+        dataset_id_str = str(dataset_id)
         end = time.monotonic() + timeout_s
         last: Optional[str] = None
+        use_get_by_id = hasattr(self, "get_by_id")
+
         while time.monotonic() < end:
-            dds = self.list_by_experiment(experiment_id=experiment_id)
-            ds = next((d for d in dds if str(d.id) == dataset_id), None)
+            ds = None
+            if use_get_by_id:
+                try:
+                    ds = self.get_by_id(dataset_id_str)
+                except Exception:
+                    use_get_by_id = False
+            if ds is None:
+                dds = self.list_by_experiment(experiment_id=experiment_id_str)
+                ds = next(
+                    (
+                        d
+                        for d in dds
+                        if d.id is not None and str(d.id) == dataset_id_str
+                    ),
+                    None,
+                )
             if ds:
-                state = ds.state  # use dataset.state key
-                if state != last:
+                state = getattr(ds, "state", None) or getattr(ds, "status", None)
+                if state is not None and state != last:
                     print(f"state={state}")
                     last = state
 
-                if state in {"COMPLETED"}:
-                    return ds
-                elif state in {"FAILED", "ERROR", "CANCELLED"}:
-                    raise Exception(f"Dataset {dataset_id} failed: {state}")
+                if state is not None:
+                    state_upper = state.upper()
+                    if state_upper == "COMPLETED":
+                        return ds
+                    if state_upper in {"FAILED", "ERROR", "CANCELLED"}:
+                        raise Exception(f"Dataset {dataset_id_str} failed: {state}")
             else:
                 if last is None:
                     print("waiting for dataset to appear...")
             time.sleep(poll_s)
 
         raise TimeoutError(
-            f"Dataset {dataset_id} not terminal within {timeout_s}s (last state={last})"
+            f"Dataset {dataset_id_str} not terminal within {timeout_s}s (last state={last})"
         )
 
     def find_initial_dataset(self, experiment_id: str) -> Optional[Dataset]:

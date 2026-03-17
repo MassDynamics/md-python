@@ -84,6 +84,28 @@ class TestDatasets:
         ]
         assert payload["dataset"]["job_run_params"] == sample_dataset.job_run_params
 
+    def test_create_with_sample_names(self, datasets_resource, mock_client):
+        """Test dataset creation includes sample_names in payload when set"""
+        dataset_with_samples = Dataset(
+            input_dataset_ids=[UUID("2b1a5c27-ac95-456c-b2ff-eccfb3ab3d1e")],
+            name="Test doseresponse dataset",
+            job_slug="dose_response",
+            job_run_params={
+                "control_samples": ["1", "3"],
+                "log_intensities": True,
+            },
+            sample_names=["1", "2", "3", "4", "5", "6"],
+        )
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"dataset_id": "drc-id-123"}
+        mock_client._make_request.return_value = mock_response
+
+        datasets_resource.create(dataset_with_samples)
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload["dataset"]["sample_names"] == ["1", "2", "3", "4", "5", "6"]
+
     def test_create_success_200_status(
         self, datasets_resource, sample_dataset, sample_api_response, mock_client
     ):
