@@ -14,7 +14,12 @@ if TYPE_CHECKING:
 class Uploads:
     """File upload for the MD Python client"""
 
-    def __init__(self, client: "BaseMDClient", resource_path: str = "/experiments", complete_path: str = "/uploads/complete"):
+    def __init__(
+        self,
+        client: "BaseMDClient",
+        resource_path: str = "/experiments",
+        complete_path: str = "/uploads/complete",
+    ):
         self._client = client
         self._resource_path = resource_path
         self._complete_path = complete_path
