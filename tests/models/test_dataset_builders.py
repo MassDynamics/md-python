@@ -2,10 +2,39 @@ from uuid import UUID
 
 from md_python.models import SampleMetadata
 from md_python.models.dataset_builders import (
+    DoseResponseDataset,
     MinimalDataset,
     NormalisationImputationDataset,
     PairwiseComparisonDataset,
 )
+
+
+def test_dose_response_dataset_build_and_run(mocker):
+    drc = DoseResponseDataset(
+        input_dataset_ids=[str(UUID(int=4))],
+        dataset_name="Test doseresponse dataset",
+        sample_names=["1", "2", "3", "4", "5", "6"],
+        control_samples=["1", "3"],
+        log_intensities=True,
+        use_imputed_intensities=True,
+        normalise="none",
+        span_rollmean_k=1,
+        prop_required_in_protein=0.5,
+    )
+    ds = drc.to_dataset()
+    assert ds.name == "Test doseresponse dataset"
+    assert ds.job_slug == "dose_response"
+    assert ds.sample_names == ["1", "2", "3", "4", "5", "6"]
+    assert ds.job_run_params["control_samples"] == ["1", "3"]
+    assert ds.job_run_params["log_intensities"] is True
+    assert ds.job_run_params["normalise"] == "none"
+    assert ds.job_run_params["prop_required_in_protein"] == 0.5
+
+    client = mocker.Mock()
+    client.datasets = mocker.Mock()
+    client.datasets.create.return_value = "drc-id"
+    out = drc.run(client)
+    assert out == "drc-id"
 
 
 def test_pairwise_comparison_dataset_class_build_and_run(mocker):
@@ -83,6 +112,19 @@ def test_builders_validation_errors():
                 "condition_comparisons",
             ]
         )
+
+    # DoseResponseDataset validation: control_samples must be subset of sample_names
+    drc = DoseResponseDataset(
+        input_dataset_ids=[str(UUID(int=0))],
+        dataset_name="DRC",
+        sample_names=["a", "b"],
+        control_samples=["c"],
+    )
+    try:
+        drc.validate()
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "control_samples" in str(e) and "sample_names" in str(e)
 
     # NormalisationImputationDataset validation
     ni = NormalisationImputationDataset(

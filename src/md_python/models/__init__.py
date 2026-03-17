@@ -5,6 +5,7 @@ Models package for the MD Python client
 from .dataset import Dataset
 from .dataset_builders import (
     BaseDatasetBuilder,
+    DoseResponseDataset,
     MinimalDataset,
     NormalisationImputationDataset,
     PairwiseComparisonDataset,
@@ -20,6 +21,7 @@ __all__ = [
     "Upload",
     "Dataset",
     "BaseDatasetBuilder",
+    "DoseResponseDataset",
     "MinimalDataset",
     "PairwiseComparisonDataset",
     "NormalisationImputationDataset",

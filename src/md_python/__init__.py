@@ -8,6 +8,7 @@ from .client_v1 import MDClientV1
 from .client_v2 import MDClientV2
 from .models import (
     Dataset,
+    DoseResponseDataset,
     Experiment,
     ExperimentDesign,
     MinimalDataset,
@@ -32,6 +33,7 @@ __all__ = [
     "Experiments",
     "Datasets",
     "PairwiseComparisonDataset",
+    "DoseResponseDataset",
     "MinimalDataset",
     "NormalisationImputationDataset",
 ]
