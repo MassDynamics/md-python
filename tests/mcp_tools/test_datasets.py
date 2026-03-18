@@ -4,6 +4,7 @@ from mcp_tools.datasets import (
     delete_dataset,
     find_initial_dataset,
     list_datasets,
+    list_jobs,
     retry_dataset,
     wait_for_dataset,
 )
@@ -17,6 +18,30 @@ def _mock_dataset(id="ds-1", name="My Dataset", type="INTENSITY", state="COMPLET
     ds.state = state
     ds.__str__ = lambda self: f"Dataset: {name}"
     return ds
+
+
+def test_list_jobs():
+    mock_client = MagicMock()
+    mock_client.jobs.list.return_value = [
+        {"slug": "normalisation_imputation", "name": "Normalisation & Imputation"},
+        {"slug": "pairwise_comparison", "name": "Pairwise Comparison"},
+    ]
+
+    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        result = list_jobs()
+
+    assert "normalisation_imputation" in result
+    assert "pairwise_comparison" in result
+
+
+def test_list_jobs_empty():
+    mock_client = MagicMock()
+    mock_client.jobs.list.return_value = []
+
+    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        result = list_jobs()
+
+    assert "No jobs" in result
 
 
 def test_list_datasets_found():
