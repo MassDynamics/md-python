@@ -3,14 +3,14 @@ from ._client import get_client
 
 
 @mcp.tool()
-def list_datasets(experiment_id: str) -> str:
-    """List all datasets for an experiment.
+def list_datasets(upload_id: str) -> str:
+    """List all datasets for an upload.
 
     Returns dataset IDs, names, types, and states.
     """
-    datasets = get_client().datasets.list_by_experiment(experiment_id)
+    datasets = get_client().datasets.list_by_upload(upload_id)
     if not datasets:
-        return "No datasets found for this experiment"
+        return "No datasets found for this upload"
     lines = [f"Found {len(datasets)} dataset(s):"]
     for ds in datasets:
         lines.append(
@@ -20,32 +20,22 @@ def list_datasets(experiment_id: str) -> str:
 
 
 @mcp.tool()
-def get_dataset(dataset_id: str) -> str:
-    """Get a single dataset by ID.
-
-    Returns dataset details including state, type, and job slug.
-    """
-    ds = get_client().datasets.get_by_id(dataset_id)
-    return str(ds) if ds else "Dataset not found"
-
-
-@mcp.tool()
-def find_initial_dataset(experiment_id: str) -> str:
-    """Find the initial INTENSITY dataset for an experiment.
+def find_initial_dataset(upload_id: str) -> str:
+    """Find the initial INTENSITY dataset for an upload.
 
     This is the input dataset required to run downstream pipelines
     (normalisation/imputation, pairwise comparison, dose response).
     Returns the dataset ID and details on success.
     """
-    ds = get_client().datasets.find_initial_dataset(experiment_id)
+    ds = get_client().datasets.find_initial_dataset(upload_id)
     if not ds:
-        return "No initial INTENSITY dataset found for this experiment"
+        return "No initial INTENSITY dataset found for this upload"
     return f"Initial dataset found.\nID: {ds.id}\n{ds}"
 
 
 @mcp.tool()
 def wait_for_dataset(
-    experiment_id: str,
+    upload_id: str,
     dataset_id: str,
     poll_seconds: int = 5,
     timeout_seconds: int = 1800,
@@ -55,7 +45,7 @@ def wait_for_dataset(
     Returns the final dataset status and details. Default timeout is 30 minutes.
     """
     ds = get_client().datasets.wait_until_complete(
-        experiment_id, dataset_id, poll_s=poll_seconds, timeout_s=timeout_seconds
+        upload_id, dataset_id, poll_s=poll_seconds, timeout_s=timeout_seconds
     )
     return str(ds)
 
