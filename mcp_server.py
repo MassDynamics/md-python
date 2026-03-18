@@ -21,9 +21,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import mcp_tools.datasets  # noqa: F401
-import mcp_tools.experiments  # noqa: F401
 import mcp_tools.health  # noqa: F401
 import mcp_tools.pipelines  # noqa: F401
+import mcp_tools.uploads  # noqa: F401
 from mcp_tools import mcp
 
 if __name__ == "__main__":
