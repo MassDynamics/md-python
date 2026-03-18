@@ -1,5 +1,21 @@
+import json
+
 from . import mcp
 from ._client import get_client
+
+
+@mcp.tool()
+def list_jobs() -> str:
+    """List all available pipeline job types.
+
+    Returns the available job slugs and their details — use these slugs when
+    running pipelines via run_normalisation_imputation, run_pairwise_comparison,
+    or run_dose_response.
+    """
+    jobs = get_client().jobs.list()
+    if not jobs:
+        return "No jobs available"
+    return json.dumps(jobs, indent=2)
 
 
 @mcp.tool()
