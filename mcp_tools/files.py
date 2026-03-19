@@ -334,11 +334,15 @@ def load_metadata_from_csv(
     md_format, md_format_gene, tims_diann, md_diann_maxlfq, unknown.
 
     Returns JSON with:
-    - experiment_design: 2D array ready for create_upload (or null)
-    - sample_metadata:   2D array ready for create_upload (or null)
+    - experiment_design: 2D array — pass directly to create_upload (or null)
+    - sample_metadata:   2D array — pass directly to create_upload, run_dose_response,
+                         run_pairwise_comparison, generate_pairwise_comparisons (or null)
     - sample_count:      number of unique samples detected
     - columns_found:     all column names from the file
     - notes:             warnings or recommendations
+
+    Always pass these arrays verbatim to downstream tools. Do not re-construct,
+    filter, or modify them — any manual editing risks sample name mismatches.
     """
     if not os.path.exists(file_path):
         return json.dumps({"error": f"File not found: {file_path}"})

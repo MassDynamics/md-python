@@ -140,17 +140,19 @@ def create_upload(
 ) -> str:
     """Create a new upload and trigger the processing workflow.
 
-    IMPORTANT: Call validate_upload_inputs first to catch errors before submission.
+    MANDATORY PREPARATION — follow these steps in order, every time:
+      1. Call load_metadata_from_csv(file_path) on the user's metadata CSV.
+         Use the experiment_design and sample_metadata arrays it returns directly.
+      2. Call validate_upload_inputs(experiment_design, sample_metadata) to catch
+         mismatches before submission.
+      3. Only then call create_upload with the validated arrays.
 
-    experiment_design: 2D array. Header row must contain: filename, sample_name, condition
-    (synonyms accepted: file=filename, sample=sample_name, group=condition).
-    Extra columns are dropped — only those three are kept.
-    Example: [["filename","sample_name","condition"],["sample1.raw","S1","treated"],...]
+    NEVER construct experiment_design or sample_metadata by hand from filenames,
+    column lists, or your own inference — sample names must come verbatim from the
+    file. Manual construction causes silent mismatches that make the upload fail.
 
-    sample_metadata: 2D array. Must have a 'sample_name' column whose values EXACTLY
-    match (case-sensitive) all sample_name values in experiment_design — no more, no less.
-    May include additional columns (dose, batch, etc.).
-    Example: [["sample_name","dose"],["S1","10"],["S2","0"],...]
+    experiment_design: 2D array from load_metadata_from_csv["experiment_design"].
+    sample_metadata:   2D array from load_metadata_from_csv["sample_metadata"].
 
     For S3-backed uploads: provide s3_bucket, s3_prefix, and filenames.
     For local file uploads: provide file_location (directory path) and filenames.
@@ -179,8 +181,10 @@ def update_sample_metadata(
 ) -> str:
     """Update the sample metadata for an existing upload.
 
-    sample_metadata: 2D array — first row is header (e.g. [sample_name, dose, ...]),
-    subsequent rows are data rows.
+    ALWAYS obtain sample_metadata by calling load_metadata_from_csv on the user's
+    CSV file. Never construct it manually — sample names must match exactly.
+
+    sample_metadata: 2D array from load_metadata_from_csv["sample_metadata"].
     """
     ok = get_client().uploads.update_sample_metadata(
         upload_id, SampleMetadata(data=sample_metadata)
