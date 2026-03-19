@@ -11,6 +11,214 @@ from md_python.models.metadata import SampleMetadata
 from . import mcp
 from ._client import get_client
 
+# ---------------------------------------------------------------------------
+# Parameter schemas — single source of truth for every pipeline type.
+# Update here when the API adds new methods or options.
+# ---------------------------------------------------------------------------
+_PIPELINE_SCHEMAS: Dict[str, Any] = {
+    "normalisation_imputation": {
+        "description": "Normalise and impute missing values in an intensity dataset.",
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "normalisation_method",
+            "imputation_method",
+        ],
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Non-empty list of input dataset UUIDs.",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output dataset.",
+            },
+            "normalisation_method": {
+                "type": "str",
+                "valid_values": ["median", "quantile"],
+                "description": "Normalisation algorithm to apply.",
+            },
+            "imputation_method": {
+                "type": "str",
+                "valid_values": ["min_value", "knn"],
+                "description": "Imputation algorithm to apply.",
+            },
+            "normalisation_extra_params": {
+                "type": "Dict[str, Any]",
+                "default": None,
+                "description": "Extra kwargs merged into the normalisation method dict (optional).",
+            },
+            "imputation_extra_params": {
+                "type": "Dict[str, Any]",
+                "default": None,
+                "description": "Extra kwargs merged into the imputation method dict (optional). E.g. {'k': 5} for knn.",
+            },
+        },
+    },
+    "dose_response": {
+        "description": "Fit dose-response curves to intensity data.",
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "sample_names",
+            "control_samples",
+            "sample_metadata",
+            "dose_column",
+        ],
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Non-empty list of input dataset UUIDs.",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output dataset.",
+            },
+            "sample_names": {
+                "type": "List[str]",
+                "description": "All sample names included in the analysis. Must match sample_name values in sample_metadata exactly.",
+            },
+            "control_samples": {
+                "type": "List[str]",
+                "description": "Subset of sample_names used as controls (dose = 0).",
+            },
+            "sample_metadata": {
+                "type": "List[List[str]]",
+                "description": "2D array with header row. Must include sample_name and dose_column. Dose values are converted to numbers.",
+            },
+            "dose_column": {
+                "type": "str",
+                "default": "dose",
+                "description": "Column in sample_metadata containing dose values.",
+            },
+            "log_intensities": {
+                "type": "bool",
+                "default": True,
+                "description": "Log-transform intensities before fitting.",
+            },
+            "use_imputed_intensities": {
+                "type": "bool",
+                "default": True,
+                "description": "Use imputed intensity values.",
+            },
+            "normalise": {
+                "type": "str",
+                "default": "none",
+                "valid_values": ["none"],
+                "description": "Normalisation to apply before fitting. Use 'none' (no normalisation is the standard choice).",
+            },
+            "span_rollmean_k": {
+                "type": "int",
+                "default": 1,
+                "description": "Rolling mean window size (>= 1). Use 1 to disable smoothing.",
+            },
+            "prop_required_in_protein": {
+                "type": "float",
+                "default": 0.5,
+                "description": "Minimum fraction of non-missing values required per protein [0, 1].",
+            },
+        },
+    },
+    "pairwise_comparison": {
+        "description": "Run limma-based pairwise differential expression analysis.",
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "sample_metadata",
+            "condition_column",
+            "condition_comparisons",
+        ],
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Non-empty list of input dataset UUIDs.",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output dataset.",
+            },
+            "sample_metadata": {
+                "type": "List[List[str]]",
+                "description": "2D array with header row. Must include sample_name and condition_column.",
+            },
+            "condition_column": {
+                "type": "str",
+                "description": "Column in sample_metadata defining groups to compare (e.g. 'condition').",
+            },
+            "condition_comparisons": {
+                "type": "List[List[str]]",
+                "description": "List of [case, control] pairs. Use generate_pairwise_comparisons to build these.",
+            },
+            "filter_valid_values_logic": {
+                "type": "str",
+                "default": "at least one condition",
+                "valid_values": [
+                    "all conditions",
+                    "at least one condition",
+                    "full experiment",
+                ],
+                "description": "Controls which rows pass the valid-value filter.",
+            },
+            "filter_method": {
+                "type": "str",
+                "default": "percentage",
+                "valid_values": ["percentage", "count"],
+                "description": "Method for the valid-value filter.",
+            },
+            "filter_threshold_percentage": {
+                "type": "float",
+                "default": 0.5,
+                "description": "Fraction [0, 1] of valid values required (used when filter_method='percentage').",
+            },
+            "fit_separate_models": {
+                "type": "bool",
+                "default": True,
+                "description": "Fit a separate limma model per comparison.",
+            },
+            "limma_trend": {
+                "type": "bool",
+                "default": True,
+                "description": "Apply limma trend (intensity-dependent prior variance).",
+            },
+            "robust_empirical_bayes": {
+                "type": "bool",
+                "default": True,
+                "description": "Apply robust empirical Bayes moderation.",
+            },
+            "entity_type": {
+                "type": "str",
+                "default": "protein",
+                "valid_values": ["protein", "peptide"],
+                "description": "Entity level to analyse.",
+            },
+            "control_variables": {
+                "type": "Optional[List[Dict[str, str]]]",
+                "default": None,
+                "description": "Covariates to include in the model. Each item: {'column': str, 'type': 'numerical'|'categorical'}.",
+            },
+        },
+    },
+}
+
+
+@mcp.tool()
+def describe_pipeline(job_slug: str) -> str:
+    """Return the full parameter schema for a pipeline before running it.
+
+    ALWAYS call this before run_normalisation_imputation, run_dose_response, or
+    run_pairwise_comparison. It lists every accepted parameter, its type, default
+    value, and — crucially — the exact valid_values the API accepts. Never guess
+    parameter names or values; use only what this tool returns.
+
+    job_slug: one of "normalisation_imputation", "dose_response", "pairwise_comparison".
+    Use list_jobs() to see all available slugs.
+    """
+    schema = _PIPELINE_SCHEMAS.get(job_slug)
+    if schema is None:
+        available = ", ".join(sorted(_PIPELINE_SCHEMAS))
+        return f"Unknown job_slug '{job_slug}'. Known slugs with schemas: {available}"
+    return json.dumps(schema, indent=2)
+
 
 @mcp.tool()
 def run_normalisation_imputation(
@@ -23,10 +231,8 @@ def run_normalisation_imputation(
 ) -> str:
     """Run a normalisation + imputation pipeline.
 
-    normalisation_method: method name (e.g. "median", "quantile").
-    imputation_method: method name (e.g. "min_value", "knn").
-    normalisation_extra_params / imputation_extra_params: optional additional parameters
-    merged into the respective method dicts.
+    BEFORE calling this tool, call describe_pipeline("normalisation_imputation") to
+    confirm valid parameter values. Do NOT guess method names.
 
     Returns the new dataset ID on success.
     """
@@ -88,19 +294,10 @@ def run_pairwise_comparison(
 ) -> str:
     """Run a pairwise comparison (limma) pipeline.
 
-    sample_metadata: 2D array — first row is header (must include sample_name and
-    condition_column), subsequent rows are data.
+    BEFORE calling this tool, call describe_pipeline("pairwise_comparison") to confirm
+    valid parameter names and values. Do NOT guess or invent parameter values.
 
-    condition_comparisons: list of [case, control] pairs,
-    e.g. [["treated", "control"]]. Use generate_pairwise_comparisons to build these.
-
-    filter_valid_values_logic: one of "all conditions", "at least one condition",
-    "full experiment".
-    filter_method: "percentage" or "count".
-    filter_threshold_percentage: fraction in [0, 1] (used when filter_method="percentage").
-
-    control_variables: optional list of {"column": str, "type": "numerical"|"categorical"}.
-    entity_type: "protein" or "peptide".
+    Use generate_pairwise_comparisons to build condition_comparisons from sample metadata.
 
     Returns the new dataset ID on success.
     """
@@ -144,17 +341,8 @@ def run_dose_response(
 ) -> str:
     """Run a dose-response curve fitting pipeline.
 
-    sample_names: all sample names included in the analysis.
-    control_samples: subset of sample_names used as controls.
-    sample_metadata: optional 2D array with dose information
-    (first row header, e.g. [sample_name, dose]).
-
-    dose_column: column in sample_metadata containing dose values (default "dose").
-    log_intensities: log-transform intensities (default True).
-    use_imputed_intensities: use imputed values (default True).
-    normalise: normalisation method (default "none").
-    span_rollmean_k: rolling mean span >= 1 (default 1).
-    prop_required_in_protein: fraction [0,1] required per protein (default 0.5).
+    BEFORE calling this tool, call describe_pipeline("dose_response") to confirm
+    valid parameter names and values. Do NOT guess or invent parameter values.
 
     Returns the new dataset ID on success.
     """
