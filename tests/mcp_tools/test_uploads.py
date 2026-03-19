@@ -4,6 +4,7 @@ from mcp_tools.uploads import (
     create_upload,
     get_upload,
     update_sample_metadata,
+    validate_upload_inputs,
     wait_for_upload,
 )
 
@@ -18,6 +19,65 @@ METADATA = [
     ["s1", "0"],
     ["s2", "10"],
 ]
+
+
+def test_validate_upload_inputs_ok():
+    result = validate_upload_inputs(DESIGN, METADATA)
+    assert result.startswith("OK")
+    assert "2 samples" in result
+
+
+def test_validate_upload_inputs_missing_sample_in_metadata():
+    bad_metadata = [
+        ["sample_name", "dose"],
+        ["s1", "0"],
+        # s2 missing
+    ]
+    result = validate_upload_inputs(DESIGN, bad_metadata)
+    assert "Validation failed" in result
+    assert "s2" in result
+
+
+def test_validate_upload_inputs_extra_sample_in_metadata():
+    extra_metadata = [
+        ["sample_name", "dose"],
+        ["s1", "0"],
+        ["s2", "10"],
+        ["s3", "20"],  # not in design
+    ]
+    result = validate_upload_inputs(DESIGN, extra_metadata)
+    assert "Validation failed" in result
+    assert "s3" in result
+
+
+def test_validate_upload_inputs_missing_column_in_design():
+    bad_design = [
+        ["filename", "sample_name"],  # missing condition
+        ["file1.tsv", "s1"],
+    ]
+    result = validate_upload_inputs(bad_design, METADATA)
+    assert "missing required column" in result
+
+
+def test_validate_upload_inputs_no_sample_name_in_metadata():
+    bad_metadata = [
+        ["name", "dose"],  # 'name' is not 'sample_name'
+        ["s1", "0"],
+    ]
+    result = validate_upload_inputs(bad_metadata, DESIGN)
+    # Called with args swapped — should flag missing sample_name col
+    result = validate_upload_inputs(DESIGN, bad_metadata)
+    assert "sample_name" in result
+
+
+def test_validate_upload_inputs_synonym_columns():
+    design_synonyms = [
+        ["file", "sample", "group"],
+        ["file1.tsv", "s1", "ctrl"],
+        ["file2.tsv", "s2", "treated"],
+    ]
+    result = validate_upload_inputs(design_synonyms, METADATA)
+    assert result.startswith("OK")
 
 
 def test_get_upload_by_id():
