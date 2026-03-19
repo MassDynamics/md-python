@@ -12,6 +12,7 @@ from .datasets import (
 from .files import load_metadata_from_csv, plan_wide_to_md_format, read_csv_preview
 from .health import health_check
 from .pipelines import (
+    describe_pipeline,
     generate_pairwise_comparisons,
     run_dose_response,
     run_normalisation_imputation,
@@ -40,6 +41,7 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "wait_for_dataset": wait_for_dataset,
     "retry_dataset": retry_dataset,
     "delete_dataset": delete_dataset,
+    "describe_pipeline": describe_pipeline,
     "run_normalisation_imputation": run_normalisation_imputation,
     "generate_pairwise_comparisons": generate_pairwise_comparisons,
     "run_pairwise_comparison": run_pairwise_comparison,
@@ -64,7 +66,7 @@ def batch(
     health_check,
     get_upload, create_upload, validate_upload_inputs, update_sample_metadata,
     wait_for_upload, list_datasets, find_initial_dataset, wait_for_dataset,
-    retry_dataset, delete_dataset, run_normalisation_imputation,
+    retry_dataset, delete_dataset, describe_pipeline, run_normalisation_imputation,
     generate_pairwise_comparisons, run_pairwise_comparison, run_dose_response.
 
     get_upload accepts either upload_id (UUID) or name (string). When only a name
