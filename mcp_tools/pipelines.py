@@ -261,6 +261,9 @@ def generate_pairwise_comparisons(
 ) -> str:
     """Generate pairwise comparison pairs from sample metadata.
 
+    Pass load_metadata_from_csv["sample_metadata"] as sample_metadata.
+    NEVER construct sample_metadata by hand.
+
     If control is provided: generates all [case, control] pairs vs that one control.
     If control is omitted: generates all unique pairwise combinations.
 
@@ -294,10 +297,13 @@ def run_pairwise_comparison(
 ) -> str:
     """Run a pairwise comparison (limma) pipeline.
 
-    BEFORE calling this tool, call describe_pipeline("pairwise_comparison") to confirm
-    valid parameter names and values. Do NOT guess or invent parameter values.
+    BEFORE calling this tool:
+      1. Call describe_pipeline("pairwise_comparison") to confirm valid parameter values.
+      2. Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
+         NEVER construct sample_metadata manually — sample names must be read verbatim.
+      3. Use generate_pairwise_comparisons to build condition_comparisons.
 
-    Use generate_pairwise_comparisons to build condition_comparisons from sample metadata.
+    sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
 
     Returns the new dataset ID on success.
     """
@@ -341,8 +347,15 @@ def run_dose_response(
 ) -> str:
     """Run a dose-response curve fitting pipeline.
 
-    BEFORE calling this tool, call describe_pipeline("dose_response") to confirm
-    valid parameter names and values. Do NOT guess or invent parameter values.
+    BEFORE calling this tool:
+      1. Call describe_pipeline("dose_response") to confirm valid parameter values.
+      2. Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
+         NEVER construct sample_metadata, sample_names, or control_samples manually —
+         all sample names must be read verbatim from the file to avoid mismatches.
+
+    sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
+    sample_names: read from sample_metadata rows, not from filenames or inference.
+    control_samples: ask the user which samples are controls; never guess.
 
     Returns the new dataset ID on success.
     """
