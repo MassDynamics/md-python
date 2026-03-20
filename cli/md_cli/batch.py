@@ -43,24 +43,16 @@ def _dispatch(client, args):
     elif cmd == "auth" and len(args) > 1 and args[1] == "status":
         return client.health.check()
 
-    elif cmd == "uploads" and len(args) > 1:
+    elif cmd in ("uploads", "experiments", "experiment") and len(args) > 1:
         sub = args[1]
         if sub == "get" and len(args) > 2:
-            identifier = args[2]
             if "--by-name" in args:
+                # Rejoin all tokens between "get" and "--by-name" as the name
+                flag_idx = args.index("--by-name")
+                identifier = " ".join(args[2:flag_idx])
                 upload = client.uploads.get_by_name(identifier)
             else:
-                upload = client.uploads.get_by_id(identifier)
-            return _to_dict(upload)
-
-    elif cmd in ("experiments", "experiment") and len(args) > 1:
-        # Backward compatibility: route experiments → uploads
-        sub = args[1]
-        if sub == "get" and len(args) > 2:
-            identifier = args[2]
-            if "--by-name" in args:
-                upload = client.uploads.get_by_name(identifier)
-            else:
+                identifier = args[2]
                 upload = client.uploads.get_by_id(identifier)
             return _to_dict(upload)
 
