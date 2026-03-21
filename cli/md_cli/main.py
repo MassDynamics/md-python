@@ -10,11 +10,16 @@ Commands:
   md experiments list/get/create/wait     Experiment management
   md datasets list/get/create/retry/wait  Dataset & analysis management
   md analysis pairwise/dose-response/anova  Analysis shortcuts
-  md tables headers/download/query       Data access
+  md design infer                        Infer sample design from experiment
+  md tables list/headers/download/query  Data access
   md workspaces list/get/create          Workspace management
   md viz volcano/heatmap/pca/...         Visualisations
   md enrichment reactome/string          Pathway analysis
   md jobs list                           List available analysis types
+
+Output format:
+  All commands output JSON to stdout by default.
+  Use --format ids-only on key commands to get just the resource ID.
 """
 import csv
 import json
@@ -34,14 +39,100 @@ def get_client():
     """Get an authenticated API client."""
     config = get_config()
     if not config.get("token"):
-        click.echo("Error: No API token configured. Run: md auth login --token YOUR_TOKEN", err=True)
+        click.echo("Error: No API token configured.", err=True)
+        click.echo("", err=True)
+        click.echo("  Option 1 (quick):      md auth login --token YOUR_TOKEN", err=True)
+        click.echo("  Option 2 (env var):     export MD_API_TOKEN=your-token-here", err=True)
+        click.echo("  Option 3 (persistent):  Add to Claude settings.json:", err=True)
+        click.echo('                          { "env": { "MD_API_TOKEN": "..." } }', err=True)
+        click.echo("", err=True)
+        click.echo("  Generate a token at: MD web app → Settings → API Access", err=True)
         sys.exit(1)
     return MDClient()
 
 
+def output_result(data, output_format="json"):
+    """Output data in the requested format.
+
+    Formats:
+      json      - Pretty-printed JSON (default)
+      ids-only  - Just the resource ID, for piping into other commands
+      table     - Human-readable table (falls back to JSON for complex data)
+    """
+    if output_format == "ids-only":
+        # Extract the most relevant ID field
+        if isinstance(data, dict):
+            id_val = (data.get("id") or data.get("experiment_id")
+                      or data.get("dataset_id") or data.get("workspace_id"))
+            if id_val:
+                click.echo(id_val)
+                return
+        elif isinstance(data, list):
+            # For lists, output one ID per line
+            for item in data:
+                if isinstance(item, dict):
+                    id_val = (item.get("id") or item.get("experiment_id")
+                              or item.get("dataset_id"))
+                    if id_val:
+                        click.echo(id_val)
+            return
+        # Fallback to JSON if no ID found
+        click.echo(json.dumps(data, indent=2, default=str))
+    elif output_format == "table":
+        # Simple table for list data
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            keys = list(data[0].keys())[:5]  # First 5 columns
+            header = "\t".join(keys)
+            click.echo(header)
+            click.echo("-" * len(header))
+            for item in data:
+                click.echo("\t".join(str(item.get(k, "")) for k in keys))
+        else:
+            click.echo(json.dumps(data, indent=2, default=str))
+    else:
+        click.echo(json.dumps(data, indent=2, default=str))
+
+
 def output_json(data):
-    """Pretty-print JSON to stdout."""
-    click.echo(json.dumps(data, indent=2, default=str))
+    """Pretty-print JSON to stdout. Legacy helper — delegates to output_result."""
+    output_result(data, "json")
+
+
+def parse_conditions_string(conditions_str, condition_column="condition"):
+    """Parse inline conditions string into column-oriented dict.
+
+    Format: "sample1:Control,sample2:Control,sample3:Treatment"
+    Returns: {"sample_name": ["sample1", "sample2", "sample3"],
+              "condition": ["Control", "Control", "Treatment"]}
+    """
+    design = {"sample_name": [], condition_column: []}
+    for pair in conditions_str.split(","):
+        pair = pair.strip()
+        if ":" not in pair:
+            click.echo(f"Error: Invalid condition pair '{pair}'. Expected 'sample_name:condition'.", err=True)
+            sys.exit(1)
+        sample, cond = pair.split(":", 1)
+        design["sample_name"].append(sample.strip())
+        design[condition_column].append(cond.strip())
+    return design
+
+
+def resolve_design(design_csv, conditions, condition_column="condition"):
+    """Resolve experiment design from either --design-csv or --conditions.
+
+    Returns column-oriented dict for the API.
+    """
+    if design_csv:
+        return read_csv_as_dict(design_csv)
+    elif conditions:
+        return parse_conditions_string(conditions, condition_column)
+    else:
+        click.echo("Error: Provide either --design-csv or --conditions.", err=True)
+        click.echo("  --design-csv design.csv                                  (CSV file)", err=True)
+        click.echo("  --conditions 'sample1:Control,sample2:Treatment,...'      (inline)", err=True)
+        click.echo("", err=True)
+        click.echo("  Tip: Run 'md design infer <EXP_ID>' to discover sample names.", err=True)
+        sys.exit(1)
 
 
 def read_csv_as_arrays(path):
@@ -261,14 +352,13 @@ def _dispatch_batch_command(client, args):
     elif cmd == "auth" and len(args) > 1 and args[1] == "status":
         return client.auth_status()
 
-    elif cmd in ("experiments", "uploads") and len(args) > 1:
+    elif cmd == "experiments" and len(args) > 1:
         subcmd = args[1]
         if subcmd == "get" and len(args) > 2:
+            identifier = args[2]
             if "--by-name" in args:
-                flag_idx = args.index("--by-name")
-                identifier = " ".join(args[2:flag_idx])
                 return client.get_experiment_by_name(identifier)
-            return client.get_experiment(args[2])
+            return client.get_experiment(identifier)
         elif subcmd == "list":
             scope = args[2] if len(args) > 2 else "mine"
             return client.list_experiments(scope)
@@ -408,9 +498,13 @@ def experiments_get(identifier, by_name):
 @click.option("--dry-run", is_flag=True, help="Show payload without sending")
 @click.option("--no-start", is_flag=True, help="Create + upload but don't start workflow")
 @click.option("--no-upload", is_flag=True, help="Create experiment but skip file upload")
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "ids-only"]),
+              help="Output format (default: json)")
 def experiments_create(name, source, labelling_method, species, description,
                        files_dir, filenames, design_csv, metadata_csv,
-                       s3_bucket, s3_prefix, dry_run, no_start, no_upload):
+                       s3_bucket, s3_prefix, dry_run, no_start, no_upload,
+                       output_format):
     """Create an experiment with data files.
 
     Full flow: create experiment → upload files to S3 → start processing workflow.
@@ -491,7 +585,7 @@ def experiments_create(name, source, labelling_method, species, description,
     )
 
     exp_id = result.get("id") or result.get("experiment_id")
-    click.echo(f"✓ Experiment created: {exp_id}")
+    click.echo(f"✓ Experiment created: {exp_id}", err=True)
 
     # Upload files via presigned S3 URLs
     uploads = result.get("uploads") or []
@@ -501,28 +595,28 @@ def experiments_create(name, source, labelling_method, species, description,
 
     if presigned_urls and files_dir and not no_upload:
         files_path = Path(files_dir)
-        click.echo(f"Uploading {len(presigned_urls)} files to S3...")
+        click.echo(f"Uploading {len(presigned_urls)} files to S3...", err=True)
         for filename, url in presigned_urls.items():
             file_path = files_path / filename
             if file_path.exists():
-                click.echo(f"  ↑ {filename} ({file_path.stat().st_size:,} bytes)...")
+                click.echo(f"  ↑ {filename} ({file_path.stat().st_size:,} bytes)...", err=True)
                 try:
                     client.upload_file(url, file_path)
-                    click.echo(f"  ✓ {filename}")
+                    click.echo(f"  ✓ {filename}", err=True)
                 except Exception as e:
                     click.echo(f"  ✗ {filename}: {e}", err=True)
             else:
                 click.echo(f"  ✗ {filename} not found at {file_path}", err=True)
 
         if not no_start:
-            click.echo("Starting workflow...")
+            click.echo("Starting workflow...", err=True)
             try:
                 client.start_workflow(exp_id)
-                click.echo("✓ Workflow started")
+                click.echo("✓ Workflow started", err=True)
             except Exception as e:
                 click.echo(f"✗ Workflow start failed: {e}", err=True)
 
-    output_json(result)
+    output_result(result, output_format)
 
 
 @experiments.command("wait")
@@ -551,6 +645,106 @@ def experiments_cancel(experiment_id):
 
 
 # =============================================================================
+# DESIGN (experiment design helpers)
+# =============================================================================
+
+@cli.group()
+def design():
+    """Experiment design helpers.
+
+    Tools for discovering sample names and constructing experiment designs
+    without needing to create CSV files manually.
+    """
+    pass
+
+
+@design.command("infer")
+@click.argument("experiment_id")
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "csv", "ids-only"]),
+              help="Output format (default: json)")
+def design_infer(experiment_id, output_format):
+    """Infer sample design from an uploaded experiment.
+
+    Reads the intensity dataset to discover actual sample names, then
+    suggests a design template the agent can use with --conditions.
+
+    This solves the "what are my sample names?" problem — after uploading
+    a DIA-NN/MaxQuant file, run this to see the real sample identifiers.
+
+    Examples:
+      md design infer <experiment-id>
+      md design infer <experiment-id> --format csv > design.csv
+    """
+    client = get_client()
+
+    # Find the intensity dataset
+    datasets_result = client.list_datasets(experiment_id)
+    if not isinstance(datasets_result, list):
+        datasets_result = datasets_result.get("datasets", [])
+
+    intensity_ds = None
+    for ds in datasets_result:
+        ds_type = (ds.get("type") or ds.get("run_type", "")).upper()
+        if "INTENSITY" in ds_type or "NORMALISATION" in ds_type:
+            intensity_ds = ds
+            break
+
+    if not intensity_ds:
+        click.echo("Error: No intensity dataset found. Is the experiment still processing?", err=True)
+        click.echo(f"  Check status: md experiments wait {experiment_id}", err=True)
+        sys.exit(1)
+
+    ds_id = intensity_ds.get("id")
+    click.echo(f"Found intensity dataset: {ds_id}", err=True)
+
+    # Get sample names from the intensity table headers or metadata
+    try:
+        headers = client.get_table_headers(experiment_id, ds_id, "Protein_Intensity")
+        # Sample names are typically the non-metadata columns
+        meta_cols = {"protein_id", "protein_name", "gene_name", "description",
+                     "accession", "uniprot_id", "protein_group", "majority_protein_ids"}
+        samples = [h for h in headers if h.lower() not in meta_cols and not h.startswith("_")]
+    except Exception:
+        # Fallback: try Protein_Metadata or experiment metadata
+        try:
+            exp = client.get_experiment(experiment_id)
+            exp_design = exp.get("experiment_design", [])
+            if exp_design and len(exp_design) > 1:
+                # First row is headers, find sample_name column
+                header_row = [h.lower() for h in exp_design[0]]
+                sn_idx = next((i for i, h in enumerate(header_row) if "sample" in h), 0)
+                samples = [row[sn_idx] for row in exp_design[1:]]
+            else:
+                samples = []
+        except Exception:
+            samples = []
+
+    if not samples:
+        click.echo("Warning: Could not extract sample names automatically.", err=True)
+        click.echo("  The experiment may still be processing, or the data format is unusual.", err=True)
+        sys.exit(1)
+
+    if output_format == "csv":
+        click.echo("sample_name,condition")
+        for s in samples:
+            click.echo(f"{s},")  # Empty condition for user to fill
+    elif output_format == "ids-only":
+        for s in samples:
+            click.echo(s)
+    else:
+        result = {
+            "experiment_id": experiment_id,
+            "dataset_id": ds_id,
+            "sample_count": len(samples),
+            "samples": samples,
+            "conditions_template": ",".join(f"{s}:CONDITION" for s in samples),
+            "usage_hint": f"md analysis pairwise --conditions '{','.join(f'{s}:CONDITION' for s in samples[:2])},...'"
+        }
+        output_result(result, "json")
+
+
+# =============================================================================
 # DATASETS
 # =============================================================================
 
@@ -576,14 +770,32 @@ def datasets():
 
 @datasets.command("list")
 @click.argument("experiment_id")
-def datasets_list(experiment_id):
+@click.option("--type", "filter_type", default=None,
+              help="Filter by dataset type (e.g., INTENSITY, PAIRWISE, DOSE_RESPONSE, ANOVA)")
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "ids-only", "table"]),
+              help="Output format (default: json)")
+def datasets_list(experiment_id, filter_type, output_format):
     """List all datasets for an experiment.
 
     Shows dataset ID, name, type, and processing state.
+
+    Examples:
+      md datasets list <exp-id>
+      md datasets list <exp-id> --type INTENSITY --format ids-only
     """
     client = get_client()
     result = client.list_datasets(experiment_id)
-    if isinstance(result, list):
+    if isinstance(result, list) and filter_type:
+        filter_upper = filter_type.upper()
+        result = [ds for ds in result if filter_upper in
+                  (ds.get("type") or ds.get("run_type", "")).upper()]
+
+    if output_format == "ids-only":
+        items = result if isinstance(result, list) else []
+        for ds in items:
+            click.echo(ds.get("id", ""))
+    elif output_format == "table" and isinstance(result, list):
         click.echo(f"Found {len(result)} datasets:")
         for ds in result:
             state = ds.get("state") or ds.get("status", "?")
@@ -592,7 +804,7 @@ def datasets_list(experiment_id):
             did = ds.get("id", "?")
             click.echo(f"  [{state}] {dtype}: {name} ({did})")
     else:
-        output_json(result)
+        output_result(result, output_format)
 
 
 @datasets.command("get")
@@ -715,8 +927,10 @@ def analysis():
 @analysis.command("pairwise")
 @click.option("--input-dataset-id", required=True, help="Intensity dataset UUID")
 @click.option("--name", required=True, help="Result name")
-@click.option("--design-csv", required=True, type=click.Path(exists=True),
+@click.option("--design-csv", default=None, type=click.Path(exists=True),
               help="CSV with sample_name and condition columns")
+@click.option("--conditions", default=None,
+              help="Inline conditions: 'sample1:Control,sample2:Treatment' (alternative to --design-csv)")
 @click.option("--condition-column", required=True, help="Column name for conditions")
 @click.option("--comparisons", required=True,
               help="Comparison pairs: Treatment:Control,Drug:Vehicle")
@@ -734,24 +948,40 @@ def analysis():
 @click.option("--filter-logic", default="at least one condition",
               type=click.Choice(["at least one condition", "all conditions", "full experiment"]))
 @click.option("--sample-names", multiple=True, help="Subset of samples to use")
-def analysis_pairwise(input_dataset_id, name, design_csv, condition_column,
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "ids-only"]),
+              help="Output format (default: json)")
+def analysis_pairwise(input_dataset_id, name, design_csv, conditions, condition_column,
                       comparisons, normalise, log_intensities, use_imputed,
-                      filter_method, filter_threshold, filter_logic, sample_names):
+                      filter_method, filter_threshold, filter_logic, sample_names,
+                      output_format):
     """Run pairwise comparison (differential expression via limma).
 
     Compares two conditions to find differentially expressed proteins.
     Uses the limma R package for robust statistical testing.
 
-    Example:
+    Provide sample-to-condition mapping via EITHER --design-csv OR --conditions:
+
+    Example (with CSV):
       md analysis pairwise \\
         --input-dataset-id abc123 \\
         --name "Treatment vs Control" \\
         --design-csv design.csv \\
         --condition-column condition \\
         --comparisons "Treatment:Control"
+
+    Example (inline, no CSV needed):
+      md analysis pairwise \\
+        --input-dataset-id abc123 \\
+        --name "Treatment vs Control" \\
+        --conditions "s1:Control,s2:Control,s3:Control,s4:Treatment,s5:Treatment,s6:Treatment" \\
+        --condition-column condition \\
+        --comparisons "Treatment:Control"
+
+    Tip: Run 'md design infer <EXP_ID>' to discover actual sample names.
     """
     client = get_client()
-    design = read_csv_as_dict(design_csv)
+    design = resolve_design(design_csv, conditions, condition_column)
     comp_pairs = parse_comparisons(comparisons)
 
     click.echo(f"Creating pairwise comparison '{name}'...")
@@ -769,15 +999,17 @@ def analysis_pairwise(input_dataset_id, name, design_csv, condition_column,
         filter_logic=filter_logic,
         sample_names=list(sample_names) if sample_names else None,
     )
-    click.echo("✓ Pairwise comparison submitted")
-    output_json(result)
+    click.echo("✓ Pairwise comparison submitted", err=True)
+    output_result(result, output_format)
 
 
 @analysis.command("dose-response")
 @click.option("--input-dataset-id", required=True, help="Intensity dataset UUID")
 @click.option("--name", required=True, help="Result name")
-@click.option("--design-csv", required=True, type=click.Path(exists=True),
+@click.option("--design-csv", default=None, type=click.Path(exists=True),
               help="CSV with sample_name and dose columns")
+@click.option("--conditions", default=None,
+              help="Inline dose mapping: 'sample1:0,sample2:10,sample3:100' (alternative to --design-csv)")
 @click.option("--control-samples", required=True, multiple=True,
               help="Control sample name(s) (repeatable)")
 @click.option("--normalise", default="sum",
@@ -790,24 +1022,34 @@ def analysis_pairwise(input_dataset_id, name, design_csv, condition_column,
 @click.option("--prop-required", default=0.5, type=float,
               help="Proportion of samples required per protein (0-1)")
 @click.option("--sample-names", multiple=True)
-def analysis_dose_response(input_dataset_id, name, design_csv, control_samples,
-                           normalise, log_intensities, use_imputed,
-                           span_rollmean_k, prop_required, sample_names):
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "ids-only"]),
+              help="Output format (default: json)")
+def analysis_dose_response(input_dataset_id, name, design_csv, conditions,
+                           control_samples, normalise, log_intensities, use_imputed,
+                           span_rollmean_k, prop_required, sample_names, output_format):
     """Run dose-response analysis (curve fitting via R drc package).
 
     Fits dose-response curves to protein abundance across dose levels.
 
-    Design CSV must have columns: sample_name, dose
+    Provide sample-to-dose mapping via EITHER --design-csv OR --conditions.
 
-    Example:
+    Example (with CSV):
       md analysis dose-response \\
         --input-dataset-id abc123 \\
         --name "Dose Response" \\
         --design-csv dose_design.csv \\
         --control-samples DMSO_1 --control-samples DMSO_2
+
+    Example (inline):
+      md analysis dose-response \\
+        --input-dataset-id abc123 \\
+        --name "Dose Response" \\
+        --conditions "s1:0,s2:0,s3:10,s4:100,s5:1000" \\
+        --control-samples s1 --control-samples s2
     """
     client = get_client()
-    design = read_csv_as_dict(design_csv)
+    design = resolve_design(design_csv, conditions, "dose")
 
     click.echo(f"Creating dose-response analysis '{name}'...")
     result = client.create_dose_response(
@@ -822,15 +1064,17 @@ def analysis_dose_response(input_dataset_id, name, design_csv, control_samples,
         prop_required_in_protein=prop_required,
         sample_names=list(sample_names) if sample_names else None,
     )
-    click.echo("✓ Dose-response analysis submitted")
-    output_json(result)
+    click.echo("✓ Dose-response analysis submitted", err=True)
+    output_result(result, output_format)
 
 
 @analysis.command("anova")
 @click.option("--input-dataset-id", required=True, help="Intensity dataset UUID")
 @click.option("--name", required=True, help="Result name")
-@click.option("--design-csv", required=True, type=click.Path(exists=True),
+@click.option("--design-csv", default=None, type=click.Path(exists=True),
               help="CSV with sample_name and condition columns")
+@click.option("--conditions", default=None,
+              help="Inline conditions: 'sample1:GroupA,sample2:GroupB,...' (alternative to --design-csv)")
 @click.option("--condition-column", required=True, help="Column for grouping")
 @click.option("--normalise", default="median",
               type=click.Choice(["median", "quantile", "none"]))
@@ -842,22 +1086,33 @@ def analysis_dose_response(input_dataset_id, name, design_csv, control_samples,
 @click.option("--filter-logic", default="at least one condition",
               type=click.Choice(["at least one condition", "all conditions", "full experiment"]))
 @click.option("--sample-names", multiple=True)
-def analysis_anova(input_dataset_id, name, design_csv, condition_column,
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "ids-only"]),
+              help="Output format (default: json)")
+def analysis_anova(input_dataset_id, name, design_csv, conditions, condition_column,
                    normalise, log_intensities, use_imputed,
-                   filter_method, filter_threshold, filter_logic, sample_names):
+                   filter_method, filter_threshold, filter_logic, sample_names,
+                   output_format):
     """Run ANOVA (multi-condition analysis).
 
     Tests for differential expression across 3+ conditions simultaneously.
 
-    Example:
+    Example (with CSV):
       md analysis anova \\
         --input-dataset-id abc123 \\
         --name "3-way ANOVA" \\
         --design-csv design.csv \\
         --condition-column treatment
+
+    Example (inline):
+      md analysis anova \\
+        --input-dataset-id abc123 \\
+        --name "3-way ANOVA" \\
+        --conditions "s1:A,s2:A,s3:B,s4:B,s5:C,s6:C" \\
+        --condition-column treatment
     """
     client = get_client()
-    design = read_csv_as_dict(design_csv)
+    design = resolve_design(design_csv, conditions, condition_column)
 
     click.echo(f"Creating ANOVA analysis '{name}'...")
     result = client.create_anova(
@@ -873,8 +1128,8 @@ def analysis_anova(input_dataset_id, name, design_csv, condition_column,
         filter_logic=filter_logic,
         sample_names=list(sample_names) if sample_names else None,
     )
-    click.echo("✓ ANOVA analysis submitted")
-    output_json(result)
+    click.echo("✓ ANOVA analysis submitted", err=True)
+    output_result(result, output_format)
 
 
 # =============================================================================
@@ -900,6 +1155,66 @@ def tables():
       anova_results, runtime_metadata
     """
     pass
+
+
+@tables.command("list")
+@click.argument("experiment_id")
+@click.argument("dataset_id")
+def tables_list(experiment_id, dataset_id):
+    """List available table names for a dataset.
+
+    Shows what tables exist so you don't have to guess names.
+
+    Known table names by dataset type:
+      INTENSITY:     Protein_Intensity, Protein_Metadata, Peptide_Intensity, Peptide_Metadata
+      PAIRWISE:      output_comparisons, runtime_metadata
+      DOSE_RESPONSE: output_curves, output_volcanoes, input_drc, runtime_metadata
+      ANOVA:         anova_results, runtime_metadata
+
+    Example:
+      md tables list <exp-id> <dataset-id>
+    """
+    client = get_client()
+
+    # Try to get the dataset to determine its type
+    try:
+        ds = client.get_dataset(dataset_id, experiment_id=experiment_id)
+        ds_type = (ds.get("type") or ds.get("run_type", "UNKNOWN")).upper()
+    except Exception:
+        ds_type = "UNKNOWN"
+
+    # Known table names by type
+    known_tables = {
+        "INTENSITY": ["Protein_Intensity", "Protein_Metadata", "Peptide_Intensity", "Peptide_Metadata"],
+        "NORMALISATION_AND_IMPUTATION": ["Protein_Intensity", "Protein_Metadata", "Peptide_Intensity", "Peptide_Metadata"],
+        "PAIRWISE": ["output_comparisons", "runtime_metadata"],
+        "PAIRWISE_COMPARISON": ["output_comparisons", "runtime_metadata"],
+        "DOSE_RESPONSE": ["output_curves", "output_volcanoes", "input_drc", "runtime_metadata"],
+        "ANOVA": ["anova_results", "runtime_metadata"],
+    }
+
+    tables_for_type = known_tables.get(ds_type, [])
+
+    # Try to validate which tables actually exist by attempting headers
+    verified = []
+    for tname in tables_for_type:
+        try:
+            client.get_table_headers(experiment_id, dataset_id, tname)
+            verified.append(tname)
+        except Exception:
+            pass
+
+    if verified:
+        click.echo(f"Tables for dataset {dataset_id} (type: {ds_type}):")
+        for t in verified:
+            click.echo(f"  {t}")
+    elif tables_for_type:
+        click.echo(f"Expected tables for {ds_type} dataset (not yet verified):")
+        for t in tables_for_type:
+            click.echo(f"  {t}")
+    else:
+        click.echo(f"Dataset type: {ds_type}")
+        click.echo("Table names unknown for this type. Try 'md tables headers <exp> <ds> <table_name>' to probe.")
 
 
 @tables.command("headers")
