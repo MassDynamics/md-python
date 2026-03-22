@@ -1,3 +1,5 @@
+import json
+import os
 from typing import List, Optional
 
 from md_python.models.metadata import ExperimentDesign, SampleMetadata
@@ -5,6 +7,7 @@ from md_python.models.upload import Upload
 
 from . import mcp
 from ._client import get_client
+from .files import load_metadata_from_csv
 
 
 @mcp.tool()
@@ -184,10 +187,21 @@ def create_upload(
     LFQ is assumed. Contact support for TMT upload support.
 
     For S3-backed uploads: provide s3_bucket, s3_prefix, and filenames.
-    For local file uploads: provide file_location (directory path) and filenames.
+    For local file uploads: provide file_location (directory path). filenames
+    is auto-discovered from file_location if omitted (all files in the directory,
+    sorted). Provide filenames explicitly to restrict which files are uploaded.
 
-    Returns the new upload ID on success.
+    Returns the new upload ID on success. Note: for local file uploads this call
+    blocks while transferring files — for large proteomics files this may exceed
+    the 60s MCP client timeout. Use create_upload_from_csv instead, which returns
+    immediately and transfers files in the background.
     """
+    if file_location and not filenames:
+        filenames = sorted(
+            f
+            for f in os.listdir(file_location)
+            if os.path.isfile(os.path.join(file_location, f))
+        )
     upload = Upload(
         name=name,
         source=source,
@@ -229,22 +243,181 @@ def update_sample_metadata(
 def wait_for_upload(
     upload_id: str,
     poll_seconds: int = 5,
-    timeout_seconds: int = 1800,
+    timeout_seconds: int = 45,
 ) -> str:
-    """Poll an upload until it reaches a terminal state.
+    """Check upload status, polling until a terminal state or the timeout is reached.
 
-    Call this after create_upload to wait for the data processing pipeline to finish.
+    IMPORTANT — MCP CLIENT TIMEOUT: The MCP client enforces a hard 60-second limit
+    per tool call. This tool defaults to 45 seconds so it fits within that cap.
+    If the upload is still processing when the timeout is reached, this tool returns
+    the current status instead of raising an error. Simply call it again to continue
+    monitoring. A typical upload may require several calls over a few minutes.
 
-    Terminal states:
-      COMPLETED  — data has been ingested and the initial INTENSITY dataset is ready.
-                   Proceed to find_initial_dataset to get the dataset ID for pipelines.
-      FAILED / ERROR — ingestion failed (bad file format, missing columns, etc.).
-                   Check the returned details for the error message.
+    Terminal states (stops polling):
+      COMPLETED  — data ingested; call find_initial_dataset next.
+      FAILED / ERROR — ingestion failed; check the returned message for details.
       CANCELLED  — upload was stopped.
 
-    Default timeout is 30 minutes. For very large files, increase timeout_seconds.
+    Non-terminal (call again):
+      PROCESSING / PENDING — still in progress; call wait_for_upload again.
+
+    For background file uploads started by create_upload_from_csv: the upload
+    will initially show PENDING while files are transferring, then transition to
+    PROCESSING once the server begins ingestion.
     """
-    upload = get_client().uploads.wait_until_complete(
-        upload_id, poll_s=poll_seconds, timeout_s=timeout_seconds
+    try:
+        upload = get_client().uploads.wait_until_complete(
+            upload_id, poll_s=poll_seconds, timeout_s=timeout_seconds
+        )
+        return str(upload)
+    except TimeoutError:
+        # Return current status — caller should call again to continue monitoring
+        try:
+            upload = get_client().uploads.get_by_id(upload_id)
+            status = getattr(upload, "status", "UNKNOWN")
+            return (
+                f"Status: {status}. Upload not yet complete — "
+                f"call wait_for_upload again to continue monitoring.\n{upload}"
+            )
+        except Exception as e:
+            return f"Status unknown (could not fetch upload): {e}. Call wait_for_upload again."
+    except Exception as e:
+        return f"Upload {upload_id} failed: {e}"
+
+
+@mcp.tool()
+def create_upload_from_csv(
+    name: str,
+    source: str,
+    metadata_csv_path: str,
+    file_location: str,
+    filenames: Optional[List[str]] = None,
+    description: Optional[str] = None,
+) -> str:
+    """Create a new upload from a metadata CSV file, with background file transfer.
+
+    This is the recommended tool for uploading local proteomics files. It:
+      - Reads experiment_design and sample_metadata directly from a CSV file
+        (no large array inlining — saves thousands of tokens per upload)
+      - Auto-discovers filenames from file_location if not provided
+      - Returns the upload ID immediately after the server accepts the record
+      - Transfers data files to S3 in a background thread (does not block)
+      - Fits within the 60-second MCP client timeout regardless of file size
+
+    After calling this tool:
+      1. Call wait_for_upload(upload_id) to monitor transfer + ingestion progress.
+         Call again if it returns a non-terminal status (PENDING/PROCESSING).
+      2. When COMPLETED, call find_initial_dataset(upload_id).
+
+    metadata_csv_path: path to a combined or experiment-design CSV file.
+      Must contain filename, sample_name, condition columns (plus any extras
+      like dose, batch). Processed by load_metadata_from_csv internally.
+      LFQ shortcut: if your CSV has sample_name + condition but no filename,
+      add a filename column equal to sample_name first.
+
+    file_location: directory containing the data files to upload.
+
+    filenames: list of filenames to upload from file_location. If omitted, all
+      files in file_location are auto-discovered (sorted). Provide explicitly
+      to restrict which files are included.
+
+    source — proteomics software that produced the data files. Valid values:
+      maxquant, diann_tabular, diann_matrix, tims_diann, spectronaut,
+      msfragger, md_format, md_format_gene, md_diann_maxlfq, unknown
+
+    Returns the upload ID on success, or a validation/error message.
+    """
+    # Load and validate metadata from CSV
+    metadata_result = json.loads(load_metadata_from_csv(metadata_csv_path))
+    if "error" in metadata_result:
+        return f"Error reading metadata CSV: {metadata_result['error']}"
+
+    experiment_design = metadata_result.get("experiment_design")
+    sample_metadata = metadata_result.get("sample_metadata")
+
+    if experiment_design is None:
+        return (
+            "Error: could not extract experiment_design from the CSV. "
+            "Ensure the file has filename, sample_name, and condition columns. "
+            f"Notes: {metadata_result.get('notes', [])}"
+        )
+    if sample_metadata is None:
+        return (
+            "Error: could not extract sample_metadata from the CSV. "
+            "Ensure the file has a sample_name column. "
+            f"Notes: {metadata_result.get('notes', [])}"
+        )
+
+    # Validate
+    validation = _validate_arrays(experiment_design, sample_metadata)
+    if not validation.startswith("OK"):
+        return f"Metadata validation failed:\n{validation}"
+
+    # Auto-discover filenames
+    if not filenames:
+        if not os.path.isdir(file_location):
+            return f"Error: file_location not found or not a directory: {file_location}"
+        filenames = sorted(
+            f
+            for f in os.listdir(file_location)
+            if os.path.isfile(os.path.join(file_location, f))
+        )
+        if not filenames:
+            return f"Error: no files found in file_location: {file_location}"
+
+    upload = Upload(
+        name=name,
+        source=source,
+        description=description,
+        experiment_design=ExperimentDesign(data=experiment_design),
+        sample_metadata=SampleMetadata(data=sample_metadata),
+        filenames=filenames,
+        file_location=file_location,
     )
-    return str(upload)
+
+    try:
+        upload_id = get_client().uploads.create(upload, background=True)
+    except Exception as e:
+        return f"Error creating upload: {e}"
+
+    sample_count = metadata_result.get("sample_count", "?")
+    return (
+        f"Upload record created. ID: {upload_id}\n"
+        f"Samples: {sample_count} | Files: {len(filenames)} | Source: {source}\n"
+        f"Files uploading in background (may take several minutes for large files).\n"
+        f"Next: call wait_for_upload(upload_id='{upload_id}') to monitor progress."
+    )
+
+
+def _validate_arrays(
+    experiment_design: List[List[str]], sample_metadata: List[List[str]]
+) -> str:
+    """Internal validation — delegates to validate_upload_inputs (same module)."""
+    return validate_upload_inputs(experiment_design, sample_metadata)
+
+
+@mcp.tool()
+def list_uploads_status(upload_ids: List[str]) -> str:
+    """Check the status of multiple uploads in a single call.
+
+    Use this after submitting several create_upload_from_csv calls to monitor
+    all uploads at once without making a separate get_upload call for each.
+
+    Returns a compact JSON summary: {upload_id: {name, status, source}}.
+    Individual fetch errors are recorded inline rather than failing the whole call.
+
+    upload_ids: list of upload UUIDs to check.
+    """
+    c = get_client()
+    results = {}
+    for uid in upload_ids:
+        try:
+            upload = c.uploads.get_by_id(uid)
+            results[uid] = {
+                "name": getattr(upload, "name", None),
+                "status": getattr(upload, "status", None),
+                "source": getattr(upload, "source", None),
+            }
+        except Exception as e:
+            results[uid] = {"error": str(e)}
+    return json.dumps(results, indent=2)

@@ -21,7 +21,9 @@ from .pipelines import (
 )
 from .uploads import (
     create_upload,
+    create_upload_from_csv,
     get_upload,
+    list_uploads_status,
     update_sample_metadata,
     validate_upload_inputs,
     wait_for_upload,
@@ -35,6 +37,8 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "get_workflow_guide": get_workflow_guide,
     "get_upload": get_upload,
     "create_upload": create_upload,
+    "create_upload_from_csv": create_upload_from_csv,
+    "list_uploads_status": list_uploads_status,
     "validate_upload_inputs": validate_upload_inputs,
     "update_sample_metadata": update_sample_metadata,
     "wait_for_upload": wait_for_upload,

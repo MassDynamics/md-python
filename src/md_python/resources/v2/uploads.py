@@ -2,6 +2,7 @@
 Uploads resource for the MD Python v2 client
 """
 
+import threading
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -21,11 +22,15 @@ class Uploads:
             client, resource_path="/uploads", complete_path="/complete"
         )
 
-    def create(self, upload: Upload) -> str:
+    def create(self, upload: Upload, background: bool = False) -> str:
         """Create a new upload and optionally upload files.
 
         Args:
             upload: Upload object with upload configuration
+            background: If True and file_location is set, transfer files in a
+                background thread and return the upload ID immediately.
+                The caller can then poll get_by_id() to check upload status.
+                Default False preserves blocking behaviour for non-MCP use.
 
         Returns:
             Upload ID
@@ -76,16 +81,30 @@ class Uploads:
         upload_id = str(response_data["id"])
 
         if "uploads" in response_data and upload.file_location:
-            self._uploader.upload_files(
-                response_data["uploads"], upload.file_location, upload_id
-            )
-            self._client._make_request(
-                method="POST",
-                endpoint=f"/uploads/{upload_id}/start_workflow",
-                headers={"Content-Type": "application/json"},
-            )
+            if background:
+                t = threading.Thread(
+                    target=self._upload_and_start,
+                    args=(upload_id, response_data["uploads"], upload.file_location),
+                    daemon=True,
+                )
+                t.start()
+            else:
+                self._upload_and_start(
+                    upload_id, response_data["uploads"], upload.file_location
+                )
 
         return upload_id
+
+    def _upload_and_start(
+        self, upload_id: str, presigned_uploads: List[Any], file_location: str
+    ) -> None:
+        """Upload files to presigned URLs then start the processing workflow."""
+        self._uploader.upload_files(presigned_uploads, file_location, upload_id)
+        self._client._make_request(
+            method="POST",
+            endpoint=f"/uploads/{upload_id}/start_workflow",
+            headers={"Content-Type": "application/json"},
+        )
 
     def get_by_id(self, upload_id: str) -> Optional[Upload]:
         """Get an upload by its ID"""

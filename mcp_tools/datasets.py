@@ -68,25 +68,49 @@ def wait_for_dataset(
     upload_id: str,
     dataset_id: str,
     poll_seconds: int = 5,
-    timeout_seconds: int = 1800,
+    timeout_seconds: int = 45,
 ) -> str:
-    """Poll a pipeline dataset until it reaches a terminal state.
+    """Check pipeline dataset status, polling until a terminal state or timeout.
+
+    IMPORTANT — MCP CLIENT TIMEOUT: The MCP client enforces a hard 60-second limit
+    per tool call. This tool defaults to 45 seconds so it fits within that cap.
+    If the pipeline is still running when the timeout is reached, this tool returns
+    the current status instead of raising an error. Simply call it again to continue
+    monitoring. A pipeline run may require many calls over several minutes.
 
     Call this after run_normalisation_imputation, run_pairwise_comparison, or
-    run_dose_response to block until the pipeline finishes.
+    run_dose_response. Pass both the upload_id and the dataset_id returned by the
+    run_* call.
 
-    Terminal states:
-      COMPLETED — results are ready and visible in the Mass Dynamics app.
-                  The dataset_id can be used as input_dataset_ids for the next pipeline.
-      FAILED / ERROR — pipeline failed; call retry_dataset to re-run it.
+    Terminal states (stops polling):
+      COMPLETED — results are ready in the Mass Dynamics app.
+                  Use this dataset_id as input_dataset_ids for the next pipeline.
+      FAILED / ERROR — pipeline failed; call retry_dataset(dataset_id) to re-run.
       CANCELLED — pipeline was stopped.
 
-    Default timeout is 30 minutes. For large experiments, increase timeout_seconds.
+    Non-terminal (call again):
+      RUNNING / PENDING — still in progress; call wait_for_dataset again.
     """
-    ds = get_client().datasets.wait_until_complete(
-        upload_id, dataset_id, poll_s=poll_seconds, timeout_s=timeout_seconds
-    )
-    return str(ds)
+    try:
+        ds = get_client().datasets.wait_until_complete(
+            upload_id, dataset_id, poll_s=poll_seconds, timeout_s=timeout_seconds
+        )
+        return str(ds)
+    except TimeoutError:
+        # Return current state — caller should call again to continue monitoring
+        try:
+            datasets = get_client().datasets.list_by_upload(upload_id)
+            ds = next((d for d in datasets if str(d.id) == dataset_id), None)
+            if ds:
+                return (
+                    f"State: {ds.state}. Pipeline not yet complete — "
+                    f"call wait_for_dataset again to continue monitoring.\n{ds}"
+                )
+            return "Dataset not yet visible — call wait_for_dataset again to continue monitoring."
+        except Exception as e:
+            return f"State unknown (could not fetch dataset): {e}. Call wait_for_dataset again."
+    except Exception as e:
+        return f"Dataset {dataset_id} failed: {e}"
 
 
 @mcp.tool()
