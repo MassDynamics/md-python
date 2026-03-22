@@ -56,7 +56,13 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
         },
     },
     "dose_response": {
-        "description": "Fit dose-response curves to intensity data.",
+        "description": (
+            "Fit dose-response curves to intensity data using a four-parameter "
+            "log-logistic (4PL) model. "
+            "MINIMUM DATA REQUIREMENTS: at least 3 distinct dose levels and at "
+            "least 5 total replicates across all doses (3+ replicates per dose "
+            "recommended). The pipeline will fail if these minimums are not met."
+        ),
         "required": [
             "input_dataset_ids",
             "dataset_name",
@@ -104,8 +110,13 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             "normalise": {
                 "type": "str",
                 "default": "none",
-                "valid_values": ["none"],
-                "description": "Normalisation to apply before fitting. Use 'none' (no normalisation is the standard choice).",
+                "valid_values": ["none", "sum", "median"],
+                "description": (
+                    "Normalisation to apply before fitting. "
+                    "'none' is the standard choice (recommended when data has already been "
+                    "normalised upstream, e.g. via run_normalisation_imputation). "
+                    "'sum' and 'median' apply within-sample normalisation at the dose-response stage."
+                ),
             },
             "span_rollmean_k": {
                 "type": "int",
@@ -295,7 +306,7 @@ def run_pairwise_comparison(
     entity_type: str = "protein",
     control_variables: Optional[List[Dict[str, str]]] = None,
 ) -> str:
-    """Run a pairwise comparison (limma) pipeline.
+    """Run a pairwise differential abundance analysis using limma.
 
     BEFORE calling this tool:
       1. Call describe_pipeline("pairwise_comparison") to confirm valid parameter values.
@@ -304,6 +315,18 @@ def run_pairwise_comparison(
       3. Use generate_pairwise_comparisons to build condition_comparisons.
 
     sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
+
+    entity_type: "protein" (default) for protein-level analysis, "peptide" for peptide-level.
+      Use "protein" unless the user explicitly requests peptide-level results.
+
+    filter_valid_values_logic controls which rows (proteins/peptides) pass the
+      completeness filter before modelling:
+        "at least one condition" (default) — keep rows with enough valid values
+          in at least one of the compared conditions. Good for most experiments.
+        "all conditions" — require completeness in every condition being compared.
+          More stringent; reduces false positives but loses more data.
+        "full experiment" — require completeness across the entire experiment.
+          Most stringent; use for very clean, complete datasets.
 
     Returns the new dataset ID on success.
     """
@@ -345,7 +368,14 @@ def run_dose_response(
     span_rollmean_k: int = 1,
     prop_required_in_protein: float = 0.5,
 ) -> str:
-    """Run a dose-response curve fitting pipeline.
+    """Run a dose-response curve fitting pipeline (4-parameter log-logistic model).
+
+    MINIMUM DATA REQUIREMENTS:
+      - At least 3 distinct dose levels in sample_metadata[dose_column]
+      - At least 5 total replicates across all doses (3+ per dose recommended)
+      - control_samples are the samples at dose = 0 (excluded from curve fitting,
+        used to anchor the baseline)
+    The pipeline will return an error if these minimums are not met.
 
     BEFORE calling this tool:
       1. Call describe_pipeline("dose_response") to confirm valid parameter values.
@@ -356,6 +386,9 @@ def run_dose_response(
     sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
     sample_names: read from sample_metadata rows, not from filenames or inference.
     control_samples: ask the user which samples are controls; never guess.
+
+    use_imputed_intensities: defaults to True (uses imputed values from a prior
+      normalisation_imputation step). Set False to use raw intensities only.
 
     Returns the new dataset ID on success.
     """

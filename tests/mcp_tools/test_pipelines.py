@@ -26,7 +26,11 @@ class TestDescribePipeline:
         result = json.loads(describe_pipeline("dose_response"))
         assert "parameters" in result
         assert "normalise" in result["parameters"]
-        assert result["parameters"]["normalise"]["valid_values"] == ["none"]
+        assert result["parameters"]["normalise"]["valid_values"] == [
+            "none",
+            "sum",
+            "median",
+        ]
 
     def test_all_slugs_have_required_and_parameters(self):
         for slug in (

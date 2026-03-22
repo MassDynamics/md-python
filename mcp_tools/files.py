@@ -301,14 +301,38 @@ def load_metadata_from_csv(
 ) -> str:
     """Load experiment_design and/or sample_metadata from a CSV or TSV file.
 
+    WHAT EACH TABLE IS:
+
+    experiment_design — maps raw data files to biological samples. Required by
+      create_upload. Three required columns:
+        filename    : raw data filename (without extension). For LFQ data where
+                      each file = one sample, filename is usually the same as
+                      sample_name. For TMT/fractionated experiments, multiple rows
+                      can share a condition.
+        sample_name : unique biological sample label — must match exactly across
+                      all downstream tables (sample_metadata, pipeline params).
+        condition   : experimental group (e.g. "treated", "control", "WT").
+
+    sample_metadata — per-sample experimental variables used by analysis pipelines.
+      Required column: sample_name. Additional columns are used by pipelines:
+        dose        : numeric dose value (required for run_dose_response)
+        condition   : group label (used by run_pairwise_comparison)
+        batch       : batch covariate (can be added as control_variables in limma)
+        Any other columns are preserved and available as covariates.
+
+    LFQ SHORTCUT — for LFQ data where each file is a separate sample:
+      The experiment_design can always be auto-derived from sample_metadata by
+      treating sample_name as filename. If the user's CSV has sample_name and
+      condition but no filename column, suggest they add a "filename" column
+      equal to sample_name — this is the standard LFQ single-file setup.
+
     Handles three cases automatically:
 
     1. COMBINED file (LFQ single-file workflow — most common):
-       Has filename + sample_name + condition columns PLUS extra columns
+       Has filename + sample_name + condition PLUS extra columns
        (dose, batch, cellline, drug, …). Returns BOTH experiment_design and
-       sample_metadata. The sample_metadata is deduplicated by sample_name so
-       each sample appears exactly once.
-       Example combined columns: filename, sample_name, condition, dose, batch
+       sample_metadata. sample_metadata is deduplicated by sample_name.
+       Example: filename, sample_name, condition, dose, batch
 
     2. EXPERIMENT-DESIGN-ONLY file:
        Has filename, sample_name, condition but no extra columns.
@@ -317,11 +341,13 @@ def load_metadata_from_csv(
     3. SAMPLE-METADATA-ONLY file:
        Has sample_name and extra columns but no filename/condition columns.
        Returns sample_metadata only (experiment_design is null).
+       → If condition is present, you can derive experiment_design via the LFQ
+         shortcut (add filename = sample_name column to the file and re-run).
 
-    Column synonyms accepted in the file header:
-      filename   → filename (also: file, file_name)
+    Column synonyms accepted:
+      filename    → filename (also: file, file_name)
       sample_name → sample_name (also: sample, samplename)
-      condition  → condition (also: group)
+      condition   → condition (also: group)
 
     ENTITY-DATA BOUNDARY: Only use this on metadata/design CSV files.
     Never point it at proteomics data files — DIA-NN reports, MaxQuant
@@ -329,9 +355,6 @@ def load_metadata_from_csv(
     MD_Format protein/peptide tables, or any file containing intensity,
     expression, or quantification columns. Those files are uploaded directly;
     the API (via md-converter) extracts all measurement data from them.
-
-    Supported upload sources: maxquant, diann_tabular, msfragger, spectronaut,
-    md_format, md_format_gene, tims_diann, md_diann_maxlfq, unknown.
 
     Returns JSON with:
     - experiment_design: 2D array — pass directly to create_upload (or null)
@@ -341,7 +364,7 @@ def load_metadata_from_csv(
     - columns_found:     all column names from the file
     - notes:             warnings or recommendations
 
-    Always pass these arrays verbatim to downstream tools. Do not re-construct,
+    Always pass these arrays verbatim to downstream tools. Never re-construct,
     filter, or modify them — any manual editing risks sample name mismatches.
     """
     if not os.path.exists(file_path):
@@ -447,11 +470,23 @@ def load_metadata_from_csv(
     # ── notes ────────────────────────────────────────────────────────────────
     notes: List[str] = []
     if not has_ed:
-        notes.append(
-            "No filename/condition columns detected — only sample_metadata was built. "
-            "If you need an experiment_design, add 'filename' and 'condition' columns "
-            "to this file or build experiment_design manually."
-        )
+        has_condition = "condition" in normalised or "group" in [
+            h.strip().lower() for h in header_stripped
+        ]
+        if has_condition:
+            notes.append(
+                "No 'filename' column detected — only sample_metadata was built. "
+                "LFQ SHORTCUT: for LFQ data where each file = one sample, "
+                "add a 'filename' column to your CSV with the same values as "
+                "'sample_name', then re-run load_metadata_from_csv. "
+                "This will generate both experiment_design and sample_metadata automatically."
+            )
+        else:
+            notes.append(
+                "No filename/condition columns detected — only sample_metadata was built. "
+                "If you need an experiment_design, add 'filename' and 'condition' columns "
+                "to this file and re-run load_metadata_from_csv."
+            )
     if has_ed and sample_metadata and len(sm_headers) == 1:
         notes.append(
             "sample_metadata only contains sample_name. "

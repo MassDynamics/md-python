@@ -6,11 +6,14 @@ from ._client import get_client
 
 @mcp.tool()
 def list_jobs() -> str:
-    """List all available pipeline job types.
+    """List all available pipeline job types published on this Mass Dynamics instance.
 
-    Returns the available job slugs and their details — use these slugs when
-    running pipelines via run_normalisation_imputation, run_pairwise_comparison,
-    or run_dose_response.
+    Returns job slugs, names, and descriptions. Use these slugs with
+    describe_pipeline(<slug>) to inspect parameters, and then with
+    run_normalisation_imputation, run_pairwise_comparison, or run_dose_response
+    to execute them.
+
+    Typical slugs: normalisation_imputation, pairwise_comparison, dose_response.
     """
     jobs = get_client().jobs.list()
     if not jobs:
@@ -20,9 +23,16 @@ def list_jobs() -> str:
 
 @mcp.tool()
 def list_datasets(upload_id: str) -> str:
-    """List all datasets for an upload.
+    """List all datasets associated with an upload, with their IDs, names, types, and states.
 
-    Returns dataset IDs, names, types, and states.
+    Use this for inspection or debugging. In a normal pipeline workflow, use
+    find_initial_dataset instead — it returns the specific INTENSITY dataset ID
+    needed as input for run_* pipeline tools.
+
+    Dataset types you may see:
+      INTENSITY   — the initial processed dataset (input for pipelines)
+      PAIRWISE    — output of run_pairwise_comparison
+      DOSE_RESPONSE — output of run_dose_response
     """
     datasets = get_client().datasets.list_by_upload(upload_id)
     if not datasets:
@@ -39,9 +49,13 @@ def list_datasets(upload_id: str) -> str:
 def find_initial_dataset(upload_id: str) -> str:
     """Find the initial INTENSITY dataset for an upload.
 
-    This is the input dataset required to run downstream pipelines
-    (normalisation/imputation, pairwise comparison, dose response).
-    Returns the dataset ID and details on success.
+    Call this after wait_for_upload returns COMPLETED. The dataset ID
+    returned here is what you pass as input_dataset_ids to every run_*
+    pipeline tool (run_normalisation_imputation, run_pairwise_comparison,
+    run_dose_response).
+
+    Returns the dataset ID and details on success, or an error if the upload
+    has not finished processing yet.
     """
     ds = get_client().datasets.find_initial_dataset(upload_id)
     if not ds:
@@ -56,9 +70,18 @@ def wait_for_dataset(
     poll_seconds: int = 5,
     timeout_seconds: int = 1800,
 ) -> str:
-    """Poll a dataset/pipeline until it reaches a terminal state.
+    """Poll a pipeline dataset until it reaches a terminal state.
 
-    Returns the final dataset status and details. Default timeout is 30 minutes.
+    Call this after run_normalisation_imputation, run_pairwise_comparison, or
+    run_dose_response to block until the pipeline finishes.
+
+    Terminal states:
+      COMPLETED — results are ready and visible in the Mass Dynamics app.
+                  The dataset_id can be used as input_dataset_ids for the next pipeline.
+      FAILED / ERROR — pipeline failed; call retry_dataset to re-run it.
+      CANCELLED — pipeline was stopped.
+
+    Default timeout is 30 minutes. For large experiments, increase timeout_seconds.
     """
     ds = get_client().datasets.wait_until_complete(
         upload_id, dataset_id, poll_s=poll_seconds, timeout_s=timeout_seconds
@@ -68,13 +91,22 @@ def wait_for_dataset(
 
 @mcp.tool()
 def retry_dataset(dataset_id: str) -> str:
-    """Retry a failed dataset/pipeline job."""
+    """Retry a failed or errored pipeline job.
+
+    Call this when wait_for_dataset returns a FAILED or ERROR state.
+    After retrying, call wait_for_dataset again to monitor the new run.
+    """
     ok = get_client().datasets.retry(dataset_id)
     return "Dataset retry triggered successfully" if ok else "Failed to retry dataset"
 
 
 @mcp.tool()
 def delete_dataset(dataset_id: str) -> str:
-    """Delete a dataset."""
+    """Permanently delete a pipeline result dataset.
+
+    Use this to remove unwanted or failed analysis results. This action
+    cannot be undone. Do not delete the initial INTENSITY dataset unless
+    you intend to re-process the upload from scratch.
+    """
     ok = get_client().datasets.delete(dataset_id)
     return "Dataset deleted successfully" if ok else "Failed to delete dataset"

@@ -35,12 +35,21 @@ def validate_upload_inputs(
 
     Call this BEFORE create_upload to catch mismatches that would cause the upload to fail.
 
-    Checks:
-    - experiment_design has required columns: filename, sample_name, condition
-    - sample_metadata has a sample_name column (first column or named 'sample_name')
-    - Every sample_name in experiment_design appears in sample_metadata (exact match, case-sensitive)
-    - Every sample_name in sample_metadata appears in experiment_design (no orphans)
-    - No duplicate sample_names in either table
+    What each table is:
+      experiment_design — maps raw data files to biological samples.
+        Required columns: filename (raw file name without extension),
+        sample_name (unique sample label), condition (experimental group).
+        One row per raw file. For LFQ data, filename usually equals sample_name.
+      sample_metadata — per-sample experimental variables used by analysis pipelines.
+        Required column: sample_name (must exactly match experiment_design).
+        Optional columns: dose, batch, cellline, drug, or any covariate.
+
+    Checks performed:
+      - experiment_design has required columns: filename, sample_name, condition
+      - sample_metadata has a sample_name column
+      - Every sample_name in experiment_design appears in sample_metadata (exact match, case-sensitive)
+      - Every sample_name in sample_metadata appears in experiment_design (no orphans)
+      - No duplicate sample_names in either table
 
     Returns "OK: N samples validated" on success, or a detailed error message.
     """
@@ -154,6 +163,26 @@ def create_upload(
     experiment_design: 2D array from load_metadata_from_csv["experiment_design"].
     sample_metadata:   2D array from load_metadata_from_csv["sample_metadata"].
 
+    source — the proteomics software that produced the data files. Valid values:
+      maxquant       — MaxQuant output (requires proteinGroups.txt + summary.txt)
+      diann_tabular  — DIA-NN tabular report (requires report.tsv)
+      diann_matrix   — DIA-NN matrix format (requires report.pg_matrix.tsv;
+                        optionally report.pr_matrix.tsv for peptide-level)
+      tims_diann     — timsTOF DIA-NN output (pg_matrix format, same as diann_matrix)
+      spectronaut    — Spectronaut export (report.txt / .tsv / .csv)
+      msfragger      — MSFragger/FragPipe output (combined_protein.tsv +
+                        combined_modified_peptide.tsv + combined_ion.tsv)
+      md_format      — pre-converted MD long-format TSV with columns:
+                        ProteinGroupId, ProteinGroup, GeneNames, SampleName,
+                        ProteinIntensity, Imputed
+      md_format_gene — pre-converted MD gene-level TSV:
+                        GeneId, SampleName, GeneExpression
+      md_diann_maxlfq — DIA-NN output with MD's MaxLFQ implementation applied
+      unknown        — flexible wide-format with a mapping.json descriptor
+
+    NOTE: labelling_method (lfq vs tmt) is not yet exposed in this client —
+    LFQ is assumed. Contact support for TMT upload support.
+
     For S3-backed uploads: provide s3_bucket, s3_prefix, and filenames.
     For local file uploads: provide file_location (directory path) and filenames.
 
@@ -202,9 +231,18 @@ def wait_for_upload(
     poll_seconds: int = 5,
     timeout_seconds: int = 1800,
 ) -> str:
-    """Poll an upload until it reaches a terminal state (COMPLETED, FAILED, ERROR, CANCELLED).
+    """Poll an upload until it reaches a terminal state.
 
-    Returns the final upload status and details. Default timeout is 30 minutes.
+    Call this after create_upload to wait for the data processing pipeline to finish.
+
+    Terminal states:
+      COMPLETED  — data has been ingested and the initial INTENSITY dataset is ready.
+                   Proceed to find_initial_dataset to get the dataset ID for pipelines.
+      FAILED / ERROR — ingestion failed (bad file format, missing columns, etc.).
+                   Check the returned details for the error message.
+      CANCELLED  — upload was stopped.
+
+    Default timeout is 30 minutes. For very large files, increase timeout_seconds.
     """
     upload = get_client().uploads.wait_until_complete(
         upload_id, poll_s=poll_seconds, timeout_s=timeout_seconds

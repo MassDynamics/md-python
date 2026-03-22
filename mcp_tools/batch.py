@@ -6,11 +6,12 @@ from .datasets import (
     delete_dataset,
     find_initial_dataset,
     list_datasets,
+    list_jobs,
     retry_dataset,
     wait_for_dataset,
 )
 from .files import load_metadata_from_csv, plan_wide_to_md_format, read_csv_preview
-from .health import health_check
+from .health import get_workflow_guide, health_check
 from .pipelines import (
     describe_pipeline,
     generate_pairwise_comparisons,
@@ -31,11 +32,13 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "load_metadata_from_csv": load_metadata_from_csv,
     "plan_wide_to_md_format": plan_wide_to_md_format,
     "health_check": health_check,
+    "get_workflow_guide": get_workflow_guide,
     "get_upload": get_upload,
     "create_upload": create_upload,
     "validate_upload_inputs": validate_upload_inputs,
     "update_sample_metadata": update_sample_metadata,
     "wait_for_upload": wait_for_upload,
+    "list_jobs": list_jobs,
     "list_datasets": list_datasets,
     "find_initial_dataset": find_initial_dataset,
     "wait_for_dataset": wait_for_dataset,
@@ -56,36 +59,70 @@ def batch(
 ) -> str:
     """Execute multiple MCP tool calls in a single request.
 
-    Collapses sequential tool calls into one round-trip — use this whenever you
-    need to chain two or more operations (e.g. health_check + get_upload + list_datasets).
+    Collapses sequential tool calls into one round-trip. Use this to chain
+    independent or sequential operations without waiting for individual responses.
+    Always keep stop_on_error=True (default) for pipeline workflows — if any step
+    fails, stopping immediately prevents passing a broken dataset ID to the next step.
 
     operations: list of {"tool": "<name>", "params": {...}} objects executed in order.
-    stop_on_error: stop on first failure (default true); set false to continue.
+    stop_on_error: stop on first failure (default true); set false only for
+      independent inspection operations.
 
     Available tools: read_csv_preview, load_metadata_from_csv, plan_wide_to_md_format,
-    health_check,
+    health_check, get_workflow_guide,
     get_upload, create_upload, validate_upload_inputs, update_sample_metadata,
-    wait_for_upload, list_datasets, find_initial_dataset, wait_for_dataset,
+    wait_for_upload, list_jobs, list_datasets, find_initial_dataset, wait_for_dataset,
     retry_dataset, delete_dataset, describe_pipeline, run_normalisation_imputation,
     generate_pairwise_comparisons, run_pairwise_comparison, run_dose_response.
 
-    get_upload accepts either upload_id (UUID) or name (string). When only a name
-    is known, use name — the tool resolves it to a UUID. Subsequent operations in
-    the same batch can then use the UUID from the result.
-
-    Example — full workflow from name only:
+    ── WORKFLOW EXAMPLE A: inspect an upload by name ────────────────────────────
       operations=[
         {"tool": "get_upload", "params": {"name": "My Experiment"}},
         {"tool": "list_datasets", "params": {"upload_id": "<uuid-from-above>"}},
         {"tool": "find_initial_dataset", "params": {"upload_id": "<uuid-from-above>"}}
       ]
 
-    Example — lookup by UUID:
+    ── WORKFLOW EXAMPLE B: prepare and validate metadata before upload ───────────
+    (Collapse metadata loading + validation into one round-trip)
       operations=[
-        {"tool": "health_check"},
-        {"tool": "get_upload", "params": {"upload_id": "<uuid>"}},
-        {"tool": "list_datasets", "params": {"upload_id": "<uuid>"}}
+        {"tool": "load_metadata_from_csv", "params": {"file_path": "/path/to/metadata.csv"}},
+        {"tool": "validate_upload_inputs", "params": {
+            "experiment_design": "<experiment_design-from-above>",
+            "sample_metadata": "<sample_metadata-from-above>"
+        }}
       ]
+
+    ── WORKFLOW EXAMPLE C: look up pipeline schemas before running ───────────────
+      operations=[
+        {"tool": "describe_pipeline", "params": {"job_slug": "normalisation_imputation"}},
+        {"tool": "describe_pipeline", "params": {"job_slug": "pairwise_comparison"}}
+      ]
+
+    ── FULL DEA WORKFLOW (run as separate calls, not one batch) ─────────────────
+    The full differential expression analysis (DEA) workflow must be broken into
+    phases because wait_for_upload and wait_for_dataset are long-running blocking
+    calls — batch them separately from each phase:
+
+    Phase 1 — prepare and upload:
+      1. load_metadata_from_csv → validate_upload_inputs → create_upload
+      2. wait_for_upload (separate call — may take minutes)
+
+    Phase 2 — normalisation:
+      3. find_initial_dataset
+      4. describe_pipeline("normalisation_imputation") → run_normalisation_imputation
+      5. wait_for_dataset (separate call)
+
+    Phase 3 — pairwise comparison:
+      6. describe_pipeline("pairwise_comparison") → generate_pairwise_comparisons
+         → run_pairwise_comparison
+      7. wait_for_dataset (separate call)
+
+    ── FULL DRA WORKFLOW (dose-response analysis) ───────────────────────────────
+    Same as DEA Phases 1-2, then:
+
+    Phase 3 — dose-response (requires ≥3 distinct doses, ≥5 replicates):
+      6. describe_pipeline("dose_response") → run_dose_response
+      7. wait_for_dataset (separate call)
 
     Returns JSON array with each operation's index, tool name, and result or error.
     """
