@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 from mcp_tools.uploads import (
+    cancel_upload_queue,
     create_upload,
     create_upload_from_csv,
     get_upload,
@@ -275,6 +276,80 @@ def test_create_upload_from_csv_bad_csv(tmp_path):
         )
 
     assert "Error" in result
+
+
+def test_create_upload_from_csv_large_files_uses_sequential_executor(tmp_path):
+    """Files above threshold are routed through the module-level sequential executor."""
+    from mcp_tools.uploads import _large_upload_executor
+
+    csv = tmp_path / "metadata.csv"
+    csv.write_text("filename,sample_name,condition\nfile1,s1,ctrl\nfile2,s2,treated\n")
+    (tmp_path / "file1.tsv").write_text("data")
+    (tmp_path / "file2.tsv").write_text("data")
+
+    mock_client = MagicMock()
+    mock_client.uploads.create.return_value = "upload-id-large"
+
+    # 60 MB per file × 2 = 120 MB > 100 MB threshold
+    large_size = 60 * 1024 * 1024
+    with (
+        patch("mcp_tools.uploads.get_client", return_value=mock_client),
+        patch("mcp_tools.uploads.os.path.getsize", return_value=large_size),
+    ):
+        result = create_upload_from_csv(
+            name="Large Upload",
+            source="md_format",
+            metadata_csv_path=str(csv),
+            file_location=str(tmp_path),
+        )
+
+    assert "upload-id-large" in result
+    assert "queued" in result
+    _, kwargs = mock_client.uploads.create.call_args
+    assert kwargs.get("background") is True
+    assert kwargs.get("executor") is _large_upload_executor
+
+
+def test_create_upload_from_csv_small_files_no_executor(tmp_path):
+    """Files below threshold use a plain background thread (executor=None)."""
+    csv = tmp_path / "metadata.csv"
+    csv.write_text("filename,sample_name,condition\nfile1,s1,ctrl\nfile2,s2,treated\n")
+    (tmp_path / "file1.tsv").write_text("data")
+    (tmp_path / "file2.tsv").write_text("data")
+
+    mock_client = MagicMock()
+    mock_client.uploads.create.return_value = "upload-id-small"
+
+    # 10 MB per file × 2 = 20 MB < 100 MB threshold
+    small_size = 10 * 1024 * 1024
+    with (
+        patch("mcp_tools.uploads.get_client", return_value=mock_client),
+        patch("mcp_tools.uploads.os.path.getsize", return_value=small_size),
+    ):
+        result = create_upload_from_csv(
+            name="Small Upload",
+            source="md_format",
+            metadata_csv_path=str(csv),
+            file_location=str(tmp_path),
+        )
+
+    assert "upload-id-small" in result
+    assert "queued" not in result
+    _, kwargs = mock_client.uploads.create.call_args
+    assert kwargs.get("background") is True
+    assert kwargs.get("executor") is None
+
+
+def test_cancel_upload_queue_resets_executor():
+    import mcp_tools.uploads as uploads_module
+
+    original_executor = uploads_module._large_upload_executor
+    with patch.object(original_executor, "shutdown") as mock_shutdown:
+        result = cancel_upload_queue()
+
+    mock_shutdown.assert_called_once_with(wait=False, cancel_futures=True)
+    assert uploads_module._large_upload_executor is not original_executor
+    assert "reset" in result.lower()
 
 
 def test_list_uploads_status():

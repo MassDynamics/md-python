@@ -2,6 +2,7 @@
 Uploads resource for the MD Python v2 client
 """
 
+import concurrent.futures
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -22,7 +23,12 @@ class Uploads:
             client, resource_path="/uploads", complete_path="/complete"
         )
 
-    def create(self, upload: Upload, background: bool = False) -> str:
+    def create(
+        self,
+        upload: Upload,
+        background: bool = False,
+        executor: Optional[concurrent.futures.Executor] = None,
+    ) -> str:
         """Create a new upload and optionally upload files.
 
         Args:
@@ -82,12 +88,24 @@ class Uploads:
 
         if "uploads" in response_data and upload.file_location:
             if background:
-                t = threading.Thread(
-                    target=self._upload_and_start,
-                    args=(upload_id, response_data["uploads"], upload.file_location),
-                    daemon=True,
-                )
-                t.start()
+                if executor is not None:
+                    executor.submit(
+                        self._upload_and_start,
+                        upload_id,
+                        response_data["uploads"],
+                        upload.file_location,
+                    )
+                else:
+                    t = threading.Thread(
+                        target=self._upload_and_start,
+                        args=(
+                            upload_id,
+                            response_data["uploads"],
+                            upload.file_location,
+                        ),
+                        daemon=True,
+                    )
+                    t.start()
             else:
                 self._upload_and_start(
                     upload_id, response_data["uploads"], upload.file_location

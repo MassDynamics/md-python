@@ -1,6 +1,14 @@
+import concurrent.futures
 import json
 import os
 from typing import List, Optional
+
+_LARGE_UPLOAD_THRESHOLD_BYTES = (
+    int(os.environ.get("MD_LARGE_UPLOAD_THRESHOLD_MB", "100")) * 1024 * 1024
+)
+_large_upload_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=int(os.environ.get("MD_MAX_CONCURRENT_LARGE_UPLOADS", "1"))
+)
 
 from md_python.models.metadata import ExperimentDesign, SampleMetadata
 from md_python.models.upload import Upload
@@ -365,6 +373,16 @@ def create_upload_from_csv(
         if not filenames:
             return f"Error: no files found in file_location: {file_location}"
 
+    # Check total file size to decide whether to use the sequential executor.
+    # Large transfers are routed through a single-threaded executor to prevent
+    # concurrent multipart uploads from saturating uplink bandwidth and stalling.
+    total_bytes = sum(
+        os.path.getsize(os.path.join(file_location, f))
+        for f in filenames
+        if os.path.isfile(os.path.join(file_location, f))
+    )
+    use_sequential = total_bytes >= _LARGE_UPLOAD_THRESHOLD_BYTES
+
     upload = Upload(
         name=name,
         source=source,
@@ -376,15 +394,25 @@ def create_upload_from_csv(
     )
 
     try:
-        upload_id = get_client().uploads.create(upload, background=True)
+        upload_id = get_client().uploads.create(
+            upload,
+            background=True,
+            executor=_large_upload_executor if use_sequential else None,
+        )
     except Exception as e:
         return f"Error creating upload: {e}"
 
     sample_count = metadata_result.get("sample_count", "?")
+    transfer_note = (
+        "Files queued for sequential background upload (large files — "
+        "will start after any running transfer completes)."
+        if use_sequential
+        else "Files uploading in background (may take several minutes for large files)."
+    )
     return (
         f"Upload record created. ID: {upload_id}\n"
         f"Samples: {sample_count} | Files: {len(filenames)} | Source: {source}\n"
-        f"Files uploading in background (may take several minutes for large files).\n"
+        f"{transfer_note}\n"
         f"Next: call wait_for_upload(upload_id='{upload_id}') to monitor progress."
     )
 
@@ -394,6 +422,33 @@ def _validate_arrays(
 ) -> str:
     """Internal validation — delegates to validate_upload_inputs (same module)."""
     return validate_upload_inputs(experiment_design, sample_metadata)
+
+
+@mcp.tool()
+def cancel_upload_queue() -> str:
+    """Cancel queued large-file uploads and reset the upload queue.
+
+    Use this when a previous upload has stalled and is blocking new uploads from starting.
+    Any transfer that is already in progress (actively sending data to S3) will continue —
+    only transfers that are queued but have not yet started are cancelled.
+
+    After calling this tool, new create_upload_from_csv calls will start immediately
+    instead of waiting behind a stalled transfer.
+
+    Note: cancelled uploads remain in PENDING state on the server — their upload records
+    exist but no data was transferred. Use get_upload to check their status and
+    re-submit them with create_upload_from_csv if needed.
+    """
+    global _large_upload_executor
+    _large_upload_executor.shutdown(wait=False, cancel_futures=True)
+    _large_upload_executor = concurrent.futures.ThreadPoolExecutor(
+        max_workers=int(os.environ.get("MD_MAX_CONCURRENT_LARGE_UPLOADS", "1"))
+    )
+    return (
+        "Upload queue reset. Queued transfers that had not yet started have been cancelled. "
+        "Any transfer already in progress will continue to completion. "
+        "New uploads will now start immediately."
+    )
 
 
 @mcp.tool()
