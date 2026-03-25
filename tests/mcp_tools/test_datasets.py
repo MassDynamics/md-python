@@ -1,3 +1,5 @@
+"""Tests for mcp_tools.datasets."""
+
 from unittest.mock import MagicMock, patch
 
 from mcp_tools.datasets import (
@@ -20,160 +22,128 @@ def _mock_dataset(id="ds-1", name="My Dataset", type="INTENSITY", state="COMPLET
     return ds
 
 
-def test_list_jobs():
-    mock_client = MagicMock()
-    mock_client.jobs.list.return_value = [
-        {"slug": "normalisation_imputation", "name": "Normalisation & Imputation"},
-        {"slug": "pairwise_comparison", "name": "Pairwise Comparison"},
-    ]
+class TestListJobs:
+    def test_returns_job_slugs(self):
+        mock_client = MagicMock()
+        mock_client.jobs.list.return_value = [
+            {"slug": "normalisation_imputation"},
+            {"slug": "pairwise_comparison"},
+        ]
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = list_jobs()
+        assert "normalisation_imputation" in result
+        assert "pairwise_comparison" in result
 
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = list_jobs()
-
-    assert "normalisation_imputation" in result
-    assert "pairwise_comparison" in result
-
-
-def test_list_jobs_empty():
-    mock_client = MagicMock()
-    mock_client.jobs.list.return_value = []
-
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = list_jobs()
-
-    assert "No jobs" in result
+    def test_empty_returns_message(self):
+        mock_client = MagicMock()
+        mock_client.jobs.list.return_value = []
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = list_jobs()
+        assert "No jobs" in result
 
 
-def test_list_datasets_found():
-    mock_client = MagicMock()
-    mock_client.datasets.list_by_upload.return_value = [
-        _mock_dataset("ds-1", "Initial", "INTENSITY", "COMPLETED"),
-        _mock_dataset("ds-2", "Pairwise", "PAIRWISE_COMPARISON", "PROCESSING"),
-    ]
+class TestListDatasets:
+    def test_returns_all_datasets(self):
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = [
+            _mock_dataset("ds-1", "Initial", "INTENSITY", "COMPLETED"),
+            _mock_dataset("ds-2", "Pairwise", "PAIRWISE_COMPARISON", "PROCESSING"),
+        ]
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = list_datasets("upload-123")
+        mock_client.datasets.list_by_upload.assert_called_once_with("upload-123")
+        assert "2 dataset(s)" in result
+        assert "ds-1" in result
+        assert "INTENSITY" in result
 
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = list_datasets("upload-123")
-
-    mock_client.datasets.list_by_upload.assert_called_once_with("upload-123")
-    assert "2 dataset(s)" in result
-    assert "ds-1" in result
-    assert "INTENSITY" in result
-
-
-def test_list_datasets_empty():
-    mock_client = MagicMock()
-    mock_client.datasets.list_by_upload.return_value = []
-
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = list_datasets("upload-123")
-
-    assert "No datasets" in result
+    def test_empty_returns_message(self):
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = []
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = list_datasets("upload-123")
+        assert "No datasets" in result
 
 
-def test_find_initial_dataset_found():
-    mock_client = MagicMock()
-    mock_client.datasets.find_initial_dataset.return_value = _mock_dataset()
+class TestFindInitialDataset:
+    def test_found(self):
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.return_value = _mock_dataset()
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = find_initial_dataset("upload-123")
+        mock_client.datasets.find_initial_dataset.assert_called_once_with("upload-123")
+        assert "ds-1" in result
+        assert "Initial dataset found" in result
 
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = find_initial_dataset("upload-123")
-
-    mock_client.datasets.find_initial_dataset.assert_called_once_with("upload-123")
-    assert "ds-1" in result
-    assert "Initial dataset found" in result
-
-
-def test_find_initial_dataset_not_found():
-    mock_client = MagicMock()
-    mock_client.datasets.find_initial_dataset.return_value = None
-
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = find_initial_dataset("upload-123")
-
-    assert "No initial" in result
+    def test_not_found(self):
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.return_value = None
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = find_initial_dataset("upload-123")
+        assert "No initial" in result
 
 
-def test_wait_for_dataset():
-    mock_client = MagicMock()
-    mock_client.datasets.wait_until_complete.return_value = _mock_dataset(
-        state="COMPLETED"
-    )
-
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = wait_for_dataset(
-            "upload-123", "ds-1", poll_seconds=1, timeout_seconds=60
+class TestWaitForDataset:
+    def test_completes_successfully(self):
+        mock_client = MagicMock()
+        mock_client.datasets.wait_until_complete.return_value = _mock_dataset(
+            state="COMPLETED"
         )
-
-    mock_client.datasets.wait_until_complete.assert_called_once_with(
-        "upload-123", "ds-1", poll_s=1, timeout_s=60
-    )
-    assert "Dataset: My Dataset" in result
-
-
-def test_wait_for_dataset_timeout_returns_current_state():
-    """On TimeoutError, returns current state and a retry instruction."""
-    running_ds = _mock_dataset(id="ds-1", state="RUNNING")
-    mock_client = MagicMock()
-    mock_client.datasets.wait_until_complete.side_effect = TimeoutError("timed out")
-    mock_client.datasets.list_by_upload.return_value = [running_ds]
-
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = wait_for_dataset(
-            "upload-123", "ds-1", poll_seconds=1, timeout_seconds=5
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = wait_for_dataset(
+                "upload-123", "ds-1", poll_seconds=1, timeout_seconds=60
+            )
+        mock_client.datasets.wait_until_complete.assert_called_once_with(
+            "upload-123", "ds-1", poll_s=1, timeout_s=60
         )
+        assert "Dataset: My Dataset" in result
 
-    assert "RUNNING" in result
-    assert "call wait_for_dataset again" in result
+    def test_timeout_returns_current_state_and_retry_instruction(self):
+        mock_client = MagicMock()
+        mock_client.datasets.wait_until_complete.side_effect = TimeoutError("timed out")
+        mock_client.datasets.list_by_upload.return_value = [
+            _mock_dataset(id="ds-1", state="RUNNING")
+        ]
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = wait_for_dataset(
+                "upload-123", "ds-1", poll_seconds=1, timeout_seconds=5
+            )
+        assert "RUNNING" in result
+        assert "call wait_for_dataset again" in result
 
-
-def test_wait_for_dataset_timeout_dataset_not_visible():
-    """On TimeoutError when dataset not in list, returns a safe retry message."""
-    mock_client = MagicMock()
-    mock_client.datasets.wait_until_complete.side_effect = TimeoutError("timed out")
-    mock_client.datasets.list_by_upload.return_value = []
-
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = wait_for_dataset(
-            "upload-123", "ds-missing", poll_seconds=1, timeout_seconds=5
-        )
-
-    assert "call wait_for_dataset again" in result
-
-
-def test_retry_dataset_success():
-    mock_client = MagicMock()
-    mock_client.datasets.retry.return_value = True
-
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = retry_dataset("ds-1")
-
-    assert "successfully" in result
+    def test_timeout_when_dataset_not_yet_visible(self):
+        mock_client = MagicMock()
+        mock_client.datasets.wait_until_complete.side_effect = TimeoutError("timed out")
+        mock_client.datasets.list_by_upload.return_value = []
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = wait_for_dataset(
+                "upload-123", "ds-missing", poll_seconds=1, timeout_seconds=5
+            )
+        assert "call wait_for_dataset again" in result
 
 
-def test_retry_dataset_failure():
-    mock_client = MagicMock()
-    mock_client.datasets.retry.return_value = False
+class TestRetryDataset:
+    def test_success(self):
+        mock_client = MagicMock()
+        mock_client.datasets.retry.return_value = True
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            assert "successfully" in retry_dataset("ds-1")
 
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = retry_dataset("ds-1")
-
-    assert "Failed" in result
-
-
-def test_delete_dataset_success():
-    mock_client = MagicMock()
-    mock_client.datasets.delete.return_value = True
-
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = delete_dataset("ds-1")
-
-    assert "successfully" in result
+    def test_failure(self):
+        mock_client = MagicMock()
+        mock_client.datasets.retry.return_value = False
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            assert "Failed" in retry_dataset("ds-1")
 
 
-def test_delete_dataset_failure():
-    mock_client = MagicMock()
-    mock_client.datasets.delete.return_value = False
+class TestDeleteDataset:
+    def test_success(self):
+        mock_client = MagicMock()
+        mock_client.datasets.delete.return_value = True
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            assert "successfully" in delete_dataset("ds-1")
 
-    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
-        result = delete_dataset("ds-1")
-
-    assert "Failed" in result
+    def test_failure(self):
+        mock_client = MagicMock()
+        mock_client.datasets.delete.return_value = False
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            assert "Failed" in delete_dataset("ds-1")
