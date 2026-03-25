@@ -1,8 +1,8 @@
-"""Tests for wait_for_dataset."""
+"""Tests for wait_for_dataset and _fetch_dataset_state."""
 
 from unittest.mock import MagicMock, patch
 
-from mcp_tools.datasets import wait_for_dataset
+from mcp_tools.datasets import _fetch_dataset_state, wait_for_dataset
 
 from .conftest import mock_dataset
 
@@ -44,3 +44,46 @@ class TestWaitForDataset:
                 "upload-123", "ds-missing", poll_seconds=1, timeout_seconds=5
             )
         assert "call wait_for_dataset again" in result
+
+
+class TestFetchDatasetState:
+    def test_returns_state_when_found(self):
+        ds = MagicMock()
+        ds.state = "COMPLETED"
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = [ds]
+
+        job = {"upload_id": "up-1", "dataset_id": str(ds.id)}
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = _fetch_dataset_state(job)
+
+        assert result["state"] == "COMPLETED"
+        assert "error" not in result
+
+    def test_returns_not_found_when_missing(self):
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = []
+
+        job = {"upload_id": "up-1", "dataset_id": "ds-missing"}
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = _fetch_dataset_state(job)
+
+        assert result["state"] == "NOT_FOUND"
+        assert "error" in result
+        assert result["upload_id"] == "up-1"
+        assert result["dataset_id"] == "ds-missing"
+
+    def test_returns_fetch_error_on_api_failure(self):
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.side_effect = RuntimeError(
+            "network timeout"
+        )
+
+        job = {"upload_id": "up-1", "dataset_id": "ds-1"}
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = _fetch_dataset_state(job)
+
+        assert result["state"] == "FETCH_ERROR"
+        assert "network timeout" in result["error"]
+        assert result["upload_id"] == "up-1"
+        assert result["dataset_id"] == "ds-1"

@@ -13,16 +13,33 @@ _TERMINAL_STATES = {"COMPLETED", "FAILED", "ERROR", "CANCELLED"}
 
 
 def _fetch_dataset_state(job: Dict[str, str]) -> Dict[str, str]:
-    """Fetch the current state of one dataset. Returns job dict augmented with 'state'."""
+    """Fetch the current state of one dataset. Returns job dict augmented with 'state'.
+
+    State is one of the API states (COMPLETED, RUNNING, FAILED, etc.) on success.
+    Returns state="FETCH_ERROR" with an "error" key when the API call fails,
+    or state="NOT_FOUND" when the dataset ID is not present in the upload's list.
+    Neither of these reflects the pipeline's own state — they indicate a lookup failure.
+    """
     upload_id = job["upload_id"]
     dataset_id = job["dataset_id"]
     try:
         datasets = get_client().datasets.list_by_upload(upload_id)
         ds = next((d for d in datasets if str(d.id) == dataset_id), None)
-        state = ds.state if ds else "UNKNOWN"
-    except Exception:
-        state = "UNKNOWN"
-    return {"upload_id": upload_id, "dataset_id": dataset_id, "state": state}
+        if ds is None:
+            return {
+                "upload_id": upload_id,
+                "dataset_id": dataset_id,
+                "state": "NOT_FOUND",
+                "error": "Dataset ID not found in upload — it may still be queued or the ID may be wrong.",
+            }
+        return {"upload_id": upload_id, "dataset_id": dataset_id, "state": ds.state}
+    except Exception as e:
+        return {
+            "upload_id": upload_id,
+            "dataset_id": dataset_id,
+            "state": "FETCH_ERROR",
+            "error": f"API call failed: {e}",
+        }
 
 
 @mcp.tool()
