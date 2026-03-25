@@ -51,6 +51,7 @@ _WORKFLOW_GUIDE = {
                 "── Phase 2: Normalisation & Imputation ──",
                 "7. describe_pipeline('normalisation_imputation') — inspect valid parameter values.",
                 "8. run_normalisation_imputation(input_dataset_ids=[<initial_dataset_id>], dataset_name=..., normalisation_method='median', imputation_method='min_value') — start the pipeline.",
+                "   For many uploads at once, use Workflow E (run_normalisation_imputation_bulk) instead.",
                 "9. wait_for_dataset(upload_id, norm_dataset_id) — poll until COMPLETED.",
                 "",
                 "── Phase 3: Pairwise Comparison ──",
@@ -72,7 +73,8 @@ _WORKFLOW_GUIDE = {
                 "",
                 "── Phase 3: Dose-Response ──",
                 "10. describe_pipeline('dose_response') — inspect valid parameter values.",
-                "11. run_dose_response(input_dataset_ids=[<norm_dataset_id>], dataset_name=..., sample_names=[...], control_samples=[...], sample_metadata=..., dose_column='dose') — start curve fitting.",
+                "11. run_dose_response_from_upload(upload_id=..., dataset_name=..., sample_names=[...], control_samples=[...]) — PREFERRED: resolves input_dataset_id automatically; sample_metadata auto-fetched if omitted.",
+                "    OR: run_dose_response(input_dataset_ids=[<norm_dataset_id>], dataset_name=..., sample_names=[...], control_samples=[...], sample_metadata=..., dose_column='dose') for explicit control.",
                 "    sample_names and control_samples MUST come verbatim from sample_metadata rows — never infer them.",
                 "    Ask the user which samples are controls (dose=0) if not obvious.",
                 "12. wait_for_dataset(upload_id, dose_response_dataset_id) — poll until COMPLETED.",
@@ -81,6 +83,32 @@ _WORKFLOW_GUIDE = {
                 "Minimum requirements: ≥3 distinct dose levels, ≥5 total replicates (3+ per dose recommended).",
                 "control_samples are the samples at dose=0; they anchor the baseline of the 4PL curve.",
                 "normalise defaults to 'none' — recommended when data was already normalised upstream.",
+            ],
+        },
+        "E_bulk_multi_upload": {
+            "description": (
+                "Process many uploads at once — common for large studies (50–500 uploads). "
+                "Uses bulk tools to submit and monitor all jobs in parallel."
+            ),
+            "steps": [
+                "── Phase 1: Resolve dataset IDs ──",
+                "1. find_initial_datasets(upload_ids=[...]) — bulk INTENSITY lookup, one call for all uploads.",
+                "",
+                "── Phase 2: Normalisation & Imputation ──",
+                "2. run_normalisation_imputation_bulk(jobs=[{upload_id, dataset_name, normalisation_method, imputation_method}, ...]) — auto-resolves INTENSITY IDs, parallel submission, skips existing by default.",
+                '3. wait_for_datasets_bulk(jobs=[{"dataset_id": <ni_id>}, ...]) — poll all NI jobs concurrently.',
+                "   Call again until all_terminal is true. Pass failed items to retry_dataset.",
+                "",
+                "── Phase 3: Dose-Response or Pairwise ──",
+                "4a. DR: run_dose_response_bulk(jobs=[{upload_id, dataset_name, sample_names, control_samples}, ...]) — sample_metadata auto-fetched per upload, cached across jobs for the same upload.",
+                "4b. PC: run_pairwise_comparison_bulk(jobs=[{upload_id, input_dataset_ids, dataset_name, sample_metadata, condition_column, condition_comparisons}, ...]).",
+                '5. wait_for_datasets_bulk(jobs=[{"dataset_id": <output_id>}, ...]) — poll all output jobs. Call again until all_terminal is true.',
+            ],
+            "notes": [
+                "Prefer dataset_id-only job dicts in wait_for_datasets_bulk — upload_id is optional and only needed if you want list_by_upload routing.",
+                "if_exists defaults to 'skip' in all bulk tools — safe to re-submit without creating duplicates.",
+                "Max 500 jobs per bulk call. For >500, split into batches and call sequentially.",
+                "Monitor progress by checking by_state in the wait_for_datasets_bulk response.",
             ],
         },
         "D_format_conversion": {
@@ -150,6 +178,7 @@ _WORKFLOW_GUIDE = {
         "Use batch() to collapse independent or short sequential operations into one round-trip.",
         "Do NOT include wait_for_upload or wait_for_dataset inside a batch with other operations — they are long-running blocking calls; run them as standalone calls.",
         "Always use stop_on_error=True (default) for pipeline workflows.",
+        "Prefer wait_for_datasets_bulk over repeated wait_for_dataset calls — even for a handful of jobs it is more efficient and returns a summary response.",
         "Example: batch([{'tool': 'load_metadata_from_csv', 'params': {'file_path': '...'}}, {'tool': 'validate_upload_inputs', 'params': {'experiment_design': [...], 'sample_metadata': [...]}}])",
     ],
 }
