@@ -410,6 +410,36 @@ def run_dose_response(
     return f"Dose-response pipeline started. Dataset ID: {dataset_id}"
 
 
+def _filter_sample_metadata(
+    metadata: List[List[str]], sample_names: List[str]
+) -> List[List[str]]:
+    """Return header row + data rows whose sample_name is in sample_names."""
+    if not metadata:
+        return metadata
+    header = metadata[0]
+    try:
+        sn_idx = [h.strip().lower() for h in header].index("sample_name")
+    except ValueError:
+        return metadata  # can't filter without sample_name column; return as-is
+    sample_set = set(sample_names)
+    return [header] + [
+        row for row in metadata[1:] if len(row) > sn_idx and row[sn_idx] in sample_set
+    ]
+
+
+def _fetch_upload_sample_metadata(
+    upload_id: str,
+) -> Optional[List[List[str]]]:
+    """Fetch sample_metadata from the upload record, or return None on failure."""
+    try:
+        upload = get_client().uploads.get_by_id(upload_id)
+        if upload and upload.sample_metadata:
+            return upload.sample_metadata.data
+    except Exception:
+        pass
+    return None
+
+
 def _find_existing_dr_dataset(
     upload_id: str, dataset_name: str
 ) -> Tuple[Optional[str], Optional[str]]:
@@ -448,6 +478,12 @@ def run_dose_response_from_upload(
 
     For submitting many DR jobs at once, use run_dose_response_bulk instead.
 
+    sample_metadata is OPTIONAL. When omitted, the tool fetches the sample
+    metadata that was already submitted with the upload and filters it to the
+    rows matching sample_names. This eliminates the need to re-read the CSV
+    file and re-transmit data the server already owns — pass only sample_names,
+    control_samples, and the dose_column name.
+
     if_exists controls deduplication:
       "skip" (default) — if a DOSE_RESPONSE dataset with the same dataset_name
         already exists for this upload, return its ID without submitting a new job.
@@ -474,12 +510,19 @@ def run_dose_response_from_upload(
     if not ds:
         return f"Error: no initial INTENSITY dataset found for upload {upload_id}"
 
+    # Auto-fetch sample_metadata from upload if not provided
+    resolved_metadata = sample_metadata
+    if resolved_metadata is None:
+        raw = _fetch_upload_sample_metadata(upload_id)
+        if raw:
+            resolved_metadata = _filter_sample_metadata(raw, sample_names)
+
     return run_dose_response(
         input_dataset_ids=[str(ds.id)],
         dataset_name=dataset_name,
         sample_names=sample_names,
         control_samples=control_samples,
-        sample_metadata=sample_metadata,
+        sample_metadata=resolved_metadata,
         dose_column=dose_column,
         log_intensities=log_intensities,
         use_imputed_intensities=use_imputed_intensities,
@@ -506,7 +549,10 @@ def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
       dataset_name      str   — name for the output dataset (required)
       sample_names      list  — all sample names (required)
       control_samples   list  — control sample names (required)
-      sample_metadata   list  — 2D array with header row (optional)
+      sample_metadata   list  — 2D array with header row; if omitted, the tool
+                                auto-fetches from the upload and filters to
+                                sample_names (recommended — avoids re-transmitting
+                                data the server already has)
       dose_column       str   — default "dose"
       log_intensities   bool  — default True
       use_imputed_intensities bool — default True
@@ -520,6 +566,9 @@ def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
     """
     c = get_client()
     initial_ds_cache: Dict[str, Optional[str]] = {}  # upload_id -> dataset_id or None
+    upload_meta_cache: Dict[str, Optional[List[List[str]]]] = (
+        {}
+    )  # upload_id -> raw metadata
     results = []
 
     for i, job in enumerate(jobs):
@@ -565,14 +614,24 @@ def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
             results.append(entry)
             continue
 
+        # Resolve sample_metadata: use provided value, or auto-fetch from upload
+        job_sample_names = job["sample_names"]
+        job_metadata = job.get("sample_metadata")
+        if job_metadata is None:
+            if upload_id not in upload_meta_cache:
+                upload_meta_cache[upload_id] = _fetch_upload_sample_metadata(upload_id)
+            raw = upload_meta_cache[upload_id]
+            if raw:
+                job_metadata = _filter_sample_metadata(raw, job_sample_names)
+
         # Submit job
         try:
             run_result = run_dose_response(
                 input_dataset_ids=[initial_id],
                 dataset_name=dataset_name,
-                sample_names=job["sample_names"],
+                sample_names=job_sample_names,
                 control_samples=job["control_samples"],
-                sample_metadata=job.get("sample_metadata"),
+                sample_metadata=job_metadata,
                 dose_column=job.get("dose_column", "dose"),
                 log_intensities=job.get("log_intensities", True),
                 use_imputed_intensities=job.get("use_imputed_intensities", True),

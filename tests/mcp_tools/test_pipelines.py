@@ -2,6 +2,7 @@ import json
 from unittest.mock import MagicMock, call, patch
 
 from mcp_tools.pipelines import (
+    _filter_sample_metadata,
     describe_pipeline,
     generate_pairwise_comparisons,
     run_dose_response,
@@ -237,6 +238,43 @@ def test_run_dose_response_result_contains_dataset_id():
 
 
 # ---------------------------------------------------------------------------
+# _filter_sample_metadata
+# ---------------------------------------------------------------------------
+
+
+class TestFilterSampleMetadata:
+    FULL_META = [
+        ["sample_name", "dose", "batch"],
+        ["s1", "0", "A"],
+        ["s2", "0", "A"],
+        ["s3", "10", "B"],
+        ["s4", "10", "B"],
+    ]
+
+    def test_filters_to_requested_samples(self):
+        result = _filter_sample_metadata(self.FULL_META, ["s1", "s3"])
+        assert result[0] == ["sample_name", "dose", "batch"]
+        sample_names = [row[0] for row in result[1:]]
+        assert sample_names == ["s1", "s3"]
+
+    def test_preserves_header(self):
+        result = _filter_sample_metadata(self.FULL_META, ["s2"])
+        assert result[0] == self.FULL_META[0]
+
+    def test_returns_all_rows_when_all_match(self):
+        result = _filter_sample_metadata(self.FULL_META, ["s1", "s2", "s3", "s4"])
+        assert len(result) == 5  # header + 4 rows
+
+    def test_missing_sample_name_column_returns_unfiltered(self):
+        no_sn = [["filename", "dose"], ["f1.raw", "0"]]
+        result = _filter_sample_metadata(no_sn, ["s1"])
+        assert result == no_sn
+
+    def test_empty_metadata_returns_empty(self):
+        assert _filter_sample_metadata([], ["s1"]) == []
+
+
+# ---------------------------------------------------------------------------
 # run_dose_response_from_upload
 # ---------------------------------------------------------------------------
 
@@ -312,6 +350,41 @@ class TestRunDoseResponseFromUpload:
 
         assert OUTPUT_ID in result
         mock_client.datasets.create.assert_called_once()
+
+    def test_auto_fetches_metadata_from_upload(self):
+        """When sample_metadata is omitted, it should be fetched from the upload."""
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = []
+        mock_client.datasets.find_initial_dataset.return_value = _mock_initial_ds()
+        mock_client.datasets.create.return_value = OUTPUT_ID
+
+        full_meta = [
+            ["sample_name", "dose"],
+            ["s1", "0"],
+            ["s2", "0"],
+            ["s3", "10"],
+        ]
+        mock_upload = MagicMock()
+        mock_upload.sample_metadata.data = full_meta
+        mock_client.uploads.get_by_id.return_value = mock_upload
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = run_dose_response_from_upload(
+                upload_id="upload-1",
+                dataset_name="My DR",
+                sample_names=["s1", "s3"],
+                control_samples=["s1"],
+                # sample_metadata intentionally omitted
+            )
+
+        assert OUTPUT_ID in result
+        call_args = mock_client.datasets.create.call_args[0][0]
+        # experiment_design is serialised as {column_name: [values...]}
+        passed_meta = call_args.job_run_params["experiment_design"]
+        sample_names_in_meta = passed_meta["sample_name"]
+        assert "s1" in sample_names_in_meta
+        assert "s3" in sample_names_in_meta
+        assert "s2" not in sample_names_in_meta
 
     def test_no_initial_dataset_returns_error(self):
         mock_client = MagicMock()
@@ -405,6 +478,49 @@ class TestRunDoseResponseBulk:
             run_dose_response_bulk(jobs)
 
         mock_client.datasets.find_initial_dataset.assert_called_once_with("upload-1")
+
+    def test_auto_fetches_and_caches_upload_metadata(self):
+        """Upload metadata should be fetched once per upload_id and filtered per job."""
+        mock_ds = _mock_initial_ds()
+        full_meta = [
+            ["sample_name", "dose"],
+            ["s1", "0"],
+            ["s2", "10"],
+            ["s3", "20"],
+        ]
+        mock_upload = MagicMock()
+        mock_upload.sample_metadata.data = full_meta
+
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.return_value = mock_ds
+        mock_client.datasets.list_by_upload.return_value = []
+        mock_client.datasets.create.side_effect = ["id-1", "id-2"]
+        mock_client.uploads.get_by_id.return_value = mock_upload
+
+        jobs = [
+            {
+                "upload_id": "upload-1",
+                "dataset_name": "DR A",
+                "sample_names": ["s1", "s2"],
+                "control_samples": ["s1"],
+                "if_exists": "run",
+            },
+            {
+                "upload_id": "upload-1",
+                "dataset_name": "DR B",
+                "sample_names": ["s2", "s3"],
+                "control_samples": ["s2"],
+                "if_exists": "run",
+            },
+        ]
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = json.loads(run_dose_response_bulk(jobs))
+
+        # Upload metadata fetched only once despite two jobs
+        mock_client.uploads.get_by_id.assert_called_once_with("upload-1")
+        assert result[0]["dataset_id"] == "id-1"
+        assert result[1]["dataset_id"] == "id-2"
 
     def test_captures_errors_inline(self):
         mock_client = MagicMock()
