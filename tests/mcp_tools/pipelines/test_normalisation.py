@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from mcp_tools.pipelines import run_normalisation_imputation
 
-from .conftest import INTENSITY_ID, OUTPUT_ID
+from .conftest import INTENSITY_ID, OUTPUT_ID, patch_pipeline_client
 
 
 class TestRunNormalisationImputation:
@@ -12,7 +12,7 @@ class TestRunNormalisationImputation:
         mock_client = MagicMock()
         mock_client.datasets.create.return_value = OUTPUT_ID
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = run_normalisation_imputation(
                 input_dataset_ids=[INTENSITY_ID],
                 dataset_name="My Norm",
@@ -27,7 +27,7 @@ class TestRunNormalisationImputation:
         mock_client = MagicMock()
         mock_client.datasets.create.return_value = OUTPUT_ID
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             run_normalisation_imputation(
                 input_dataset_ids=[INTENSITY_ID],
                 dataset_name="My Norm",

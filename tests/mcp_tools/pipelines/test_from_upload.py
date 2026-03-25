@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from mcp_tools.pipelines import run_dose_response_from_upload
 
-from .conftest import OUTPUT_ID, mock_dr_ds, mock_initial_ds
+from .conftest import OUTPUT_ID, mock_dr_ds, mock_initial_ds, patch_pipeline_client
 
 
 class TestRunDoseResponseFromUpload:
@@ -14,7 +14,7 @@ class TestRunDoseResponseFromUpload:
         mock_client.datasets.list_by_upload.return_value = []
         mock_client.datasets.create.return_value = OUTPUT_ID
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = run_dose_response_from_upload(
                 upload_id="upload-1",
                 dataset_name="My DR",
@@ -31,7 +31,7 @@ class TestRunDoseResponseFromUpload:
             mock_dr_ds(dataset_id="existing-dr-id", name="My DR")
         ]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = run_dose_response_from_upload(
                 upload_id="upload-1",
                 dataset_name="My DR",
@@ -50,7 +50,7 @@ class TestRunDoseResponseFromUpload:
         mock_client.datasets.find_initial_dataset.return_value = mock_initial_ds()
         mock_client.datasets.create.return_value = OUTPUT_ID
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = run_dose_response_from_upload(
                 upload_id="upload-1",
                 dataset_name="My DR",
@@ -78,7 +78,7 @@ class TestRunDoseResponseFromUpload:
         ]
         mock_client.uploads.get_by_id.return_value = mock_upload
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = run_dose_response_from_upload(
                 upload_id="upload-1",
                 dataset_name="My DR",
@@ -100,7 +100,7 @@ class TestRunDoseResponseFromUpload:
         mock_client.datasets.list_by_upload.return_value = []
         mock_client.datasets.find_initial_dataset.return_value = None
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = run_dose_response_from_upload(
                 upload_id="upload-missing",
                 dataset_name="My DR",

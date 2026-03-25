@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from mcp_tools.pipelines import generate_pairwise_comparisons, run_pairwise_comparison
 
-from .conftest import INTENSITY_ID, OUTPUT_ID, SAMPLE_METADATA
+from .conftest import INTENSITY_ID, OUTPUT_ID, SAMPLE_METADATA, patch_pipeline_client
 
 
 class TestGeneratePairwiseComparisons:
@@ -50,7 +50,7 @@ class TestRunPairwiseComparison:
         mock_client = MagicMock()
         mock_client.datasets.create.return_value = OUTPUT_ID
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = run_pairwise_comparison(
                 input_dataset_ids=[INTENSITY_ID],
                 dataset_name="My Pairwise",
@@ -66,7 +66,7 @@ class TestRunPairwiseComparison:
         mock_client = MagicMock()
         mock_client.datasets.create.return_value = OUTPUT_ID
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             run_pairwise_comparison(
                 input_dataset_ids=[INTENSITY_ID],
                 dataset_name="My Pairwise",

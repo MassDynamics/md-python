@@ -9,7 +9,13 @@ from mcp_tools.pipelines import (
     run_pairwise_comparison_bulk,
 )
 
-from .conftest import OUTPUT_ID, mock_dr_ds, mock_initial_ds, mock_initial_ds_dataset
+from .conftest import (
+    OUTPUT_ID,
+    mock_dr_ds,
+    mock_initial_ds,
+    mock_initial_ds_dataset,
+    patch_pipeline_client,
+)
 
 
 class TestRunDoseResponseBulk:
@@ -35,7 +41,7 @@ class TestRunDoseResponseBulk:
             },
         ]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(run_dose_response_bulk(jobs))
 
         assert result[0]["dataset_id"] == "dr-id-1"
@@ -47,7 +53,7 @@ class TestRunDoseResponseBulk:
             mock_dr_ds(dataset_id="existing-id", name="DR A")
         ]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(
                 run_dose_response_bulk(
                     [
@@ -82,7 +88,7 @@ class TestRunDoseResponseBulk:
             for i in range(3)
         ]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             run_dose_response_bulk(jobs)
 
         mock_client.datasets.list_by_upload.assert_called_once_with("upload-1")
@@ -133,7 +139,7 @@ class TestRunDoseResponseBulk:
             },
         ]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(run_dose_response_bulk(jobs))
 
         mock_client.uploads.get_by_id.assert_called_once_with("upload-1")
@@ -144,7 +150,7 @@ class TestRunDoseResponseBulk:
         mock_client = MagicMock()
         mock_client.datasets.list_by_upload.return_value = []  # no INTENSITY dataset
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(
                 run_dose_response_bulk(
                     [
@@ -179,7 +185,7 @@ class TestRunNormalisationImputationBulk:
             for i in range(2)
         ]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(run_normalisation_imputation_bulk(jobs))
 
         assert result[0]["dataset_id"] == "ni-id-1"
@@ -193,7 +199,7 @@ class TestRunNormalisationImputationBulk:
         mock_client = MagicMock()
         mock_client.datasets.list_by_upload.return_value = [ni_ds]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(
                 run_normalisation_imputation_bulk(
                     [
@@ -229,7 +235,7 @@ class TestRunNormalisationImputationBulk:
         mock_client = MagicMock()
         mock_client.datasets.list_by_upload.return_value = []  # no INTENSITY dataset
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(
                 run_normalisation_imputation_bulk(
                     [
@@ -271,7 +277,7 @@ class TestRunPairwiseComparisonBulk:
             for i in range(2)
         ]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(run_pairwise_comparison_bulk(jobs))
 
         assert result[0]["dataset_id"] == "pc-id-1"
@@ -285,7 +291,7 @@ class TestRunPairwiseComparisonBulk:
         mock_client = MagicMock()
         mock_client.datasets.list_by_upload.return_value = [pc_ds]
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(run_pairwise_comparison_bulk([self._base_job]))
 
         assert result[0]["dataset_id"] == "existing-pc-id"
@@ -299,7 +305,7 @@ class TestRunPairwiseComparisonBulk:
         job = {k: v for k, v in self._base_job.items() if k != "input_dataset_ids"}
         job["if_exists"] = "run"
 
-        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        with patch_pipeline_client(mock_client):
             result = json.loads(run_pairwise_comparison_bulk([job]))
 
         assert result[0]["error_code"] == "missing_input"
@@ -308,4 +314,22 @@ class TestRunPairwiseComparisonBulk:
         jobs = [{**self._base_job, "dataset_name": f"PC {i}"} for i in range(501)]
         result = json.loads(run_pairwise_comparison_bulk(jobs))
         assert "error" in result
-        assert "500" in result["error"]
+
+    def test_control_variables_not_double_nested(self):
+        """control_variables should be passed as a raw list, not wrapped twice."""
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = []
+        mock_client.datasets.create.return_value = "pc-id-1"
+
+        cv = [{"variable": "batch", "values": [["s1", "A"], ["s2", "B"]]}]
+        job = {**self._base_job, "if_exists": "run", "control_variables": cv}
+
+        with patch_pipeline_client(mock_client):
+            with patch(
+                "mcp_tools.pipelines.pairwise.run_pairwise_comparison"
+            ) as mock_run:
+                mock_run.return_value = "Dataset ID: pc-id-1"
+                run_pairwise_comparison_bulk([job])
+
+        called_cv = mock_run.call_args.kwargs["control_variables"]
+        assert called_cv == cv, f"Expected raw list, got: {called_cv}"

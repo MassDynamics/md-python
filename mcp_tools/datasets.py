@@ -12,6 +12,19 @@ _DATASETS_BULK_WORKERS = 20
 _TERMINAL_STATES = {"COMPLETED", "FAILED", "ERROR", "CANCELLED"}
 
 
+def _fetch_dataset_state(job: Dict[str, str]) -> Dict[str, str]:
+    """Fetch the current state of one dataset. Returns job dict augmented with 'state'."""
+    upload_id = job["upload_id"]
+    dataset_id = job["dataset_id"]
+    try:
+        datasets = get_client().datasets.list_by_upload(upload_id)
+        ds = next((d for d in datasets if str(d.id) == dataset_id), None)
+        state = ds.state if ds else "UNKNOWN"
+    except Exception:
+        state = "UNKNOWN"
+    return {"upload_id": upload_id, "dataset_id": dataset_id, "state": state}
+
+
 @mcp.tool()
 def list_jobs(upload_id: Optional[str] = None) -> str:
     """List pipeline jobs — either the global catalog or executed runs for a specific upload.
@@ -226,24 +239,13 @@ def wait_for_datasets_bulk(
             }
         )
 
-    def _fetch_state(job: Dict[str, str]) -> Dict[str, str]:
-        upload_id = job["upload_id"]
-        dataset_id = job["dataset_id"]
-        try:
-            datasets = get_client().datasets.list_by_upload(upload_id)
-            ds = next((d for d in datasets if str(d.id) == dataset_id), None)
-            state = ds.state if ds else "UNKNOWN"
-        except Exception:
-            state = "UNKNOWN"
-        return {"upload_id": upload_id, "dataset_id": dataset_id, "state": state}
-
     deadline = time.monotonic() + timeout_seconds
 
     while True:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=_DATASETS_BULK_WORKERS
         ) as executor:
-            statuses = list(executor.map(_fetch_state, jobs))
+            statuses = list(executor.map(_fetch_dataset_state, jobs))
 
         by_state: Dict[str, int] = dict(Counter(s["state"] for s in statuses))
         pending = [s for s in statuses if s["state"] not in _TERMINAL_STATES]
