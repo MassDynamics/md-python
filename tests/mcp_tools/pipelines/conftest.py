@@ -20,6 +20,15 @@ def mock_initial_ds(dataset_id: str = INTENSITY_ID) -> MagicMock:
     return ds
 
 
+def mock_initial_ds_dataset(dataset_id: str = INTENSITY_ID) -> MagicMock:
+    """Dataset mock with type='INTENSITY', suitable for list_by_upload returns."""
+    ds = MagicMock()
+    ds.id = dataset_id
+    ds.type = "INTENSITY"
+    ds.name = "Initial Dataset"
+    return ds
+
+
 def mock_dr_ds(
     dataset_id: str = OUTPUT_ID, name: str = "My DR", state: str = "COMPLETED"
 ) -> MagicMock:

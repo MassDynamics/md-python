@@ -10,6 +10,7 @@ from .datasets import (
     list_jobs,
     retry_dataset,
     wait_for_dataset,
+    wait_for_datasets_bulk,
 )
 from .files import load_metadata_from_csv, plan_wide_to_md_format, read_csv_preview
 from .health import get_workflow_guide, health_check
@@ -20,7 +21,9 @@ from .pipelines import (
     run_dose_response_bulk,
     run_dose_response_from_upload,
     run_normalisation_imputation,
+    run_normalisation_imputation_bulk,
     run_pairwise_comparison,
+    run_pairwise_comparison_bulk,
 )
 from .uploads import (
     create_upload,
@@ -59,6 +62,9 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "run_dose_response": run_dose_response,
     "run_dose_response_from_upload": run_dose_response_from_upload,
     "run_dose_response_bulk": run_dose_response_bulk,
+    "run_normalisation_imputation_bulk": run_normalisation_imputation_bulk,
+    "run_pairwise_comparison_bulk": run_pairwise_comparison_bulk,
+    "wait_for_datasets_bulk": wait_for_datasets_bulk,
 }
 
 
@@ -80,11 +86,14 @@ def batch(
 
     Available tools: read_csv_preview, load_metadata_from_csv, plan_wide_to_md_format,
     health_check, get_workflow_guide,
-    get_upload, create_upload, validate_upload_inputs, update_sample_metadata,
+    get_upload, create_upload, create_upload_from_csv, list_uploads_status,
+    validate_upload_inputs, update_sample_metadata,
     wait_for_upload, list_jobs, list_datasets,
-    find_initial_dataset, find_initial_datasets, wait_for_dataset,
-    retry_dataset, delete_dataset, describe_pipeline, run_normalisation_imputation,
-    generate_pairwise_comparisons, run_pairwise_comparison,
+    find_initial_dataset, find_initial_datasets,
+    wait_for_dataset, wait_for_datasets_bulk,
+    retry_dataset, delete_dataset, describe_pipeline,
+    run_normalisation_imputation, run_normalisation_imputation_bulk,
+    generate_pairwise_comparisons, run_pairwise_comparison, run_pairwise_comparison_bulk,
     run_dose_response, run_dose_response_from_upload, run_dose_response_bulk.
 
     ── WORKFLOW EXAMPLE A: inspect an upload by name ────────────────────────────

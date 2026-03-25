@@ -1,5 +1,6 @@
+import concurrent.futures
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from md_python.models.dataset_builders import (
     DoseResponseDataset,
@@ -10,6 +11,68 @@ from md_python.models.metadata import SampleMetadata
 
 from . import mcp
 from ._client import get_client
+
+# ---------------------------------------------------------------------------
+# Bulk submission constants — shared by all *_bulk tools.
+# ---------------------------------------------------------------------------
+_MAX_BULK_JOBS = 500
+_BULK_WORKERS = 20
+_TERMINAL_STATES: Set[str] = {"COMPLETED", "FAILED", "ERROR", "CANCELLED"}
+
+
+def _bulk_prefetch_upload_data(
+    upload_id: str, existing_type: str
+) -> Tuple[Optional[str], Dict[str, str]]:
+    """Fetch all datasets for an upload in one API call.
+
+    Returns:
+        (intensity_dataset_id_or_none, {dataset_name: dataset_id})
+        where the dict contains existing datasets of existing_type only.
+    """
+    try:
+        datasets = get_client().datasets.list_by_upload(upload_id)
+        intensity_id = next(
+            (str(d.id) for d in datasets if getattr(d, "type", None) == "INTENSITY"),
+            None,
+        )
+        existing = {
+            d.name: str(d.id)
+            for d in datasets
+            if getattr(d, "type", None) == existing_type
+        }
+        return intensity_id, existing
+    except Exception:
+        return None, {}
+
+
+def _run_jobs_parallel(
+    jobs: List[Dict[str, Any]],
+    process_fn: Callable[[int, Dict[str, Any]], Dict[str, Any]],
+) -> str:
+    """Validate job count, submit all jobs in parallel, return ordered JSON array.
+
+    Returns an error JSON object (not array) if the job count exceeds _MAX_BULK_JOBS.
+    process_fn(index, job) must return a result dict with at least {"index": index}.
+    """
+    if len(jobs) > _MAX_BULK_JOBS:
+        return json.dumps(
+            {
+                "error": (
+                    f"Too many jobs: {len(jobs)}. Maximum per call is {_MAX_BULK_JOBS}. "
+                    "Split the call into smaller batches."
+                )
+            }
+        )
+
+    def _call(args: Tuple[int, Dict[str, Any]]) -> Dict[str, Any]:
+        i, job = args
+        return process_fn(i, job)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_BULK_WORKERS) as executor:
+        results = list(executor.map(_call, enumerate(jobs)))
+
+    return json.dumps(results, indent=2)
+
 
 # ---------------------------------------------------------------------------
 # Parameter schemas — single source of truth for every pipeline type.
@@ -538,12 +601,13 @@ def run_dose_response_from_upload(
 
 @mcp.tool()
 def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
-    """Submit multiple dose-response jobs in a single call.
+    """Submit multiple dose-response jobs in a single call (max 500 per call).
 
-    Resolves input_dataset_ids from upload_id automatically for each job, with
-    per-upload caching so the initial dataset is looked up at most once per upload.
-    All jobs are attempted regardless of individual failures — errors are captured
-    inline and never abort the remaining jobs.
+    Resolves input_dataset_ids from upload_id automatically, with per-upload
+    prefetching so list_by_upload is called at most once per unique upload.
+    Jobs are submitted in parallel (up to 20 concurrent connections).
+    All jobs are attempted regardless of individual failures — errors are
+    captured inline and never abort the remaining jobs.
 
     Default if_exists="skip" makes this safe to re-run after a crash: jobs that
     already completed are returned immediately with their existing dataset ID.
@@ -567,15 +631,32 @@ def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
 
     Returns JSON array:
       [{index, upload_id, dataset_name, dataset_id?, skipped?, error?, error_code?}]
+    Or a JSON error object if len(jobs) > 500.
     """
-    c = get_client()
-    initial_ds_cache: Dict[str, Optional[str]] = {}  # upload_id -> dataset_id or None
-    upload_meta_cache: Dict[str, Optional[List[List[str]]]] = (
-        {}
-    )  # upload_id -> raw metadata
-    results = []
+    if len(jobs) > _MAX_BULK_JOBS:
+        return json.dumps(
+            {
+                "error": (
+                    f"Too many jobs: {len(jobs)}. Maximum per call is {_MAX_BULK_JOBS}. "
+                    "Split the call into smaller batches."
+                )
+            }
+        )
 
-    for i, job in enumerate(jobs):
+    # --- Prefetch per-upload data (one list_by_upload call per unique upload) ---
+    unique_ids = list({job.get("upload_id", "") for job in jobs})
+    existing_cache: Dict[str, Dict[str, str]] = {}  # uid -> {name -> dataset_id}
+    initial_ds_cache: Dict[str, Optional[str]] = {}  # uid -> INTENSITY dataset_id
+    upload_meta_cache: Dict[str, Optional[List[List[str]]]] = {}  # uid -> metadata
+
+    for uid in unique_ids:
+        intensity_id, existing = _bulk_prefetch_upload_data(uid, "DOSE_RESPONSE")
+        existing_cache[uid] = existing
+        initial_ds_cache[uid] = intensity_id
+        upload_meta_cache[uid] = _fetch_upload_sample_metadata(uid)
+
+    # --- Submit jobs in parallel ---
+    def _process(i: int, job: Dict[str, Any]) -> Dict[str, Any]:
         upload_id = job.get("upload_id", "")
         dataset_name = job.get("dataset_name", "")
         if_exists = job.get("if_exists", "skip")
@@ -585,50 +666,28 @@ def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
             "dataset_name": dataset_name,
         }
 
-        # Deduplication check
         if if_exists == "skip":
-            existing_id, err = _find_existing_dr_dataset(upload_id, dataset_name)
-            if err:
-                entry["error"] = f"Could not check existing jobs: {err}"
-                entry["error_code"] = "check_failed"
-                results.append(entry)
-                continue
+            existing_id = existing_cache.get(upload_id, {}).get(dataset_name)
             if existing_id:
                 entry["dataset_id"] = existing_id
                 entry["skipped"] = True
-                results.append(entry)
-                continue
+                return entry
 
-        # Resolve initial dataset (cached)
-        if upload_id not in initial_ds_cache:
-            try:
-                ds = c.datasets.find_initial_dataset(upload_id)
-                initial_ds_cache[upload_id] = str(ds.id) if ds else None
-            except Exception as e:
-                initial_ds_cache[upload_id] = None
-                entry["error"] = f"Could not find initial dataset: {e}"
-                entry["error_code"] = "dataset_not_found"
-                results.append(entry)
-                continue
-
-        initial_id = initial_ds_cache[upload_id]
+        initial_id = initial_ds_cache.get(upload_id)
         if not initial_id:
-            entry["error"] = f"No initial dataset found for upload {upload_id}"
+            entry["error"] = (
+                f"No initial INTENSITY dataset found for upload {upload_id}"
+            )
             entry["error_code"] = "dataset_not_found"
-            results.append(entry)
-            continue
+            return entry
 
-        # Resolve sample_metadata: use provided value, or auto-fetch from upload
         job_sample_names = job["sample_names"]
         job_metadata = job.get("sample_metadata")
         if job_metadata is None:
-            if upload_id not in upload_meta_cache:
-                upload_meta_cache[upload_id] = _fetch_upload_sample_metadata(upload_id)
-            raw = upload_meta_cache[upload_id]
+            raw = upload_meta_cache.get(upload_id)
             if raw:
                 job_metadata = _filter_sample_metadata(raw, job_sample_names)
 
-        # Submit job
         try:
             run_result = run_dose_response(
                 input_dataset_ids=[initial_id],
@@ -651,6 +710,218 @@ def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
             entry["error"] = str(e)
             entry["error_code"] = "run_failed"
 
-        results.append(entry)
+        return entry
 
-    return json.dumps(results, indent=2)
+    return _run_jobs_parallel(jobs, _process)
+
+
+@mcp.tool()
+def run_normalisation_imputation_bulk(jobs: List[Dict[str, Any]]) -> str:
+    """Submit multiple normalisation + imputation jobs in a single call (max 500).
+
+    Resolves input_dataset_ids from upload_id automatically, with per-upload
+    prefetching so list_by_upload is called at most once per unique upload.
+    Jobs are submitted in parallel (up to 20 concurrent connections).
+    All jobs are attempted regardless of individual failures.
+
+    Default if_exists="skip" skips uploads that already have a
+    NORMALISATION_IMPUTATION dataset with the same name.
+
+    Each job spec (dict):
+      upload_id                str   — upload to run against (required)
+      dataset_name             str   — name for the output dataset (required)
+      normalisation_method     str   — "median" or "quantile" (required)
+      imputation_method        str   — "min_value" or "knn" (required)
+      normalisation_extra_params dict — extra kwargs for normalisation (optional)
+      imputation_extra_params    dict — extra kwargs for imputation (optional)
+      if_exists                str   — "skip" (default) or "run"
+
+    Returns JSON array:
+      [{index, upload_id, dataset_name, dataset_id?, skipped?, error?, error_code?}]
+    Or a JSON error object if len(jobs) > 500.
+    """
+    if len(jobs) > _MAX_BULK_JOBS:
+        return json.dumps(
+            {
+                "error": (
+                    f"Too many jobs: {len(jobs)}. Maximum per call is {_MAX_BULK_JOBS}. "
+                    "Split the call into smaller batches."
+                )
+            }
+        )
+
+    unique_ids = list({job.get("upload_id", "") for job in jobs})
+    existing_cache: Dict[str, Dict[str, str]] = {}
+    initial_ds_cache: Dict[str, Optional[str]] = {}
+
+    for uid in unique_ids:
+        intensity_id, existing = _bulk_prefetch_upload_data(
+            uid, "NORMALISATION_IMPUTATION"
+        )
+        existing_cache[uid] = existing
+        initial_ds_cache[uid] = intensity_id
+
+    def _process(i: int, job: Dict[str, Any]) -> Dict[str, Any]:
+        upload_id = job.get("upload_id", "")
+        dataset_name = job.get("dataset_name", "")
+        if_exists = job.get("if_exists", "skip")
+        entry: Dict[str, Any] = {
+            "index": i,
+            "upload_id": upload_id,
+            "dataset_name": dataset_name,
+        }
+
+        if if_exists == "skip":
+            existing_id = existing_cache.get(upload_id, {}).get(dataset_name)
+            if existing_id:
+                entry["dataset_id"] = existing_id
+                entry["skipped"] = True
+                return entry
+
+        initial_id = initial_ds_cache.get(upload_id)
+        if not initial_id:
+            entry["error"] = (
+                f"No initial INTENSITY dataset found for upload {upload_id}"
+            )
+            entry["error_code"] = "dataset_not_found"
+            return entry
+
+        norm: Dict[str, Any] = {"method": job.get("normalisation_method", "")}
+        extra_norm = job.get("normalisation_extra_params")
+        if extra_norm:
+            norm.update(extra_norm)
+
+        imp: Dict[str, Any] = {"method": job.get("imputation_method", "")}
+        extra_imp = job.get("imputation_extra_params")
+        if extra_imp:
+            imp.update(extra_imp)
+
+        try:
+            run_result = run_normalisation_imputation(
+                input_dataset_ids=[initial_id],
+                dataset_name=dataset_name,
+                normalisation_method=job.get("normalisation_method", ""),
+                imputation_method=job.get("imputation_method", ""),
+                normalisation_extra_params=job.get("normalisation_extra_params"),
+                imputation_extra_params=job.get("imputation_extra_params"),
+            )
+            if "Dataset ID:" in run_result:
+                entry["dataset_id"] = run_result.split("Dataset ID:")[-1].strip()
+            else:
+                entry["result"] = run_result
+        except Exception as e:
+            entry["error"] = str(e)
+            entry["error_code"] = "run_failed"
+
+        return entry
+
+    return _run_jobs_parallel(jobs, _process)
+
+
+@mcp.tool()
+def run_pairwise_comparison_bulk(jobs: List[Dict[str, Any]]) -> str:
+    """Submit multiple pairwise comparison jobs in a single call (max 500).
+
+    Unlike run_dose_response_bulk, input_dataset_ids must be explicit per job
+    (cannot auto-resolve — there may be multiple NI datasets per upload).
+    upload_id is still required for the dedup check.
+
+    Jobs are submitted in parallel (up to 20 concurrent connections).
+    All jobs are attempted regardless of individual failures.
+
+    Default if_exists="skip" skips uploads that already have a
+    PAIRWISE_COMPARISON dataset with the same name.
+
+    Each job spec (dict):
+      upload_id               str        — upload the job belongs to (required, for dedup)
+      input_dataset_ids       list[str]  — NI output dataset IDs (required)
+      dataset_name            str        — name for the output dataset (required)
+      sample_metadata         list       — 2D array with header row (required)
+      condition_column        str        — column defining groups (required)
+      condition_comparisons   list       — [[case, control], ...] pairs (required)
+      filter_valid_values_logic str      — default "at least one condition"
+      filter_method           str        — default "percentage"
+      filter_threshold_percentage float — default 0.5
+      fit_separate_models     bool       — default True
+      limma_trend             bool       — default True
+      robust_empirical_bayes  bool       — default True
+      entity_type             str        — default "protein"
+      control_variables       list       — optional covariates
+      if_exists               str        — "skip" (default) or "run"
+
+    Returns JSON array:
+      [{index, upload_id, dataset_name, dataset_id?, skipped?, error?, error_code?}]
+    Or a JSON error object if len(jobs) > 500.
+    """
+    if len(jobs) > _MAX_BULK_JOBS:
+        return json.dumps(
+            {
+                "error": (
+                    f"Too many jobs: {len(jobs)}. Maximum per call is {_MAX_BULK_JOBS}. "
+                    "Split the call into smaller batches."
+                )
+            }
+        )
+
+    unique_ids = list({job.get("upload_id", "") for job in jobs})
+    existing_cache: Dict[str, Dict[str, str]] = {}
+
+    for uid in unique_ids:
+        _, existing = _bulk_prefetch_upload_data(uid, "PAIRWISE_COMPARISON")
+        existing_cache[uid] = existing
+
+    def _process(i: int, job: Dict[str, Any]) -> Dict[str, Any]:
+        upload_id = job.get("upload_id", "")
+        dataset_name = job.get("dataset_name", "")
+        if_exists = job.get("if_exists", "skip")
+        entry: Dict[str, Any] = {
+            "index": i,
+            "upload_id": upload_id,
+            "dataset_name": dataset_name,
+        }
+
+        if if_exists == "skip":
+            existing_id = existing_cache.get(upload_id, {}).get(dataset_name)
+            if existing_id:
+                entry["dataset_id"] = existing_id
+                entry["skipped"] = True
+                return entry
+
+        input_dataset_ids = job.get("input_dataset_ids")
+        if not input_dataset_ids:
+            entry["error"] = "input_dataset_ids is required for pairwise comparison"
+            entry["error_code"] = "missing_input"
+            return entry
+
+        cv = job.get("control_variables")
+        cv_param = {"control_variables": cv} if cv else None
+
+        try:
+            run_result = run_pairwise_comparison(
+                input_dataset_ids=input_dataset_ids,
+                dataset_name=dataset_name,
+                sample_metadata=job["sample_metadata"],
+                condition_column=job["condition_column"],
+                condition_comparisons=job["condition_comparisons"],
+                filter_valid_values_logic=job.get(
+                    "filter_valid_values_logic", "at least one condition"
+                ),
+                filter_method=job.get("filter_method", "percentage"),
+                filter_threshold_percentage=job.get("filter_threshold_percentage", 0.5),
+                fit_separate_models=job.get("fit_separate_models", True),
+                limma_trend=job.get("limma_trend", True),
+                robust_empirical_bayes=job.get("robust_empirical_bayes", True),
+                entity_type=job.get("entity_type", "protein"),
+                control_variables=cv_param,
+            )
+            if "Dataset ID:" in run_result:
+                entry["dataset_id"] = run_result.split("Dataset ID:")[-1].strip()
+            else:
+                entry["result"] = run_result
+        except Exception as e:
+            entry["error"] = str(e)
+            entry["error_code"] = "run_failed"
+
+        return entry
+
+    return _run_jobs_parallel(jobs, _process)
