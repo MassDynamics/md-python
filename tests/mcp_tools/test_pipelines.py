@@ -101,7 +101,7 @@ def test_generate_pairwise_comparisons_vs_control():
     )
     pairs = json.loads(result)
     assert ["treated", "ctrl"] in pairs
-    assert not any(p[1] != "ctrl" for p in pairs)
+    assert all(p[1] == "ctrl" for p in pairs)
 
 
 def test_generate_all_pairwise_comparisons():
@@ -184,3 +184,51 @@ def test_run_dose_response_with_metadata():
     assert OUTPUT_ID in result
     call_args = mock_client.datasets.create.call_args[0][0]
     assert "experiment_design" in call_args.job_run_params
+
+
+def test_generate_pairwise_comparisons_single_condition():
+    """With only one condition, no pairs can be formed — result is an empty list."""
+    one_condition = [
+        ["sample_name", "condition"],
+        ["s1", "ctrl"],
+        ["s2", "ctrl"],
+    ]
+    result = generate_pairwise_comparisons(
+        sample_metadata=one_condition,
+        condition_column="condition",
+    )
+    pairs = json.loads(result)
+    assert pairs == []
+
+
+def test_run_pairwise_comparison_result_contains_dataset_id():
+    """The returned string must contain the dataset ID."""
+    mock_client = MagicMock()
+    mock_client.datasets.create.return_value = OUTPUT_ID
+
+    with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        result = run_pairwise_comparison(
+            input_dataset_ids=[INTENSITY_ID],
+            dataset_name="Test",
+            sample_metadata=SAMPLE_METADATA,
+            condition_column="condition",
+            condition_comparisons=[["treated", "ctrl"]],
+        )
+
+    assert OUTPUT_ID in result
+
+
+def test_run_dose_response_result_contains_dataset_id():
+    """The returned string must contain the dataset ID."""
+    mock_client = MagicMock()
+    mock_client.datasets.create.return_value = OUTPUT_ID
+
+    with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+        result = run_dose_response(
+            input_dataset_ids=[INTENSITY_ID],
+            dataset_name="Test DR",
+            sample_names=["s1", "s2", "s3"],
+            control_samples=["s1"],
+        )
+
+    assert OUTPUT_ID in result

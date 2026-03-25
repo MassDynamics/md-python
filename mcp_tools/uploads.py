@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 import os
+from collections import Counter
 from typing import List, Optional
 
 _LARGE_UPLOAD_THRESHOLD_BYTES = (
@@ -9,6 +10,16 @@ _LARGE_UPLOAD_THRESHOLD_BYTES = (
 _large_upload_executor = concurrent.futures.ThreadPoolExecutor(
     max_workers=int(os.environ.get("MD_MAX_CONCURRENT_LARGE_UPLOADS", "1"))
 )
+
+
+def _get_executor() -> concurrent.futures.ThreadPoolExecutor:
+    """Return the module-level large-upload executor.
+
+    Indirected via a function so tests can patch this single point
+    rather than the bare module variable.
+    """
+    return _large_upload_executor
+
 
 from md_python.models.metadata import ExperimentDesign, SampleMetadata
 from md_python.models.upload import Upload
@@ -127,18 +138,14 @@ def validate_upload_inputs(
             f"sample_names in sample_metadata but NOT in experiment_design: {sorted(missing_from_ed)}"
         )
 
-    # Duplicate check
-    ed_dupes = [s for s in ed_set if ed_samples.count(s) > 1]
+    # Duplicate check (Counter is O(n) vs list.count's O(n²))
+    ed_dupes = sorted(s for s, n in Counter(ed_samples).items() if n > 1)
     if ed_dupes:
-        errors.append(
-            f"Duplicate sample_names in experiment_design: {sorted(set(ed_dupes))}"
-        )
+        errors.append(f"Duplicate sample_names in experiment_design: {ed_dupes}")
 
-    sm_dupes = [s for s in sm_set if sm_samples.count(s) > 1]
+    sm_dupes = sorted(s for s, n in Counter(sm_samples).items() if n > 1)
     if sm_dupes:
-        errors.append(
-            f"Duplicate sample_names in sample_metadata: {sorted(set(sm_dupes))}"
-        )
+        errors.append(f"Duplicate sample_names in sample_metadata: {sm_dupes}")
 
     if errors:
         return "Validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
@@ -397,7 +404,7 @@ def create_upload_from_csv(
         upload_id = get_client().uploads.create(
             upload,
             background=True,
-            executor=_large_upload_executor if use_sequential else None,
+            executor=_get_executor() if use_sequential else None,
         )
     except Exception as e:
         return f"Error creating upload: {e}"
@@ -440,7 +447,7 @@ def cancel_upload_queue() -> str:
     re-submit them with create_upload_from_csv if needed.
     """
     global _large_upload_executor
-    _large_upload_executor.shutdown(wait=False, cancel_futures=True)
+    _get_executor().shutdown(wait=False, cancel_futures=True)
     _large_upload_executor = concurrent.futures.ThreadPoolExecutor(
         max_workers=int(os.environ.get("MD_MAX_CONCURRENT_LARGE_UPLOADS", "1"))
     )

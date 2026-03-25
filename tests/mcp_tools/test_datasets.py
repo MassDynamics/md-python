@@ -109,6 +109,36 @@ def test_wait_for_dataset():
     assert "Dataset: My Dataset" in result
 
 
+def test_wait_for_dataset_timeout_returns_current_state():
+    """On TimeoutError, returns current state and a retry instruction."""
+    running_ds = _mock_dataset(id="ds-1", state="RUNNING")
+    mock_client = MagicMock()
+    mock_client.datasets.wait_until_complete.side_effect = TimeoutError("timed out")
+    mock_client.datasets.list_by_upload.return_value = [running_ds]
+
+    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        result = wait_for_dataset(
+            "upload-123", "ds-1", poll_seconds=1, timeout_seconds=5
+        )
+
+    assert "RUNNING" in result
+    assert "call wait_for_dataset again" in result
+
+
+def test_wait_for_dataset_timeout_dataset_not_visible():
+    """On TimeoutError when dataset not in list, returns a safe retry message."""
+    mock_client = MagicMock()
+    mock_client.datasets.wait_until_complete.side_effect = TimeoutError("timed out")
+    mock_client.datasets.list_by_upload.return_value = []
+
+    with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        result = wait_for_dataset(
+            "upload-123", "ds-missing", poll_seconds=1, timeout_seconds=5
+        )
+
+    assert "call wait_for_dataset again" in result
+
+
 def test_retry_dataset_success():
     mock_client = MagicMock()
     mock_client.datasets.retry.return_value = True

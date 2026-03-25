@@ -231,6 +231,122 @@ def _normalise_header(header: List[str]) -> List[str]:
     return [_ED_SYNONYMS.get(h.strip().lower(), h.strip().lower()) for h in header]
 
 
+def _safe_get(row: List[str], idx: int) -> str:
+    """Return row[idx].strip(), or '' if idx is out of bounds."""
+    return row[idx].strip() if idx < len(row) else ""
+
+
+def _build_ed_rows(data_rows: List[List[str]], idx: Dict[str, int]) -> List[List[str]]:
+    """Build experiment_design data rows from the column-index map.
+
+    Returns one [filename, sample_name, condition] list per data row.
+    """
+    return [
+        [
+            _safe_get(row, idx["filename"]),
+            _safe_get(row, idx["sample_name"]),
+            _safe_get(row, idx["condition"]),
+        ]
+        for row in data_rows
+    ]
+
+
+def _sm_column_order(
+    normalised: List[str], header_stripped: List[str]
+) -> Tuple[List[int], List[str]]:
+    """Return (col_indices, headers) for sample_metadata.
+
+    Excludes the 'filename' column. Moves sample_name to position 0 if it
+    isn't already there.
+    """
+    col_indices = [i for i, col in enumerate(normalised) if col != "filename"]
+    headers = [header_stripped[i] for i in col_indices]
+
+    sn_pos = next(
+        (
+            j
+            for j, h in enumerate(headers)
+            if h.strip().lower() in ("sample_name", "sample", "samplename")
+        ),
+        None,
+    )
+    if sn_pos is not None and sn_pos != 0:
+        col_indices = [col_indices[sn_pos]] + [
+            c for j, c in enumerate(col_indices) if j != sn_pos
+        ]
+        headers = [header_stripped[i] for i in col_indices]
+
+    return col_indices, headers
+
+
+def _deduplicate_rows_by_sample_name(
+    data_rows: List[List[str]], sn_idx: int, col_indices: List[int]
+) -> Tuple[List[List[str]], Set[str]]:
+    """Deduplicate data rows by sample_name, keeping the first occurrence.
+
+    Returns (deduplicated_rows, seen_sample_names).
+    """
+    seen: Set[str] = set()
+    result: List[List[str]] = []
+    for row in data_rows:
+        sn = _safe_get(row, sn_idx)
+        if sn and sn not in seen:
+            seen.add(sn)
+            result.append([_safe_get(row, i) for i in col_indices])
+    return result, seen
+
+
+def _collect_notes(
+    has_ed: bool,
+    normalised: List[str],
+    header_stripped: List[str],
+    experiment_design: Optional[List[List[str]]],
+    sm_headers: List[str],
+) -> List[str]:
+    """Generate human-readable notes/warnings for the load_metadata_from_csv result."""
+    notes: List[str] = []
+
+    if not has_ed:
+        has_condition = "condition" in normalised or "group" in [
+            h.strip().lower() for h in header_stripped
+        ]
+        if has_condition:
+            notes.append(
+                "No 'filename' column detected — only sample_metadata was built. "
+                "LFQ SHORTCUT: for LFQ data where each file = one sample, "
+                "add a 'filename' column to your CSV with the same values as "
+                "'sample_name', then re-run load_metadata_from_csv. "
+                "This will generate both experiment_design and sample_metadata automatically."
+            )
+        else:
+            notes.append(
+                "No filename/condition columns detected — only sample_metadata was built. "
+                "If you need an experiment_design, add 'filename' and 'condition' columns "
+                "to this file and re-run load_metadata_from_csv."
+            )
+
+    if has_ed and experiment_design and len(sm_headers) == 1:
+        notes.append(
+            "sample_metadata only contains sample_name. "
+            "Consider asking the user for additional experimental variables "
+            "(dose, batch, cellline, drug, …) to add as columns."
+        )
+
+    if experiment_design:
+        empty_conditions = sum(1 for row in experiment_design[1:] if not row[2])
+        if empty_conditions:
+            notes.append(
+                f"{empty_conditions} row(s) have an empty condition value. "
+                "Ask the user to provide the condition for each sample before calling create_upload."
+            )
+
+    notes.append(
+        "Always run validate_upload_inputs before calling create_upload "
+        "to confirm sample_name alignment between experiment_design and sample_metadata."
+    )
+    return notes
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MCP tools
 # ──────────────────────────────────────────────────────────────────────────────
@@ -422,87 +538,23 @@ def load_metadata_from_csv(
     # ── experiment_design ────────────────────────────────────────────────────
     experiment_design: Optional[List[List[str]]] = None
     if has_ed:
-        experiment_design = [["filename", "sample_name", "condition"]]
-        for row in data_rows:
-
-            def _g(i: int) -> str:
-                return row[i].strip() if i < len(row) else ""
-
-            experiment_design.append(
-                [_g(idx["filename"]), _g(idx["sample_name"]), _g(idx["condition"])]
-            )
+        experiment_design = [["filename", "sample_name", "condition"]] + _build_ed_rows(
+            data_rows, idx
+        )
 
     # ── sample_metadata ──────────────────────────────────────────────────────
-    # Include all columns except 'filename'; deduplicate by sample_name.
-    sm_col_indices = [i for i, col in enumerate(normalised) if col != "filename"]
-    sm_headers = [header_stripped[i] for i in sm_col_indices]
-
-    # Ensure sample_name is the first column in sample_metadata
-    sn_pos = next(
-        (
-            j
-            for j, h in enumerate(sm_headers)
-            if h.strip().lower() in ("sample_name", "sample", "samplename")
-        ),
-        None,
+    # Include all columns except 'filename'; sample_name first; deduplicate.
+    sm_col_indices, sm_headers = _sm_column_order(normalised, header_stripped)
+    sm_rows, seen = _deduplicate_rows_by_sample_name(
+        data_rows, idx["sample_name"], sm_col_indices
     )
-    if sn_pos is not None and sn_pos != 0:
-        sm_col_indices = [sm_col_indices[sn_pos]] + [
-            c for j, c in enumerate(sm_col_indices) if j != sn_pos
-        ]
-        sm_headers = [header_stripped[i] for i in sm_col_indices]
-
-    sn_full_idx = idx["sample_name"]
-    seen: set = set()
-    sm_rows: List[List[str]] = []
-    for row in data_rows:
-        sn = row[sn_full_idx].strip() if sn_full_idx < len(row) else ""
-        if sn and sn not in seen:
-            seen.add(sn)
-            sm_rows.append(
-                [row[i].strip() if i < len(row) else "" for i in sm_col_indices]
-            )
-
     sample_metadata: Optional[List[List[str]]] = (
         [sm_headers] + sm_rows if sm_rows else None
     )
 
     # ── notes ────────────────────────────────────────────────────────────────
-    notes: List[str] = []
-    if not has_ed:
-        has_condition = "condition" in normalised or "group" in [
-            h.strip().lower() for h in header_stripped
-        ]
-        if has_condition:
-            notes.append(
-                "No 'filename' column detected — only sample_metadata was built. "
-                "LFQ SHORTCUT: for LFQ data where each file = one sample, "
-                "add a 'filename' column to your CSV with the same values as "
-                "'sample_name', then re-run load_metadata_from_csv. "
-                "This will generate both experiment_design and sample_metadata automatically."
-            )
-        else:
-            notes.append(
-                "No filename/condition columns detected — only sample_metadata was built. "
-                "If you need an experiment_design, add 'filename' and 'condition' columns "
-                "to this file and re-run load_metadata_from_csv."
-            )
-    if has_ed and sample_metadata and len(sm_headers) == 1:
-        notes.append(
-            "sample_metadata only contains sample_name. "
-            "Consider asking the user for additional experimental variables "
-            "(dose, batch, cellline, drug, …) to add as columns."
-        )
-    if experiment_design:
-        empty_conditions = sum(1 for row in experiment_design[1:] if not row[2])
-        if empty_conditions:
-            notes.append(
-                f"{empty_conditions} row(s) have an empty condition value. "
-                "Ask the user to provide the condition for each sample before calling create_upload."
-            )
-    notes.append(
-        "Always run validate_upload_inputs before calling create_upload "
-        "to confirm sample_name alignment between experiment_design and sample_metadata."
+    notes = _collect_notes(
+        has_ed, normalised, header_stripped, experiment_design, sm_headers
     )
 
     return json.dumps(

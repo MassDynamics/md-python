@@ -344,12 +344,53 @@ def test_cancel_upload_queue_resets_executor():
     import mcp_tools.uploads as uploads_module
 
     original_executor = uploads_module._large_upload_executor
-    with patch.object(original_executor, "shutdown") as mock_shutdown:
-        result = cancel_upload_queue()
+    # Patch via the accessor so we don't mutate the live variable directly
+    with patch("mcp_tools.uploads._get_executor", return_value=original_executor):
+        with patch.object(original_executor, "shutdown") as mock_shutdown:
+            result = cancel_upload_queue()
 
     mock_shutdown.assert_called_once_with(wait=False, cancel_futures=True)
     assert uploads_module._large_upload_executor is not original_executor
     assert "reset" in result.lower()
+
+
+def test_validate_upload_inputs_empty_design():
+    result = validate_upload_inputs([], METADATA)
+    assert "Error" in result
+    assert "experiment_design" in result
+
+
+def test_validate_upload_inputs_empty_metadata():
+    result = validate_upload_inputs(DESIGN, [])
+    assert "Error" in result
+    assert "sample_metadata" in result
+
+
+def test_validate_upload_inputs_duplicate_sample_in_design():
+    dupe_design = [
+        ["filename", "sample_name", "condition"],
+        ["file1.tsv", "s1", "ctrl"],
+        ["file2.tsv", "s1", "ctrl"],  # duplicate s1
+    ]
+    result = validate_upload_inputs(dupe_design, METADATA)
+    assert "Duplicate" in result
+    assert "s1" in result
+
+
+def test_create_upload_from_csv_missing_file_location(tmp_path):
+    csv = tmp_path / "metadata.csv"
+    csv.write_text("filename,sample_name,condition\nfile1,s1,ctrl\n")
+
+    with patch("mcp_tools.uploads.get_client", return_value=MagicMock()):
+        result = create_upload_from_csv(
+            name="Test",
+            source="md_format",
+            metadata_csv_path=str(csv),
+            file_location="/nonexistent/path",
+        )
+
+    assert "Error" in result
+    assert "file_location" in result
 
 
 def test_list_uploads_status():

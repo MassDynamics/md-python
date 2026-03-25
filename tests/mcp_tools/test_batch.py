@@ -114,6 +114,20 @@ def test_batch_unknown_tool():
     assert "Unknown tool" in data[0]["error"]
 
 
+def test_batch_empty_operations():
+    """An empty operations list returns an empty JSON array."""
+    result = batch([])
+    data = json.loads(result)
+    assert data == []
+
+
+def test_batch_invalid_params_captured_as_error():
+    """Passing unexpected kwargs to a tool is caught and reported, not raised."""
+    result = batch([{"tool": "health_check", "params": {"nonexistent_param": "value"}}])
+    data = json.loads(result)
+    assert "error" in data[0]
+
+
 def test_batch_index_is_correct():
     with patch("mcp_tools.health.get_client") as mock_health:
         mock_health.return_value.health.check.return_value = {"status": "ok"}
