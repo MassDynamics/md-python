@@ -16,30 +16,37 @@ def _fetch_dataset_state(job: Dict[str, str]) -> Dict[str, str]:
     """Fetch the current state of one dataset. Returns job dict augmented with 'state'.
 
     State is one of the API states (COMPLETED, RUNNING, FAILED, etc.) on success.
-    Returns state="FETCH_ERROR" with an "error" key when the API call fails,
-    or state="NOT_FOUND" when the dataset ID is not present in the upload's list.
-    Neither of these reflects the pipeline's own state — they indicate a lookup failure.
+    Returns state="FETCH_ERROR" with an "error" key when the API call fails.
+
+    upload_id is optional. When omitted, the dataset is fetched directly by ID
+    (GET /datasets/:id). When provided, list_by_upload is used instead — useful
+    when the direct endpoint is unavailable or for batching.
     """
-    upload_id = job["upload_id"]
     dataset_id = job["dataset_id"]
+    upload_id = job.get("upload_id")
     try:
-        datasets = get_client().datasets.list_by_upload(upload_id)
-        ds = next((d for d in datasets if str(d.id) == dataset_id), None)
-        if ds is None:
-            return {
-                "upload_id": upload_id,
-                "dataset_id": dataset_id,
-                "state": "NOT_FOUND",
-                "error": "Dataset ID not found in upload — it may still be queued or the ID may be wrong.",
-            }
-        return {"upload_id": upload_id, "dataset_id": dataset_id, "state": ds.state}
+        if upload_id:
+            datasets = get_client().datasets.list_by_upload(upload_id)
+            ds = next((d for d in datasets if str(d.id) == dataset_id), None)
+            if ds is None:
+                return {
+                    "dataset_id": dataset_id,
+                    "upload_id": upload_id,
+                    "state": "NOT_FOUND",
+                    "error": "Dataset ID not found in upload — it may still be queued or the ID may be wrong.",
+                }
+        else:
+            ds = get_client().datasets.get_by_id(dataset_id)
+        return {"dataset_id": dataset_id, "state": ds.state}
     except Exception as e:
-        return {
-            "upload_id": upload_id,
+        result: Dict[str, str] = {
             "dataset_id": dataset_id,
             "state": "FETCH_ERROR",
             "error": f"API call failed: {e}",
         }
+        if upload_id:
+            result["upload_id"] = upload_id
+        return result
 
 
 @mcp.tool()
@@ -222,7 +229,12 @@ def wait_for_datasets_bulk(
     """Check the status of multiple pipeline datasets, polling until all are terminal.
 
     Args:
-        jobs: list of {"upload_id": "...", "dataset_id": "..."} dicts. Max 500.
+        jobs: list of job dicts. Max 500. Each dict must have "dataset_id".
+            "upload_id" is optional — omit it to look up datasets directly by ID
+            (simpler, avoids upload_id mapping errors). Include it only if needed.
+            Examples:
+              [{"dataset_id": "abc"}]                          # preferred
+              [{"upload_id": "up-1", "dataset_id": "abc"}]    # also valid
         poll_seconds: seconds between status sweeps (default 5).
         timeout_seconds: max seconds before returning current summary (default 45).
             Keep below 60 — the MCP client enforces a hard 60-second per-call limit.
@@ -239,8 +251,8 @@ def wait_for_datasets_bulk(
         "total": N,
         "all_terminal": true/false,
         "by_state": {"COMPLETED": N, "RUNNING": N, ...},
-        "pending": [{"upload_id": "...", "dataset_id": "...", "state": "..."}],
-        "failed":  [{"upload_id": "...", "dataset_id": "...", "state": "..."}]
+        "pending": [{"dataset_id": "...", "state": "..."}],
+        "failed":  [{"dataset_id": "...", "state": "..."}]
       }
     When all_terminal is false, call wait_for_datasets_bulk again with the same jobs.
     Pass the "failed" list items to retry_dataset to re-run failed jobs.

@@ -87,3 +87,31 @@ class TestFetchDatasetState:
         assert "network timeout" in result["error"]
         assert result["upload_id"] == "up-1"
         assert result["dataset_id"] == "ds-1"
+
+    def test_uses_get_by_id_when_no_upload_id(self):
+        ds = MagicMock()
+        ds.state = "RUNNING"
+        mock_client = MagicMock()
+        mock_client.datasets.get_by_id.return_value = ds
+
+        job = {"dataset_id": "ds-1"}
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = _fetch_dataset_state(job)
+
+        mock_client.datasets.get_by_id.assert_called_once_with("ds-1")
+        mock_client.datasets.list_by_upload.assert_not_called()
+        assert result["state"] == "RUNNING"
+        assert result["dataset_id"] == "ds-1"
+        assert "upload_id" not in result
+
+    def test_fetch_error_without_upload_id_omits_upload_id(self):
+        mock_client = MagicMock()
+        mock_client.datasets.get_by_id.side_effect = RuntimeError("not found")
+
+        job = {"dataset_id": "ds-bad"}
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = _fetch_dataset_state(job)
+
+        assert result["state"] == "FETCH_ERROR"
+        assert "upload_id" not in result
+        assert result["dataset_id"] == "ds-bad"
