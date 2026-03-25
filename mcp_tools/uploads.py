@@ -459,27 +459,31 @@ def cancel_upload_queue() -> str:
 
 
 @mcp.tool()
-def list_uploads_status(upload_ids: List[str]) -> str:
+def list_uploads_status(upload_ids: List[str], summary: bool = False) -> str:
     """Check the status of multiple uploads in a single call.
 
     Use this after submitting several create_upload_from_csv calls to monitor
     all uploads at once without making a separate get_upload call for each.
 
-    Returns a compact JSON summary: {upload_id: {name, status, source}}.
+    Returns JSON: {upload_id: {name, status, source}} by default.
     Individual fetch errors are recorded inline rather than failing the whole call.
 
     upload_ids: list of upload UUIDs to check.
+    summary: when True, omits 'source' — returns only {name, status}.
+      Use this for large status polls (100+ uploads) to reduce token overhead.
     """
     c = get_client()
     results = {}
     for uid in upload_ids:
         try:
             upload = c.uploads.get_by_id(uid)
-            results[uid] = {
+            entry: dict = {
                 "name": getattr(upload, "name", None),
                 "status": getattr(upload, "status", None),
-                "source": getattr(upload, "source", None),
             }
+            if not summary:
+                entry["source"] = getattr(upload, "source", None)
+            results[uid] = entry
         except Exception as e:
             results[uid] = {"error": str(e)}
     return json.dumps(results, indent=2)

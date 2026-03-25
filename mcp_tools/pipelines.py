@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from md_python.models.dataset_builders import (
     DoseResponseDataset,
@@ -408,3 +408,186 @@ def run_dose_response(
         prop_required_in_protein=prop_required_in_protein,
     ).run(get_client())
     return f"Dose-response pipeline started. Dataset ID: {dataset_id}"
+
+
+def _find_existing_dr_dataset(
+    upload_id: str, dataset_name: str
+) -> Tuple[Optional[str], Optional[str]]:
+    """Return (dataset_id, None) if a DOSE_RESPONSE dataset with dataset_name exists,
+    or (None, error_string) if the lookup fails, or (None, None) if not found."""
+    try:
+        datasets = get_client().datasets.list_by_upload(upload_id)
+        for ds in datasets:
+            if ds.type == "DOSE_RESPONSE" and ds.name == dataset_name:
+                return str(ds.id), None
+        return None, None
+    except Exception as e:
+        return None, str(e)
+
+
+@mcp.tool()
+def run_dose_response_from_upload(
+    upload_id: str,
+    dataset_name: str,
+    sample_names: List[str],
+    control_samples: List[str],
+    sample_metadata: Optional[List[List[str]]] = None,
+    dose_column: str = "dose",
+    log_intensities: bool = True,
+    use_imputed_intensities: bool = True,
+    normalise: str = "none",
+    span_rollmean_k: int = 1,
+    prop_required_in_protein: float = 0.5,
+    if_exists: str = "skip",
+) -> str:
+    """Run a dose-response pipeline directly from an upload ID.
+
+    Resolves the input_dataset_ids automatically by looking up the initial
+    INTENSITY dataset for the upload — you do not need to call find_initial_dataset
+    first. This is the recommended tool when running a single DR job per upload.
+
+    For submitting many DR jobs at once, use run_dose_response_bulk instead.
+
+    if_exists controls deduplication:
+      "skip" (default) — if a DOSE_RESPONSE dataset with the same dataset_name
+        already exists for this upload, return its ID without submitting a new job.
+        Safe to use when resuming after a crash.
+      "run" — always submit a new job, even if one with the same name exists.
+
+    All other parameters are identical to run_dose_response. See
+    describe_pipeline("dose_response") for full parameter documentation.
+    """
+    # Deduplication check
+    if if_exists == "skip":
+        existing_id, err = _find_existing_dr_dataset(upload_id, dataset_name)
+        if err:
+            return f"Error checking existing jobs: {err}"
+        if existing_id:
+            return (
+                f"Job already exists (skipped). Dataset ID: {existing_id}\n"
+                f"Call wait_for_dataset(upload_id='{upload_id}', dataset_id='{existing_id}') "
+                f"to check its status."
+            )
+
+    # Resolve input dataset
+    ds = get_client().datasets.find_initial_dataset(upload_id)
+    if not ds:
+        return f"Error: no initial INTENSITY dataset found for upload {upload_id}"
+
+    return run_dose_response(
+        input_dataset_ids=[str(ds.id)],
+        dataset_name=dataset_name,
+        sample_names=sample_names,
+        control_samples=control_samples,
+        sample_metadata=sample_metadata,
+        dose_column=dose_column,
+        log_intensities=log_intensities,
+        use_imputed_intensities=use_imputed_intensities,
+        normalise=normalise,
+        span_rollmean_k=span_rollmean_k,
+        prop_required_in_protein=prop_required_in_protein,
+    )
+
+
+@mcp.tool()
+def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
+    """Submit multiple dose-response jobs in a single call.
+
+    Resolves input_dataset_ids from upload_id automatically for each job, with
+    per-upload caching so the initial dataset is looked up at most once per upload.
+    All jobs are attempted regardless of individual failures — errors are captured
+    inline and never abort the remaining jobs.
+
+    Default if_exists="skip" makes this safe to re-run after a crash: jobs that
+    already completed are returned immediately with their existing dataset ID.
+
+    Each job spec (dict):
+      upload_id         str   — upload to run against (required)
+      dataset_name      str   — name for the output dataset (required)
+      sample_names      list  — all sample names (required)
+      control_samples   list  — control sample names (required)
+      sample_metadata   list  — 2D array with header row (optional)
+      dose_column       str   — default "dose"
+      log_intensities   bool  — default True
+      use_imputed_intensities bool — default True
+      normalise         str   — default "none"
+      span_rollmean_k   int   — default 1
+      prop_required_in_protein float — default 0.5
+      if_exists         str   — "skip" (default) or "run"
+
+    Returns JSON array:
+      [{index, upload_id, dataset_name, dataset_id?, skipped?, error?, error_code?}]
+    """
+    c = get_client()
+    initial_ds_cache: Dict[str, Optional[str]] = {}  # upload_id -> dataset_id or None
+    results = []
+
+    for i, job in enumerate(jobs):
+        upload_id = job.get("upload_id", "")
+        dataset_name = job.get("dataset_name", "")
+        if_exists = job.get("if_exists", "skip")
+        entry: Dict[str, Any] = {
+            "index": i,
+            "upload_id": upload_id,
+            "dataset_name": dataset_name,
+        }
+
+        # Deduplication check
+        if if_exists == "skip":
+            existing_id, err = _find_existing_dr_dataset(upload_id, dataset_name)
+            if err:
+                entry["error"] = f"Could not check existing jobs: {err}"
+                entry["error_code"] = "check_failed"
+                results.append(entry)
+                continue
+            if existing_id:
+                entry["dataset_id"] = existing_id
+                entry["skipped"] = True
+                results.append(entry)
+                continue
+
+        # Resolve initial dataset (cached)
+        if upload_id not in initial_ds_cache:
+            try:
+                ds = c.datasets.find_initial_dataset(upload_id)
+                initial_ds_cache[upload_id] = str(ds.id) if ds else None
+            except Exception as e:
+                initial_ds_cache[upload_id] = None
+                entry["error"] = f"Could not find initial dataset: {e}"
+                entry["error_code"] = "dataset_not_found"
+                results.append(entry)
+                continue
+
+        initial_id = initial_ds_cache[upload_id]
+        if not initial_id:
+            entry["error"] = f"No initial dataset found for upload {upload_id}"
+            entry["error_code"] = "dataset_not_found"
+            results.append(entry)
+            continue
+
+        # Submit job
+        try:
+            run_result = run_dose_response(
+                input_dataset_ids=[initial_id],
+                dataset_name=dataset_name,
+                sample_names=job["sample_names"],
+                control_samples=job["control_samples"],
+                sample_metadata=job.get("sample_metadata"),
+                dose_column=job.get("dose_column", "dose"),
+                log_intensities=job.get("log_intensities", True),
+                use_imputed_intensities=job.get("use_imputed_intensities", True),
+                normalise=job.get("normalise", "none"),
+                span_rollmean_k=job.get("span_rollmean_k", 1),
+                prop_required_in_protein=job.get("prop_required_in_protein", 0.5),
+            )
+            if "Dataset ID:" in run_result:
+                entry["dataset_id"] = run_result.split("Dataset ID:")[-1].strip()
+            else:
+                entry["result"] = run_result
+        except Exception as e:
+            entry["error"] = str(e)
+            entry["error_code"] = "run_failed"
+
+        results.append(entry)
+
+    return json.dumps(results, indent=2)

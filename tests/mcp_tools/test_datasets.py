@@ -1,10 +1,12 @@
 """Tests for mcp_tools.datasets."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 from mcp_tools.datasets import (
     delete_dataset,
     find_initial_dataset,
+    find_initial_datasets,
     list_datasets,
     list_jobs,
     retry_dataset,
@@ -42,6 +44,56 @@ class TestListJobs:
         assert "No jobs" in result
 
 
+class TestFindInitialDatasets:
+    def test_returns_dataset_ids_for_all_uploads(self):
+        mock_ds1 = MagicMock()
+        mock_ds1.id = "ds-001"
+        mock_ds2 = MagicMock()
+        mock_ds2.id = "ds-002"
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.side_effect = [mock_ds1, mock_ds2]
+
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = json.loads(find_initial_datasets(["upload-1", "upload-2"]))
+
+        assert result["upload-1"] == {"dataset_id": "ds-001"}
+        assert result["upload-2"] == {"dataset_id": "ds-002"}
+
+    def test_records_not_found_inline(self):
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.return_value = None
+
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = json.loads(find_initial_datasets(["upload-missing"]))
+
+        assert "error" in result["upload-missing"]
+
+    def test_records_exception_inline(self):
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.side_effect = Exception("HTTP 500")
+
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = json.loads(find_initial_datasets(["upload-bad"]))
+
+        assert "error" in result["upload-bad"]
+        assert "HTTP 500" in result["upload-bad"]["error"]
+
+    def test_continues_after_error(self):
+        mock_ds = MagicMock()
+        mock_ds.id = "ds-ok"
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.side_effect = [
+            Exception("not found"),
+            mock_ds,
+        ]
+
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = json.loads(find_initial_datasets(["upload-bad", "upload-ok"]))
+
+        assert "error" in result["upload-bad"]
+        assert result["upload-ok"] == {"dataset_id": "ds-ok"}
+
+
 class TestListDatasets:
     def test_returns_all_datasets(self):
         mock_client = MagicMock()
@@ -62,6 +114,27 @@ class TestListDatasets:
         with patch("mcp_tools.datasets.get_client", return_value=mock_client):
             result = list_datasets("upload-123")
         assert "No datasets" in result
+
+    def test_type_filter_restricts_output(self):
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = [
+            _mock_dataset("ds-1", "Initial", "INTENSITY", "COMPLETED"),
+            _mock_dataset("ds-2", "DR Job", "DOSE_RESPONSE", "COMPLETED"),
+        ]
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = list_datasets("upload-123", type_filter="DOSE_RESPONSE")
+        assert "ds-2" in result
+        assert "ds-1" not in result
+        assert "1 dataset(s)" in result
+
+    def test_type_filter_case_insensitive(self):
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = [
+            _mock_dataset("ds-1", "DR Job", "DOSE_RESPONSE", "COMPLETED"),
+        ]
+        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+            result = list_datasets("upload-123", type_filter="dose_response")
+        assert "ds-1" in result
 
 
 class TestFindInitialDataset:

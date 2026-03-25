@@ -1,10 +1,12 @@
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from mcp_tools.pipelines import (
     describe_pipeline,
     generate_pairwise_comparisons,
     run_dose_response,
+    run_dose_response_bulk,
+    run_dose_response_from_upload,
     run_normalisation_imputation,
     run_pairwise_comparison,
 )
@@ -232,3 +234,194 @@ def test_run_dose_response_result_contains_dataset_id():
         )
 
     assert OUTPUT_ID in result
+
+
+# ---------------------------------------------------------------------------
+# run_dose_response_from_upload
+# ---------------------------------------------------------------------------
+
+
+def _mock_initial_ds(dataset_id: str = INTENSITY_ID):
+    ds = MagicMock()
+    ds.id = dataset_id
+    return ds
+
+
+def _mock_dr_ds(
+    dataset_id: str = OUTPUT_ID, name: str = "My DR", state: str = "COMPLETED"
+):
+    ds = MagicMock()
+    ds.id = dataset_id
+    ds.name = name
+    ds.type = "DOSE_RESPONSE"
+    ds.state = state
+    return ds
+
+
+class TestRunDoseResponseFromUpload:
+    def test_finds_dataset_and_runs(self):
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.return_value = _mock_initial_ds()
+        mock_client.datasets.list_by_upload.return_value = []  # no existing job
+        mock_client.datasets.create.return_value = OUTPUT_ID
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = run_dose_response_from_upload(
+                upload_id="upload-1",
+                dataset_name="My DR",
+                sample_names=["s1", "s2", "s3"],
+                control_samples=["s1"],
+            )
+
+        assert OUTPUT_ID in result
+        mock_client.datasets.create.assert_called_once()
+
+    def test_skips_existing_job(self):
+        mock_client = MagicMock()
+        existing = _mock_dr_ds(dataset_id="existing-dr-id", name="My DR")
+        mock_client.datasets.list_by_upload.return_value = [existing]
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = run_dose_response_from_upload(
+                upload_id="upload-1",
+                dataset_name="My DR",
+                sample_names=["s1", "s2"],
+                control_samples=["s1"],
+                if_exists="skip",
+            )
+
+        assert "existing-dr-id" in result
+        assert "skipped" in result.lower()
+        mock_client.datasets.create.assert_not_called()
+
+    def test_runs_when_if_exists_is_run(self):
+        mock_client = MagicMock()
+        existing = _mock_dr_ds(name="My DR")
+        mock_client.datasets.list_by_upload.return_value = [existing]
+        mock_client.datasets.find_initial_dataset.return_value = _mock_initial_ds()
+        mock_client.datasets.create.return_value = OUTPUT_ID
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = run_dose_response_from_upload(
+                upload_id="upload-1",
+                dataset_name="My DR",
+                sample_names=["s1", "s2"],
+                control_samples=["s1"],
+                if_exists="run",
+            )
+
+        assert OUTPUT_ID in result
+        mock_client.datasets.create.assert_called_once()
+
+    def test_no_initial_dataset_returns_error(self):
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = []
+        mock_client.datasets.find_initial_dataset.return_value = None
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = run_dose_response_from_upload(
+                upload_id="upload-missing",
+                dataset_name="My DR",
+                sample_names=["s1"],
+                control_samples=["s1"],
+            )
+
+        assert "Error" in result
+        assert "upload-missing" in result
+
+
+class TestRunDoseResponseBulk:
+    def test_runs_all_jobs(self):
+        mock_client = MagicMock()
+        mock_ds = _mock_initial_ds()
+        mock_client.datasets.find_initial_dataset.return_value = mock_ds
+        mock_client.datasets.list_by_upload.return_value = []  # no existing jobs
+        mock_client.datasets.create.side_effect = ["dr-id-1", "dr-id-2"]
+
+        jobs = [
+            {
+                "upload_id": "upload-1",
+                "dataset_name": "DR A",
+                "sample_names": ["s1", "s2"],
+                "control_samples": ["s1"],
+                "if_exists": "run",
+            },
+            {
+                "upload_id": "upload-1",
+                "dataset_name": "DR B",
+                "sample_names": ["s1", "s2"],
+                "control_samples": ["s1"],
+                "if_exists": "run",
+            },
+        ]
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = json.loads(run_dose_response_bulk(jobs))
+
+        assert result[0]["dataset_id"] == "dr-id-1"
+        assert result[1]["dataset_id"] == "dr-id-2"
+
+    def test_skips_existing_jobs(self):
+        existing = _mock_dr_ds(dataset_id="existing-id", name="DR A")
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = [existing]
+
+        jobs = [
+            {
+                "upload_id": "upload-1",
+                "dataset_name": "DR A",
+                "sample_names": ["s1"],
+                "control_samples": ["s1"],
+            }
+        ]
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = json.loads(run_dose_response_bulk(jobs))
+
+        assert result[0]["dataset_id"] == "existing-id"
+        assert result[0]["skipped"] is True
+        mock_client.datasets.create.assert_not_called()
+
+    def test_caches_dataset_lookup(self):
+        """find_initial_dataset should be called once per unique upload_id."""
+        mock_ds = _mock_initial_ds()
+        mock_client = MagicMock()
+        mock_client.datasets.find_initial_dataset.return_value = mock_ds
+        mock_client.datasets.list_by_upload.return_value = []
+        mock_client.datasets.create.side_effect = ["id-1", "id-2", "id-3"]
+
+        jobs = [
+            {
+                "upload_id": "upload-1",
+                "dataset_name": f"DR {i}",
+                "sample_names": ["s1"],
+                "control_samples": ["s1"],
+                "if_exists": "run",
+            }
+            for i in range(3)
+        ]
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            run_dose_response_bulk(jobs)
+
+        mock_client.datasets.find_initial_dataset.assert_called_once_with("upload-1")
+
+    def test_captures_errors_inline(self):
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = []
+        mock_client.datasets.find_initial_dataset.side_effect = Exception("HTTP 404")
+
+        jobs = [
+            {
+                "upload_id": "upload-bad",
+                "dataset_name": "DR A",
+                "sample_names": ["s1"],
+                "control_samples": ["s1"],
+            }
+        ]
+
+        with patch("mcp_tools.pipelines.get_client", return_value=mock_client):
+            result = json.loads(run_dose_response_bulk(jobs))
+
+        assert "error" in result[0]
+        assert result[0]["error_code"] == "dataset_not_found"

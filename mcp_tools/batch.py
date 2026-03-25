@@ -5,6 +5,7 @@ from . import mcp
 from .datasets import (
     delete_dataset,
     find_initial_dataset,
+    find_initial_datasets,
     list_datasets,
     list_jobs,
     retry_dataset,
@@ -16,6 +17,8 @@ from .pipelines import (
     describe_pipeline,
     generate_pairwise_comparisons,
     run_dose_response,
+    run_dose_response_bulk,
+    run_dose_response_from_upload,
     run_normalisation_imputation,
     run_pairwise_comparison,
 )
@@ -45,6 +48,7 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "list_jobs": list_jobs,
     "list_datasets": list_datasets,
     "find_initial_dataset": find_initial_dataset,
+    "find_initial_datasets": find_initial_datasets,
     "wait_for_dataset": wait_for_dataset,
     "retry_dataset": retry_dataset,
     "delete_dataset": delete_dataset,
@@ -53,6 +57,8 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "generate_pairwise_comparisons": generate_pairwise_comparisons,
     "run_pairwise_comparison": run_pairwise_comparison,
     "run_dose_response": run_dose_response,
+    "run_dose_response_from_upload": run_dose_response_from_upload,
+    "run_dose_response_bulk": run_dose_response_bulk,
 }
 
 
@@ -75,9 +81,11 @@ def batch(
     Available tools: read_csv_preview, load_metadata_from_csv, plan_wide_to_md_format,
     health_check, get_workflow_guide,
     get_upload, create_upload, validate_upload_inputs, update_sample_metadata,
-    wait_for_upload, list_jobs, list_datasets, find_initial_dataset, wait_for_dataset,
+    wait_for_upload, list_jobs, list_datasets,
+    find_initial_dataset, find_initial_datasets, wait_for_dataset,
     retry_dataset, delete_dataset, describe_pipeline, run_normalisation_imputation,
-    generate_pairwise_comparisons, run_pairwise_comparison, run_dose_response.
+    generate_pairwise_comparisons, run_pairwise_comparison,
+    run_dose_response, run_dose_response_from_upload, run_dose_response_bulk.
 
     ── WORKFLOW EXAMPLE A: inspect an upload by name ────────────────────────────
       operations=[
@@ -141,6 +149,7 @@ def batch(
                 "index": i,
                 "tool": tool_name,
                 "error": f"Unknown tool '{tool_name}'. Available: {sorted(_TOOL_REGISTRY)}",
+                "error_code": "unknown_tool",
             }
             results.append(entry)
             if stop_on_error:
@@ -151,7 +160,14 @@ def batch(
             output = fn(**params)
             results.append({"index": i, "tool": tool_name, "result": output})
         except Exception as e:
-            results.append({"index": i, "tool": tool_name, "error": str(e)})
+            results.append(
+                {
+                    "index": i,
+                    "tool": tool_name,
+                    "error": str(e),
+                    "error_code": "exception",
+                }
+            )
             if stop_on_error:
                 break
 

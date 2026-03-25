@@ -86,6 +86,18 @@ class TestBatch:
         assert "error" in data[0]
         assert "Unknown tool" in data[0]["error"]
 
+    def test_error_entry_has_error_code_unknown_tool(self):
+        data = json.loads(batch([{"tool": "nonexistent_tool"}]))
+        assert data[0]["error_code"] == "unknown_tool"
+
+    def test_error_entry_has_error_code_exception(self):
+        with patch("mcp_tools.uploads.get_client") as mock_client:
+            mock_client.return_value.uploads.get_by_id.side_effect = Exception("boom")
+            data = json.loads(
+                batch([{"tool": "get_upload", "params": {"upload_id": "x"}}])
+            )
+        assert data[0]["error_code"] == "exception"
+
     def test_index_matches_position(self):
         with patch("mcp_tools.health.get_client") as mock_health:
             mock_health.return_value.health.check.return_value = {"status": "ok"}

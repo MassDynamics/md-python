@@ -39,6 +39,20 @@ class TestListUploadsStatus:
         assert data["uid-1"]["status"] == "COMPLETED"
         assert data["uid-2"]["status"] == "PROCESSING"
 
+    def test_summary_flag_omits_source(self):
+        mock_u = MagicMock()
+        mock_u.name, mock_u.status, mock_u.source = "exp1", "COMPLETED", "diann_tabular"
+        mock_client = MagicMock()
+        mock_client.uploads.get_by_id.return_value = mock_u
+
+        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+            result = list_uploads_status(["uid-1"], summary=True)
+
+        data = json.loads(result)
+        assert "status" in data["uid-1"]
+        assert "name" in data["uid-1"]
+        assert "source" not in data["uid-1"]
+
     def test_records_errors_inline(self):
         mock_u1 = MagicMock()
         mock_u1.name, mock_u1.status, mock_u1.source = (
