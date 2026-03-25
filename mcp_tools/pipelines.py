@@ -214,12 +214,10 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
 
 @mcp.tool()
 def describe_pipeline(job_slug: str) -> str:
-    """Return the full parameter schema for a pipeline before running it.
+    """Return the full parameter schema for a pipeline, including valid_values and defaults.
 
-    ALWAYS call this before run_normalisation_imputation, run_dose_response, or
-    run_pairwise_comparison. It lists every accepted parameter, its type, default
-    value, and — crucially — the exact valid_values the API accepts. Never guess
-    parameter names or values; use only what this tool returns.
+    Call this when you need to verify valid parameter values before running a pipeline.
+    Not required if the parameter values are already known from context or prior calls.
 
     job_slug: one of "normalisation_imputation", "dose_response", "pairwise_comparison".
     Use list_jobs() to see all available slugs.
@@ -242,8 +240,9 @@ def run_normalisation_imputation(
 ) -> str:
     """Run a normalisation + imputation pipeline.
 
-    BEFORE calling this tool, call describe_pipeline("normalisation_imputation") to
-    confirm valid parameter values. Do NOT guess method names.
+    Valid normalisation_method values: "median", "quantile".
+    Valid imputation_method values: "min_value", "knn".
+    Call describe_pipeline("normalisation_imputation") if you need the full schema.
 
     Returns the new dataset ID on success.
     """
@@ -309,10 +308,10 @@ def run_pairwise_comparison(
     """Run a pairwise differential abundance analysis using limma.
 
     BEFORE calling this tool:
-      1. Call describe_pipeline("pairwise_comparison") to confirm valid parameter values.
-      2. Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
+      1. Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
          NEVER construct sample_metadata manually — sample names must be read verbatim.
-      3. Use generate_pairwise_comparisons to build condition_comparisons.
+      2. Use generate_pairwise_comparisons to build condition_comparisons.
+      Call describe_pipeline("pairwise_comparison") if you need the full parameter schema.
 
     sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
 
@@ -370,6 +369,9 @@ def run_dose_response(
 ) -> str:
     """Run a dose-response curve fitting pipeline (4-parameter log-logistic model).
 
+    PREFER run_dose_response_from_upload for a single upload (auto-resolves dataset ID).
+    PREFER run_dose_response_bulk for many uploads at once.
+
     MINIMUM DATA REQUIREMENTS:
       - At least 3 distinct dose levels in sample_metadata[dose_column]
       - At least 5 total replicates across all doses (3+ per dose recommended)
@@ -378,10 +380,10 @@ def run_dose_response(
     The pipeline will return an error if these minimums are not met.
 
     BEFORE calling this tool:
-      1. Call describe_pipeline("dose_response") to confirm valid parameter values.
-      2. Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
-         NEVER construct sample_metadata, sample_names, or control_samples manually —
-         all sample names must be read verbatim from the file to avoid mismatches.
+      Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
+      NEVER construct sample_metadata, sample_names, or control_samples manually —
+      all sample names must be read verbatim from the file to avoid mismatches.
+      Call describe_pipeline("dose_response") if you need the full parameter schema.
 
     sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
     sample_names: read from sample_metadata rows, not from filenames or inference.
@@ -472,26 +474,28 @@ def run_dose_response_from_upload(
 ) -> str:
     """Run a dose-response pipeline directly from an upload ID.
 
-    Resolves the input_dataset_ids automatically by looking up the initial
-    INTENSITY dataset for the upload — you do not need to call find_initial_dataset
-    first. This is the recommended tool when running a single DR job per upload.
+    Resolves input_dataset_ids automatically — no need to call find_initial_dataset first.
+    PREFERRED over run_dose_response for a single DR job per upload.
+    For many DR jobs at once, use run_dose_response_bulk instead.
 
-    For submitting many DR jobs at once, use run_dose_response_bulk instead.
-
-    sample_metadata is OPTIONAL. When omitted, the tool fetches the sample
-    metadata that was already submitted with the upload and filters it to the
-    rows matching sample_names. This eliminates the need to re-read the CSV
-    file and re-transmit data the server already owns — pass only sample_names,
-    control_samples, and the dose_column name.
-
-    if_exists controls deduplication:
-      "skip" (default) — if a DOSE_RESPONSE dataset with the same dataset_name
-        already exists for this upload, return its ID without submitting a new job.
-        Safe to use when resuming after a crash.
-      "run" — always submit a new job, even if one with the same name exists.
-
-    All other parameters are identical to run_dose_response. See
-    describe_pipeline("dose_response") for full parameter documentation.
+    Args:
+        upload_id: the upload to run the DR pipeline against.
+        dataset_name: name for the output dataset.
+        sample_names: all sample names included in the analysis.
+        control_samples: subset of sample_names used as controls (dose = 0).
+        sample_metadata: optional 2D array with header row. When omitted, the tool
+            auto-fetches sample metadata from the upload and filters to sample_names —
+            avoid passing it if the upload already has metadata (saves token overhead).
+        dose_column: column in sample_metadata with dose values (default "dose").
+        if_exists: deduplication behaviour (default "skip"):
+            "skip" — if a DOSE_RESPONSE dataset with dataset_name already exists,
+              return its ID without submitting a new job. Safe for crash recovery.
+            "run" — always submit a new job.
+        log_intensities: log-transform intensities before fitting (default True).
+        use_imputed_intensities: use imputed values from a prior NI step (default True).
+        normalise: within-sample normalisation — "none" (default), "sum", "median".
+        span_rollmean_k: rolling mean window size, 1 = disabled (default 1).
+        prop_required_in_protein: min fraction of non-missing values per protein (default 0.5).
     """
     # Deduplication check
     if if_exists == "skip":

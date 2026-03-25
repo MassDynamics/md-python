@@ -167,6 +167,10 @@ def create_upload(
 ) -> str:
     """Create a new upload and trigger the processing workflow.
 
+    PREFER create_upload_from_csv — it loads, validates, and creates in one call.
+    Use create_upload directly only when you already have experiment_design and
+    sample_metadata arrays from a prior load_metadata_from_csv call.
+
     MANDATORY PREPARATION — follow these steps in order, every time:
       1. Call load_metadata_from_csv(file_path) on the user's metadata CSV.
          Use the experiment_design and sample_metadata arrays it returns directly.
@@ -462,15 +466,14 @@ def cancel_upload_queue() -> str:
 def list_uploads_status(upload_ids: List[str], summary: bool = False) -> str:
     """Check the status of multiple uploads in a single call.
 
-    Use this after submitting several create_upload_from_csv calls to monitor
-    all uploads at once without making a separate get_upload call for each.
+    Args:
+        upload_ids: list of upload UUIDs to check.
+        summary: when True, omits 'source' and returns only {name, status}.
+            Use summary=True for large polls (100+ uploads) to reduce token overhead.
 
-    Returns JSON: {upload_id: {name, status, source}} by default.
+    Returns JSON: {upload_id: {name, status, source}} by default, or
+    {upload_id: {name, status}} when summary=True.
     Individual fetch errors are recorded inline rather than failing the whole call.
-
-    upload_ids: list of upload UUIDs to check.
-    summary: when True, omits 'source' — returns only {name, status}.
-      Use this for large status polls (100+ uploads) to reduce token overhead.
     """
     c = get_client()
     results = {}

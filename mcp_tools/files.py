@@ -360,20 +360,19 @@ def read_csv_preview(
 ) -> str:
     """Show the column names and first few rows of a CSV or TSV file.
 
-    Use this to inspect a metadata file before loading it.
+    Args:
+        file_path: path to the CSV or TSV file.
+        max_rows: number of data rows to return (default 5). Increase to see more context.
+        delimiter: column separator (auto-detected from file extension if omitted).
 
-    Supported metadata file types:
-    - Experiment design CSVs (filename, sample_name, condition, ...)
-    - Sample metadata CSVs (sample_name, dose, batch, ...)
-    - Combined LFQ metadata CSVs (both above merged into one file)
+    Use this to inspect a metadata file before loading it. Supported file types:
+    experiment design CSVs (filename, sample_name, condition, ...), sample metadata
+    CSVs (sample_name, dose, batch, ...), or combined LFQ metadata CSVs.
 
-    ENTITY-DATA BOUNDARY: If this tool reports that the file looks like a
-    proteomics output (DIA-NN report, MaxQuant proteinGroups, Spectronaut
-    export, MD_Format table, etc.), stop immediately and ask the user for
-    their metadata CSV instead. Never attempt to read, aggregate, or interpret
-    protein/peptide/gene intensity or expression data — the API handles that.
+    ENTITY-DATA BOUNDARY: If this tool reports that the file looks like a proteomics
+    output (DIA-NN report, MaxQuant proteinGroups, Spectronaut export, MD_Format
+    table, etc.), stop immediately and ask the user for their metadata CSV instead.
 
-    Returns column names and a preview of the first max_rows data rows.
     Reads only header + max_rows lines — never loads the full file.
     """
     if not os.path.exists(file_path):
@@ -416,6 +415,10 @@ def load_metadata_from_csv(
     delimiter: Optional[str] = None,
 ) -> str:
     """Load experiment_design and/or sample_metadata from a CSV or TSV file.
+
+    Args:
+        file_path: path to the metadata CSV or TSV file.
+        delimiter: column separator (auto-detected from file extension if omitted).
 
     WHAT EACH TABLE IS:
 

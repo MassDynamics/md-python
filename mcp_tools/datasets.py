@@ -6,16 +6,32 @@ from ._client import get_client
 
 
 @mcp.tool()
-def list_jobs() -> str:
-    """List all available pipeline job types published on this Mass Dynamics instance.
+def list_jobs(upload_id: Optional[str] = None) -> str:
+    """List pipeline jobs — either the global catalog or executed runs for a specific upload.
 
-    Returns job slugs, names, and descriptions. Use these slugs with
-    describe_pipeline(<slug>) to inspect parameters, and then with
-    run_normalisation_imputation, run_pairwise_comparison, or run_dose_response
-    to execute them.
+    Args:
+        upload_id: when provided, returns executed pipeline runs for that upload
+            (same as list_datasets, useful for checking which jobs have been submitted).
+            When omitted, returns the global catalog of available pipeline types
+            (slugs, names, descriptions).
 
+    Without upload_id: returns job slugs you can pass to describe_pipeline() and run_*.
     Typical slugs: normalisation_imputation, pairwise_comparison, dose_response.
+
+    With upload_id: returns all datasets for that upload (INTENSITY, DOSE_RESPONSE, etc.).
+    To filter by type, use list_datasets(upload_id, type_filter="DOSE_RESPONSE") instead.
     """
+    if upload_id is not None:
+        datasets = get_client().datasets.list_by_upload(upload_id)
+        if not datasets:
+            return "No pipeline jobs found for this upload"
+        lines = [f"Found {len(datasets)} job(s) for upload {upload_id}:"]
+        for ds in datasets:
+            lines.append(
+                f"  ID: {ds.id} | Name: {ds.name} | Type: {ds.type} | State: {ds.state}"
+            )
+        return "\n".join(lines)
+
     jobs = get_client().jobs.list()
     if not jobs:
         return "No jobs available"
@@ -26,18 +42,15 @@ def list_jobs() -> str:
 def list_datasets(upload_id: str, type_filter: Optional[str] = None) -> str:
     """List all datasets associated with an upload, with their IDs, names, types, and states.
 
-    Use this for inspection or debugging. In a normal pipeline workflow, use
-    find_initial_dataset instead — it returns the specific INTENSITY dataset ID
-    needed as input for run_* pipeline tools.
+    Args:
+        upload_id: the upload UUID to list datasets for.
+        type_filter: restrict output to one dataset type, e.g. "DOSE_RESPONSE",
+            "PAIRWISE_COMPARISON", "INTENSITY". Case-insensitive.
+            Use this to check which pipeline jobs have already been submitted.
 
-    type_filter: optional dataset type to restrict output, e.g. "DOSE_RESPONSE",
-      "PAIRWISE_COMPARISON", "INTENSITY". Case-insensitive. Useful for checking
-      which pipeline jobs have already been submitted for an upload.
+    Dataset types: INTENSITY (input for pipelines), PAIRWISE_COMPARISON, DOSE_RESPONSE.
 
-    Dataset types you may see:
-      INTENSITY           — the initial processed dataset (input for pipelines)
-      PAIRWISE_COMPARISON — output of run_pairwise_comparison
-      DOSE_RESPONSE       — output of run_dose_response
+    For the common case of finding the INTENSITY dataset ID, prefer find_initial_dataset.
     """
     datasets = get_client().datasets.list_by_upload(upload_id)
     if type_filter:
@@ -81,10 +94,10 @@ def find_initial_datasets(upload_ids: List[str]) -> str:
 def find_initial_dataset(upload_id: str) -> str:
     """Find the initial INTENSITY dataset for an upload.
 
-    Call this after wait_for_upload returns COMPLETED. The dataset ID
-    returned here is what you pass as input_dataset_ids to every run_*
-    pipeline tool (run_normalisation_imputation, run_pairwise_comparison,
-    run_dose_response).
+    PREFER find_initial_datasets when looking up multiple uploads at once (one call).
+
+    Call this after wait_for_upload returns COMPLETED. The dataset ID returned here
+    is what you pass as input_dataset_ids to every run_* pipeline tool.
 
     Returns the dataset ID and details on success, or an error if the upload
     has not finished processing yet.
@@ -104,24 +117,19 @@ def wait_for_dataset(
 ) -> str:
     """Check pipeline dataset status, polling until a terminal state or timeout.
 
-    IMPORTANT — MCP CLIENT TIMEOUT: The MCP client enforces a hard 60-second limit
-    per tool call. This tool defaults to 45 seconds so it fits within that cap.
-    If the pipeline is still running when the timeout is reached, this tool returns
-    the current status instead of raising an error. Simply call it again to continue
-    monitoring. A pipeline run may require many calls over several minutes.
+    Args:
+        upload_id: the upload UUID the dataset belongs to.
+        dataset_id: the dataset UUID returned by a run_* tool.
+        poll_seconds: seconds between status checks (default 5).
+        timeout_seconds: max seconds to wait before returning current status (default 45).
+            Keep below 60 — the MCP client enforces a hard 60-second per-call limit.
+            If timeout is reached, call again to continue monitoring.
 
-    Call this after run_normalisation_imputation, run_pairwise_comparison, or
-    run_dose_response. Pass both the upload_id and the dataset_id returned by the
-    run_* call.
+    Terminal states (stops polling): COMPLETED, FAILED, ERROR, CANCELLED.
+    Non-terminal (call again): RUNNING, PENDING.
 
-    Terminal states (stops polling):
-      COMPLETED — results are ready in the Mass Dynamics app.
-                  Use this dataset_id as input_dataset_ids for the next pipeline.
-      FAILED / ERROR — pipeline failed; call retry_dataset(dataset_id) to re-run.
-      CANCELLED — pipeline was stopped.
-
-    Non-terminal (call again):
-      RUNNING / PENDING — still in progress; call wait_for_dataset again.
+    On COMPLETED: use dataset_id as input_dataset_ids for the next pipeline.
+    On FAILED/ERROR: call retry_dataset(dataset_id) to re-run.
     """
     try:
         ds = get_client().datasets.wait_until_complete(

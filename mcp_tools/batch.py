@@ -104,7 +104,8 @@ def batch(
         }}
       ]
 
-    ── WORKFLOW EXAMPLE C: look up pipeline schemas before running ───────────────
+    ── WORKFLOW EXAMPLE C: look up pipeline schemas when needed ─────────────────
+    (Only needed if you need to verify valid parameter values — not required for known params)
       operations=[
         {"tool": "describe_pipeline", "params": {"job_slug": "normalisation_imputation"}},
         {"tool": "describe_pipeline", "params": {"job_slug": "pairwise_comparison"}}
@@ -121,20 +122,21 @@ def batch(
 
     Phase 2 — normalisation:
       3. find_initial_dataset
-      4. describe_pipeline("normalisation_imputation") → run_normalisation_imputation
+      4. run_normalisation_imputation (valid methods: normalisation="median"/"quantile", imputation="min_value"/"knn")
       5. wait_for_dataset (separate call)
 
     Phase 3 — pairwise comparison:
-      6. describe_pipeline("pairwise_comparison") → generate_pairwise_comparisons
-         → run_pairwise_comparison
+      6. generate_pairwise_comparisons → run_pairwise_comparison
       7. wait_for_dataset (separate call)
+      (call describe_pipeline("pairwise_comparison") first if you need to verify valid parameter values)
 
     ── FULL DRA WORKFLOW (dose-response analysis) ───────────────────────────────
     Same as DEA Phases 1-2, then:
 
     Phase 3 — dose-response (requires ≥3 distinct doses, ≥5 replicates):
-      6. describe_pipeline("dose_response") → run_dose_response
+      6. run_dose_response_from_upload (single job) or run_dose_response_bulk (many jobs)
       7. wait_for_dataset (separate call)
+      (call describe_pipeline("dose_response") first if you need to verify valid parameter values)
 
     Returns JSON array with each operation's index, tool name, and result or error.
     """
