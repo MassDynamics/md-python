@@ -670,6 +670,117 @@ _MD_FORMAT_GENE_SPEC = {
 }
 
 
+_GENERIC_PROTEIN_TEMPLATE = """\
+import pandas as pd
+
+# Fill in the actual column names from your file
+annotation_cols = ["ProteinGroup", "GeneNames"]   # entity metadata columns
+# Everything else is treated as sample columns
+
+df = pd.read_csv("your_file.tsv", sep="\\t", low_memory=False)
+
+sample_cols = [c for c in df.columns if c not in annotation_cols]
+
+long_df = df.melt(
+    id_vars=annotation_cols,
+    value_vars=sample_cols,
+    var_name="SampleName",
+    value_name="ProteinIntensity",
+)
+
+long_df["Imputed"] = long_df["ProteinIntensity"].isna().astype(int)
+long_df["ProteinIntensity"] = long_df["ProteinIntensity"].fillna(0.0)
+long_df["ProteinGroupId"] = pd.factorize(long_df["ProteinGroup"])[0] + 1
+long_df["GeneNames"] = long_df["GeneNames"].fillna("") if "GeneNames" in long_df.columns else ""
+
+result = long_df[["ProteinGroupId", "ProteinGroup", "GeneNames", "SampleName", "ProteinIntensity", "Imputed"]]
+result.to_csv("output_md_format.tsv", sep="\\t", index=False)
+print(f"Saved {len(result)} rows")
+"""
+
+_GENERIC_GENE_TEMPLATE = """\
+import pandas as pd
+
+annotation_cols = ["GeneId"]   # entity metadata columns (GeneId required)
+# Everything else is treated as sample columns
+
+df = pd.read_csv("your_file.tsv", sep="\\t", low_memory=False)
+
+sample_cols = [c for c in df.columns if c not in annotation_cols]
+
+long_df = df.melt(
+    id_vars=annotation_cols,
+    value_vars=sample_cols,
+    var_name="SampleName",
+    value_name="GeneExpression",
+)
+
+long_df["Imputed"] = long_df["GeneExpression"].isna().astype(int)
+long_df["GeneExpression"] = long_df["GeneExpression"].fillna(0.0)
+
+result = long_df[["GeneId", "SampleName", "GeneExpression"]]
+result.to_csv("output_md_format_gene.tsv", sep="\\t", index=False)
+print(f"Saved {len(result)} rows")
+"""
+
+
+@mcp.tool()
+def get_md_format_spec(entity_type: str = "protein") -> str:
+    """Return the MD format column specification and a generic pandas conversion template.
+
+    Use this when you need to explain MD format to a user, write custom conversion
+    code for data already in memory, or understand the target schema before seeing
+    a file. For converting an actual wide-format file on disk, use
+    plan_wide_to_md_format instead — it reads the header and generates a
+    file-specific script automatically.
+
+    Args:
+        entity_type: "protein" (default), "peptide", or "gene"
+
+    Returns JSON with:
+    - entity_type:          the requested type
+    - spec:                 required columns and their types
+    - conversion_template:  generic pandas snippet to adapt to your data
+    - upload_source:        the source= value to use in create_upload
+    - notes:                alignment requirements and next steps
+    """
+    et = entity_type.lower()
+    if et == "gene":
+        spec = _MD_FORMAT_GENE_SPEC
+        template = _GENERIC_GENE_TEMPLATE
+        source = "md_format_gene"
+    elif et == "peptide":
+        spec = _MD_FORMAT_PEPTIDE_SPEC
+        template = _GENERIC_PROTEIN_TEMPLATE.replace(
+            "ProteinIntensity", "PeptideIntensity"
+        ).replace(
+            '["ProteinGroupId", "ProteinGroup", "GeneNames", "SampleName", "ProteinIntensity", "Imputed"]',
+            '["ModifiedSequence", "StrippedSequence", "ProteinGroup", "ProteinGroupId", "GeneNames", "SampleName", "PeptideIntensity", "Imputed"]',
+        )
+        source = "md_format"
+    else:
+        spec = _MD_FORMAT_PROTEIN_SPEC
+        template = _GENERIC_PROTEIN_TEMPLATE
+        source = "md_format"
+
+    return json.dumps(
+        {
+            "entity_type": et,
+            "spec": spec,
+            "conversion_template": template,
+            "upload_source": source,
+            "notes": [
+                "SampleName values in the output MUST exactly match sample_name values "
+                "in your experiment_design and sample_metadata — case-sensitive.",
+                "Imputed=1 means the value was missing; use 0.0 for missing intensities.",
+                f"After converting, upload with source='{source}' in create_upload.",
+                "You still need an experiment_design CSV and a sample_metadata CSV alongside the data file.",
+            ],
+        },
+        indent=2,
+    )
+
+
 def _detect_annotation_cols(
     header_lower: List[str], source_hint: Optional[str]
 ) -> Set[str]:
@@ -691,10 +802,20 @@ def _build_protein_script(
     sep: str,
     protein_col: str,
     gene_col: str,
+    transpose: bool = False,
 ) -> str:
     sep_repr = r"\t" if sep == "\t" else ","
     ann_repr = repr(annotation_cols)
     samp_repr = repr(sample_cols[:3]) + (" + ..." if len(sample_cols) > 3 else "")
+    transpose_block = (
+        (
+            "\n# ── 1b. Transpose: samples were in rows, proteins in columns ────────────────\n"
+            "df = df.set_index(df.columns[0]).T.reset_index()\n"
+            "df = df.rename(columns={'index': 'ProteinGroup'})\n"
+        )
+        if transpose
+        else ""
+    )
     return f"""import pandas as pd
 
 # ── 1. Load the wide-format file (header only shown here for reference) ───────
@@ -702,7 +823,7 @@ def _build_protein_script(
 #  sample columns     : {samp_repr}
 
 df = pd.read_csv({repr(input_file)}, sep={repr(sep_repr)}, low_memory=False)
-
+{transpose_block}
 annotation_cols = {ann_repr}
 sample_cols = [c for c in df.columns if c not in annotation_cols]
 
@@ -739,13 +860,23 @@ def _build_gene_script(
     sample_cols: List[str],
     sep: str,
     gene_col: str,
+    transpose: bool = False,
 ) -> str:
     sep_repr = r"\t" if sep == "\t" else ","
     ann_repr = repr(annotation_cols)
+    transpose_block = (
+        (
+            "\n# ── 1b. Transpose: samples were in rows, genes in columns ──────────────────\n"
+            "df = df.set_index(df.columns[0]).T.reset_index()\n"
+            "df = df.rename(columns={'index': 'GeneId'})\n"
+        )
+        if transpose
+        else ""
+    )
     return f"""import pandas as pd
 
 df = pd.read_csv({repr(input_file)}, sep={repr(sep_repr)}, low_memory=False)
-
+{transpose_block}
 annotation_cols = {ann_repr}
 sample_cols = [c for c in df.columns if c not in annotation_cols]
 
@@ -775,19 +906,22 @@ def plan_wide_to_md_format(
     source_hint: Optional[str] = None,
     annotation_columns: Optional[List[str]] = None,
     delimiter: Optional[str] = None,
+    transpose: bool = False,
 ) -> str:
-    """Generate a Python/pandas conversion plan for a wide-format file → md_format or md_format_gene.
+    """Generate a Python/pandas conversion script for a wide-format file → md_format or md_format_gene.
 
-    Wide format: entities (proteins, peptides, genes) on rows; sample intensity
-    columns on the right, annotation columns (IDs, gene names, descriptions) on the left.
-    This is the native output of DIA-NN matrix files, MaxQuant proteinGroups.txt,
-    Spectronaut exports, etc.
+    Works for any wide-format intensity matrix — DIA-NN, MaxQuant, Spectronaut,
+    or a generic CSV/TSV. The standard orientation is entities (proteins, genes)
+    in rows and samples in columns. Use transpose=True (or omit it to auto-detect)
+    when the matrix is flipped: samples in rows and proteins in columns.
 
     md_format (protein): ProteinGroupId, ProteinGroup, GeneNames, SampleName,
                           ProteinIntensity, Imputed
     md_format (peptide): ModifiedSequence, StrippedSequence, ProteinGroup,
                           ProteinGroupId, GeneNames, SampleName, PeptideIntensity, Imputed
     md_format_gene:       GeneId, SampleName, GeneExpression
+
+    To get the full spec without a file, call get_md_format_spec(entity_type) first.
 
     ENTITY-DATA BOUNDARY: This tool reads ONLY the header row of the file.
     It never reads or processes intensity/expression values.
@@ -800,8 +934,11 @@ def plan_wide_to_md_format(
     - source_hint:        optional format name to improve auto-detection:
                           diann_matrix, maxquant, spectronaut, md_format_gene
     - annotation_columns: optional explicit list of annotation column names
-                          (everything else will be treated as sample columns)
+                          (everything else will be treated as sample columns).
+                          Use annotation_columns to fix wrong auto-detection.
     - delimiter:          auto-detected from file extension if omitted
+    - transpose:          set True when samples are rows and proteins are columns
+                          (auto-detected if the first column is named SampleName)
 
     Returns JSON with:
     - detected_annotation_cols: columns identified as entity metadata
@@ -825,6 +962,11 @@ def plan_wide_to_md_format(
 
     header_stripped = [h.strip() for h in header]
     header_lower = [h.lower() for h in header_stripped]
+
+    # Auto-detect transposed orientation: first column named "SampleName" means
+    # samples are in rows and proteins are in columns.
+    auto_transposed = header_lower[0] in ("samplename", "sample_name", "sample name")
+    do_transpose = transpose or auto_transposed
 
     # Determine annotation columns
     if annotation_columns:
@@ -887,7 +1029,7 @@ def plan_wide_to_md_format(
             detected_ann[0] if detected_ann else "GeneId",
         )
         script = _build_gene_script(
-            file_path, detected_ann, detected_samp, sep, gene_id_col
+            file_path, detected_ann, detected_samp, sep, gene_id_col, do_transpose
         )
     else:
         spec = _MD_FORMAT_PROTEIN_SPEC
@@ -898,6 +1040,18 @@ def plan_wide_to_md_format(
             sep,
             protein_col,
             gene_col or protein_col,
+            do_transpose,
+        )
+
+    if do_transpose:
+        reason = (
+            "auto-detected (first column is SampleName)"
+            if auto_transposed
+            else "transpose=True"
+        )
+        notes.append(
+            f"Transposed orientation {reason}: the script flips rows/columns before melting. "
+            "Verify that the column names after transposing match your protein identifiers."
         )
 
     if len(detected_samp) > 50:

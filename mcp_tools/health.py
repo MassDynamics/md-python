@@ -127,7 +127,8 @@ _WORKFLOW_GUIDE = {
         "file_tools": {
             "read_csv_preview": "Inspect a CSV/TSV metadata file — columns and first N rows. Optional: max_rows (default 5), delimiter (auto-detected).",
             "load_metadata_from_csv": "Parse experiment_design and sample_metadata from a CSV file. Never construct these arrays manually. Optional: delimiter (auto-detected).",
-            "plan_wide_to_md_format": "Generate a pandas conversion script for wide-format proteomics files (DIA-NN matrix, MaxQuant, Spectronaut) → MD long format.",
+            "get_md_format_spec": "Return the MD format column spec and a generic pandas conversion template for protein, peptide, or gene data. Call this when explaining the format to a user or writing custom conversion code without a file.",
+            "plan_wide_to_md_format": "Generate a pandas conversion script for any wide-format intensity matrix → MD long format. Works for DIA-NN, MaxQuant, Spectronaut, or any generic CSV/TSV. Use annotation_columns to fix wrong auto-detection. Use transpose=True (or omit to auto-detect) when samples are rows and proteins are columns.",
         },
         "upload_tools": {
             "create_upload_from_csv": "SHORTCUT: load metadata CSV + validate + create upload in one call. Prefer over calling load_metadata_from_csv + validate_upload_inputs + create_upload separately.",
