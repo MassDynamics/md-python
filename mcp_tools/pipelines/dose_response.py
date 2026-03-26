@@ -44,6 +44,10 @@ def run_dose_response(
 ) -> str:
     """Run a dose-response curve fitting pipeline (4-parameter log-logistic model).
 
+    ALWAYS ask the user which parameters to use (control_samples, dose_column,
+    normalise setting) before calling this tool, unless the user has explicitly asked
+    you to suggest the best option based on their data.
+
     PREFER run_dose_response_from_upload for a single upload (auto-resolves dataset ID).
     PREFER run_dose_response_bulk for many uploads at once.
 

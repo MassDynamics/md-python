@@ -17,11 +17,30 @@ class TestRunNormalisationImputation:
                 input_dataset_ids=[INTENSITY_ID],
                 dataset_name="My Norm",
                 normalisation_method="median",
-                imputation_method="min_value",
+                imputation_method="mnar",
             )
 
         assert OUTPUT_ID in result
         mock_client.datasets.create.assert_called_once()
+
+    def test_entity_type_at_top_level(self):
+        mock_client = MagicMock()
+        mock_client.datasets.create.return_value = OUTPUT_ID
+
+        with patch_pipeline_client(mock_client):
+            run_normalisation_imputation(
+                input_dataset_ids=[INTENSITY_ID],
+                dataset_name="My Norm",
+                normalisation_method="median",
+                imputation_method="mnar",
+                entity_type="peptide",
+            )
+
+        params = mock_client.datasets.create.call_args[0][0].job_run_params
+        # entity_type must be top-level, NOT nested inside method dicts
+        assert params["entity_type"] == "peptide"
+        assert "entity_type" not in params["normalisation_methods"]
+        assert "entity_type" not in params["imputation_methods"]
 
     def test_extra_params_merged(self):
         mock_client = MagicMock()

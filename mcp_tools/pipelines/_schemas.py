@@ -14,6 +14,10 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             "normalisation_method",
             "imputation_method",
         ],
+        "guidance": (
+            "Always ask the user which methods to use. "
+            "For standard DDA proteomics, 'mnar' imputation is preferred."
+        ),
         "parameters": {
             "input_dataset_ids": {
                 "type": "List[str]",
@@ -23,25 +27,104 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
                 "type": "str",
                 "description": "Name for the output dataset.",
             },
+            "entity_type": {
+                "type": "str",
+                "default": "protein",
+                "valid_values": ["protein", "peptide", "gene"],
+                "description": "Entity level of the input dataset. Must match the data type.",
+            },
             "normalisation_method": {
                 "type": "str",
-                "valid_values": ["median", "quantile"],
-                "description": "Normalisation algorithm to apply.",
+                "valid_values": ["median", "quantile", "none", "batch_correction"],
+                "description": (
+                    "Normalisation algorithm. "
+                    "'median': robust, recommended for most proteomics. "
+                    "'quantile': stronger, assumes similar distributions. "
+                    "'none': skip (use if data already normalised). "
+                    "'batch_correction': correct batch effects; requires batch_variables "
+                    "and design_variables in normalisation_extra_params."
+                ),
             },
             "imputation_method": {
                 "type": "str",
-                "valid_values": ["min_value", "knn"],
-                "description": "Imputation algorithm to apply.",
+                "valid_values": ["mnar", "knn", "global_median", "median_by_entity"],
+                "description": (
+                    "Imputation algorithm. "
+                    "'mnar' (PREFERRED for DDA proteomics): left-tail Gaussian draw for MNAR data; "
+                    "accepts std_position (default 1.8) and std_width (default 0.3) in imputation_extra_params. "
+                    "'knn': K-nearest neighbours for MAR data; accepts k in imputation_extra_params. "
+                    "'global_median': replace missing with global median intensity. "
+                    "'median_by_entity': replace missing with per-entity median."
+                ),
             },
             "normalisation_extra_params": {
                 "type": "Dict[str, Any]",
                 "default": None,
-                "description": "Extra kwargs merged into the normalisation method dict (optional).",
+                "description": (
+                    "Extra kwargs merged into the normalisation method dict (optional). "
+                    "For batch_correction: {'batch_variables': [...], 'design_variables': [...]}."
+                ),
             },
             "imputation_extra_params": {
                 "type": "Dict[str, Any]",
                 "default": None,
-                "description": "Extra kwargs merged into the imputation method dict (optional). E.g. {'k': 5} for knn.",
+                "description": (
+                    "Extra kwargs merged into the imputation method dict (optional). "
+                    "For knn: {'k': 5}. "
+                    "For mnar: {'std_position': 1.8, 'std_width': 0.3}."
+                ),
+            },
+        },
+    },
+    "anova": {
+        "description": (
+            "Run ANOVA-based differential abundance analysis across multiple conditions "
+            "using limma linear models. Use when comparing 3+ groups simultaneously."
+        ),
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "sample_metadata",
+            "condition_column",
+        ],
+        "guidance": "Always ask the user which parameters to use before calling this tool.",
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Non-empty list of input dataset UUIDs (normalised/imputed).",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output dataset.",
+            },
+            "sample_metadata": {
+                "type": "List[List[str]]",
+                "description": "2D array with header row. Must include sample_name and condition_column.",
+            },
+            "condition_column": {
+                "type": "str",
+                "description": "Column in sample_metadata defining groups to compare.",
+            },
+            "comparisons_type": {
+                "type": "str",
+                "default": "all",
+                "valid_values": ["all"],
+                "description": "Type of comparisons to generate. Currently only 'all' is supported.",
+            },
+            "filter_values_criteria": {
+                "type": "Dict[str, Any]",
+                "default": {"method": "percentage", "filter_threshold_percentage": 0.5},
+                "description": "Valid-value filter. {'method': 'percentage', 'filter_threshold_percentage': 0–1} or {'method': 'count', 'filter_threshold_count': int}.",
+            },
+            "limma_trend": {
+                "type": "bool",
+                "default": True,
+                "description": "Apply limma trend (intensity-dependent prior variance).",
+            },
+            "robust_empirical_bayes": {
+                "type": "bool",
+                "default": True,
+                "description": "Apply robust empirical Bayes moderation.",
             },
         },
     },

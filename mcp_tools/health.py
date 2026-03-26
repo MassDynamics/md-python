@@ -150,6 +150,7 @@ _WORKFLOW_GUIDE = {
             "retry_dataset": "Retry a FAILED or ERROR pipeline job.",
             "delete_dataset": "Permanently delete a pipeline result dataset.",
             "search_entities": "Search proteins, genes, or peptides by keyword (e.g. gene symbol or UniProt ID) across one or more datasets.",
+            "run_anova": "Run ANOVA differential abundance analysis across 3+ conditions using limma.",
         },
         "pipeline_tools": {
             "describe_pipeline": "Return the full parameter schema for a pipeline (valid_values, defaults). Call when you need to verify parameter values.",

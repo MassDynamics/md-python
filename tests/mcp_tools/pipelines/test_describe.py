@@ -32,8 +32,21 @@ class TestDescribePipeline:
         imp_vals = result["parameters"]["imputation_method"]["valid_values"]
         assert "median" in norm_vals
         assert "quantile" in norm_vals
-        assert "min_value" in imp_vals
+        assert "none" in norm_vals
+        assert "mnar" in imp_vals
         assert "knn" in imp_vals
+        assert "global_median" in imp_vals
+
+    def test_normalisation_imputation_has_entity_type(self):
+        result = json.loads(describe_pipeline("normalisation_imputation"))
+        assert "entity_type" in result["parameters"]
+        assert result["parameters"]["entity_type"]["default"] == "protein"
+
+    def test_anova_schema_present(self):
+        result = json.loads(describe_pipeline("anova"))
+        assert "parameters" in result
+        assert "condition_column" in result["parameters"]
+        assert "comparisons_type" in result["parameters"]
 
     def test_unknown_slug_returns_error(self):
         result = describe_pipeline("nonexistent_job")

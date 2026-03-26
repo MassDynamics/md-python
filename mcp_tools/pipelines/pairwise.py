@@ -56,6 +56,10 @@ def run_pairwise_comparison(
 ) -> str:
     """Run a pairwise differential abundance analysis using limma.
 
+    ALWAYS ask the user which statistical parameters to use (entity_type,
+    filter_valid_values_logic, limma settings) before calling this tool, unless
+    the user has explicitly asked you to suggest the best option based on their data.
+
     BEFORE calling this tool:
       1. Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
          NEVER construct sample_metadata manually — sample names must be read verbatim.

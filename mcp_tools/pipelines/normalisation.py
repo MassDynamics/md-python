@@ -16,15 +16,39 @@ def run_normalisation_imputation(
     dataset_name: str,
     normalisation_method: str,
     imputation_method: str,
+    entity_type: str = "protein",
     normalisation_extra_params: Optional[Dict[str, Any]] = None,
     imputation_extra_params: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Run a normalisation + imputation pipeline.
 
-    Valid normalisation_method values: "median", "quantile".
-    Valid imputation_method values: "min_value", "knn".
-    Call describe_pipeline("normalisation_imputation") if you need the full schema.
+    ALWAYS ask the user which normalisation and imputation methods to use before
+    calling this tool, unless the user has explicitly asked you to suggest the
+    best option based on their data type. Do not silently pick defaults.
 
+    entity_type: "protein" (default), "peptide", or "gene". Must match the data type
+      in the upstream intensity dataset.
+
+    Valid normalisation_method values:
+      "median"           — robust, recommended for most proteomics experiments
+      "quantile"         — stronger normalisation, assumes similar distributions
+      "none"             — skip normalisation (use if data is already normalised)
+      "batch_correction" — correct for batch effects; requires batch_variables and
+                           design_variables in normalisation_extra_params
+
+    Valid imputation_method values:
+      "mnar"             — PREFERRED for proteomics: left-tail Gaussian draw for
+                           Missing Not At Random data. Accepts optional extra params:
+                           std_position (default 1.8) and std_width (default 0.3).
+      "knn"              — K-nearest neighbours; good for MAR data. Accepts k in
+                           imputation_extra_params (e.g. {"k": 5}).
+      "global_median"    — replace missing with the global median intensity
+      "median_by_entity" — replace missing with per-protein/gene median
+
+    For standard DDA proteomics, "mnar" is the recommended imputation method
+    because low-abundance proteins are systematically absent (MNAR pattern).
+
+    Call describe_pipeline("normalisation_imputation") for the full schema.
     Returns the new dataset ID on success.
     """
     norm: Dict[str, Any] = {"method": normalisation_method}
@@ -40,6 +64,7 @@ def run_normalisation_imputation(
         dataset_name=dataset_name,
         normalisation_methods=norm,
         imputation_methods=imp,
+        entity_type=entity_type,
     ).run(get_client())
     return f"Normalisation/imputation pipeline started. Dataset ID: {dataset_id}"
 
@@ -78,6 +103,7 @@ def _submit_ni_job(
             dataset_name=dataset_name,
             normalisation_method=job.get("normalisation_method", ""),
             imputation_method=job.get("imputation_method", ""),
+            entity_type=job.get("entity_type", "protein"),
             normalisation_extra_params=job.get("normalisation_extra_params"),
             imputation_extra_params=job.get("imputation_extra_params"),
         )

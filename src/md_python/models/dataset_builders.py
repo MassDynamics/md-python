@@ -88,6 +88,7 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
 
     normalisation_methods: Dict[str, Any]
     imputation_methods: Dict[str, Any]
+    entity_type: str = "protein"
     job_slug: str = "normalisation_imputation"
 
     def to_dataset(self) -> Dataset:
@@ -96,6 +97,7 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
             name=self.dataset_name,
             job_slug=self.job_slug,
             job_run_params={
+                "entity_type": self.entity_type,
                 "normalisation_methods": self.normalisation_methods,
                 "imputation_methods": self.imputation_methods,
                 "dataset_name": self.dataset_name,
@@ -107,6 +109,9 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
             raise ValueError("input_dataset_ids cannot be empty")
         if not self.dataset_name:
             raise ValueError("dataset_name is required")
+
+        if self.entity_type not in {"protein", "peptide", "gene"}:
+            raise ValueError("entity_type must be one of: protein, peptide, gene")
 
         if not isinstance(self.normalisation_methods, dict):
             raise ValueError("normalisation_methods must be a dictionary")

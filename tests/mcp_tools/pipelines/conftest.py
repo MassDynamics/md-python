@@ -36,6 +36,7 @@ def patch_pipeline_client(mock_client):
     with (
         patch("mcp_tools.pipelines._bulk.get_client", return_value=mock_client),
         patch("mcp_tools.pipelines._metadata.get_client", return_value=mock_client),
+        patch("mcp_tools.pipelines.anova.get_client", return_value=mock_client),
         patch("mcp_tools.pipelines.dose_response.get_client", return_value=mock_client),
         patch("mcp_tools.pipelines.normalisation.get_client", return_value=mock_client),
         patch("mcp_tools.pipelines.pairwise.get_client", return_value=mock_client),
