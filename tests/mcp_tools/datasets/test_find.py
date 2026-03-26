@@ -12,7 +12,7 @@ class TestFindInitialDataset:
     def test_found(self):
         mock_client = MagicMock()
         mock_client.datasets.find_initial_dataset.return_value = mock_dataset()
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.find.get_client", return_value=mock_client):
             result = find_initial_dataset("upload-123")
         mock_client.datasets.find_initial_dataset.assert_called_once_with("upload-123")
         assert "ds-1" in result
@@ -21,7 +21,7 @@ class TestFindInitialDataset:
     def test_not_found(self):
         mock_client = MagicMock()
         mock_client.datasets.find_initial_dataset.return_value = None
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.find.get_client", return_value=mock_client):
             result = find_initial_dataset("upload-123")
         assert "No initial" in result
 
@@ -35,7 +35,7 @@ class TestFindInitialDatasets:
         mock_client = MagicMock()
         mock_client.datasets.find_initial_dataset.side_effect = [mock_ds1, mock_ds2]
 
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.find.get_client", return_value=mock_client):
             result = json.loads(find_initial_datasets(["upload-1", "upload-2"]))
 
         assert result["upload-1"] == {"dataset_id": "ds-001"}
@@ -44,14 +44,14 @@ class TestFindInitialDatasets:
     def test_records_not_found_inline(self):
         mock_client = MagicMock()
         mock_client.datasets.find_initial_dataset.return_value = None
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.find.get_client", return_value=mock_client):
             result = json.loads(find_initial_datasets(["upload-missing"]))
         assert "error" in result["upload-missing"]
 
     def test_records_exception_inline(self):
         mock_client = MagicMock()
         mock_client.datasets.find_initial_dataset.side_effect = Exception("HTTP 500")
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.find.get_client", return_value=mock_client):
             result = json.loads(find_initial_datasets(["upload-bad"]))
         assert "HTTP 500" in result["upload-bad"]["error"]
 
@@ -63,7 +63,7 @@ class TestFindInitialDatasets:
             Exception("not found"),
             mock_ds,
         ]
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.find.get_client", return_value=mock_client):
             result = json.loads(find_initial_datasets(["upload-bad", "upload-ok"]))
         assert "error" in result["upload-bad"]
         assert result["upload-ok"] == {"dataset_id": "ds-ok"}

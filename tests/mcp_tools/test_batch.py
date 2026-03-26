@@ -19,7 +19,7 @@ class TestBatch:
     def test_multiple_operations(self):
         with (
             patch("mcp_tools.health.get_client") as mock_health,
-            patch("mcp_tools.uploads.get_client") as mock_uploads,
+            patch("mcp_tools.uploads.get.get_client") as mock_uploads,
         ):
             mock_health.return_value.health.check.return_value = {"status": "ok"}
             mock_upload = type("U", (), {"__str__": lambda self: "Upload: test"})()
@@ -35,7 +35,7 @@ class TestBatch:
         assert "Upload: test" in data[1]["result"]
 
     def test_stops_on_error_by_default(self):
-        with patch("mcp_tools.uploads.get_client") as mock_client:
+        with patch("mcp_tools.uploads.get.get_client") as mock_client:
             mock_client.return_value.uploads.get_by_id.side_effect = Exception(
                 "not found"
             )
@@ -51,7 +51,7 @@ class TestBatch:
 
     def test_continues_on_error_when_flag_false(self):
         with (
-            patch("mcp_tools.uploads.get_client") as mock_uploads,
+            patch("mcp_tools.uploads.get.get_client") as mock_uploads,
             patch("mcp_tools.health.get_client") as mock_health,
         ):
             mock_uploads.return_value.uploads.get_by_id.side_effect = Exception(
@@ -74,7 +74,7 @@ class TestBatch:
         mock_upload = type(
             "U", (), {"__str__": lambda self: "Upload: my-exp | ID: abc-123"}
         )()
-        with patch("mcp_tools.uploads.get_client") as mock_client:
+        with patch("mcp_tools.uploads.get.get_client") as mock_client:
             mock_client.return_value.uploads.get_by_name.return_value = mock_upload
             result = batch([{"tool": "get_upload", "params": {"name": "my-exp"}}])
         data = json.loads(result)
@@ -91,7 +91,7 @@ class TestBatch:
         assert data[0]["error_code"] == "unknown_tool"
 
     def test_error_entry_has_error_code_exception(self):
-        with patch("mcp_tools.uploads.get_client") as mock_client:
+        with patch("mcp_tools.uploads.get.get_client") as mock_client:
             mock_client.return_value.uploads.get_by_id.side_effect = Exception("boom")
             data = json.loads(
                 batch([{"tool": "get_upload", "params": {"upload_id": "x"}}])

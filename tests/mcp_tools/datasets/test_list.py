@@ -14,7 +14,7 @@ class TestListJobs:
             {"slug": "normalisation_imputation"},
             {"slug": "pairwise_comparison"},
         ]
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_jobs()
         assert "normalisation_imputation" in result
         assert "pairwise_comparison" in result
@@ -22,7 +22,7 @@ class TestListJobs:
     def test_empty_returns_message(self):
         mock_client = MagicMock()
         mock_client.jobs.list.return_value = []
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_jobs()
         assert "No jobs" in result
 
@@ -32,7 +32,7 @@ class TestListJobs:
             mock_dataset("ds-1", "DR Job 1", "DOSE_RESPONSE", "COMPLETED"),
             mock_dataset("ds-2", "DR Job 2", "DOSE_RESPONSE", "PROCESSING"),
         ]
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_jobs(upload_id="upload-abc")
         mock_client.datasets.list_by_upload.assert_called_once_with("upload-abc")
         assert "2 job(s)" in result
@@ -43,7 +43,7 @@ class TestListJobs:
     def test_upload_id_empty_returns_message(self):
         mock_client = MagicMock()
         mock_client.datasets.list_by_upload.return_value = []
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_jobs(upload_id="upload-abc")
         assert "No pipeline jobs" in result
 
@@ -52,7 +52,7 @@ class TestListJobs:
         mock_client.datasets.list_by_upload.return_value = [
             mock_dataset("ds-1", "NI Job", "INTENSITY", "COMPLETED"),
         ]
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             list_jobs(upload_id="upload-abc")
         mock_client.jobs.list.assert_not_called()
 
@@ -64,7 +64,7 @@ class TestListDatasets:
             mock_dataset("ds-1", "Initial", "INTENSITY", "COMPLETED"),
             mock_dataset("ds-2", "Pairwise", "PAIRWISE_COMPARISON", "PROCESSING"),
         ]
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_datasets("upload-123")
         mock_client.datasets.list_by_upload.assert_called_once_with("upload-123")
         assert "2 dataset(s)" in result
@@ -74,7 +74,7 @@ class TestListDatasets:
     def test_empty_returns_message(self):
         mock_client = MagicMock()
         mock_client.datasets.list_by_upload.return_value = []
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_datasets("upload-123")
         assert "No datasets" in result
 
@@ -84,7 +84,7 @@ class TestListDatasets:
             mock_dataset("ds-1", "Initial", "INTENSITY", "COMPLETED"),
             mock_dataset("ds-2", "DR Job", "DOSE_RESPONSE", "COMPLETED"),
         ]
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_datasets("upload-123", type_filter="DOSE_RESPONSE")
         assert "ds-2" in result
         assert "ds-1" not in result
@@ -95,6 +95,6 @@ class TestListDatasets:
         mock_client.datasets.list_by_upload.return_value = [
             mock_dataset("ds-1", "DR Job", "DOSE_RESPONSE", "COMPLETED"),
         ]
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_datasets("upload-123", type_filter="dose_response")
         assert "ds-1" in result

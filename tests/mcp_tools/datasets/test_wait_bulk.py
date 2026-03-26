@@ -21,7 +21,7 @@ class TestWaitForDatasetsBulk:
             {"upload_id": "upload-1", "dataset_id": "ds-2"},
         ]
 
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = json.loads(
                 wait_for_datasets_bulk(jobs, poll_seconds=1, timeout_seconds=5)
             )
@@ -44,7 +44,7 @@ class TestWaitForDatasetsBulk:
             {"upload_id": "upload-1", "dataset_id": "ds-2"},
         ]
 
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = json.loads(
                 wait_for_datasets_bulk(jobs, poll_seconds=60, timeout_seconds=0)
             )
@@ -66,7 +66,7 @@ class TestWaitForDatasetsBulk:
             {"upload_id": "upload-1", "dataset_id": "ds-2"},
         ]
 
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = json.loads(
                 wait_for_datasets_bulk(jobs, poll_seconds=1, timeout_seconds=5)
             )
@@ -89,7 +89,7 @@ class TestWaitForDatasetsBulk:
 
         jobs = [{"upload_id": "upload-1", "dataset_id": "ds-1"}]
 
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = json.loads(
                 wait_for_datasets_bulk(jobs, poll_seconds=60, timeout_seconds=0)
             )

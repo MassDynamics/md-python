@@ -12,7 +12,7 @@ class TestWaitForUpload:
         mock_client = MagicMock()
         mock_client.uploads.wait_until_complete.return_value = mock_upload
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.wait.get_client", return_value=mock_client):
             result = wait_for_upload("upload-123", poll_seconds=1, timeout_seconds=60)
 
         mock_client.uploads.wait_until_complete.assert_called_once_with(
@@ -28,7 +28,7 @@ class TestWaitForUpload:
         mock_client.uploads.wait_until_complete.side_effect = TimeoutError("timed out")
         mock_client.uploads.get_by_id.return_value = mock_upload
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.wait.get_client", return_value=mock_client):
             result = wait_for_upload("upload-123", poll_seconds=1, timeout_seconds=5)
 
         assert "PROCESSING" in result

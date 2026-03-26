@@ -8,15 +8,17 @@ from mcp_tools.uploads import cancel_upload_queue, list_uploads_status
 
 class TestCancelUploadQueue:
     def test_shuts_down_executor_and_creates_replacement(self):
-        import mcp_tools.uploads as uploads_module
+        import mcp_tools.uploads._executor as executor_module
 
-        original_executor = uploads_module._large_upload_executor
-        with patch("mcp_tools.uploads._get_executor", return_value=original_executor):
+        original_executor = executor_module._large_upload_executor
+        with patch(
+            "mcp_tools.uploads.queue._get_executor", return_value=original_executor
+        ):
             with patch.object(original_executor, "shutdown") as mock_shutdown:
                 result = cancel_upload_queue()
 
         mock_shutdown.assert_called_once_with(wait=False, cancel_futures=True)
-        assert uploads_module._large_upload_executor is not original_executor
+        assert executor_module._large_upload_executor is not original_executor
         assert "reset" in result.lower()
 
 
@@ -32,7 +34,7 @@ class TestListUploadsStatus:
         mock_client = MagicMock()
         mock_client.uploads.get_by_id.side_effect = [mock_u1, mock_u2]
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.queue.get_client", return_value=mock_client):
             result = list_uploads_status(["uid-1", "uid-2"])
 
         data = json.loads(result)
@@ -45,7 +47,7 @@ class TestListUploadsStatus:
         mock_client = MagicMock()
         mock_client.uploads.get_by_id.return_value = mock_u
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.queue.get_client", return_value=mock_client):
             result = list_uploads_status(["uid-1"], summary=True)
 
         data = json.loads(result)
@@ -63,7 +65,7 @@ class TestListUploadsStatus:
         mock_client = MagicMock()
         mock_client.uploads.get_by_id.side_effect = [mock_u1, Exception("not found")]
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.queue.get_client", return_value=mock_client):
             result = list_uploads_status(["uid-ok", "uid-bad"])
 
         data = json.loads(result)

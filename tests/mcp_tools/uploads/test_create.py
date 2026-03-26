@@ -12,7 +12,7 @@ class TestCreateUpload:
         mock_client = MagicMock()
         mock_client.uploads.create.return_value = "upload-id-001"
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.create.get_client", return_value=mock_client):
             result = create_upload(
                 name="Test Upload",
                 source="diann_tabular",
@@ -30,7 +30,7 @@ class TestCreateUpload:
         mock_client = MagicMock()
         mock_client.uploads.create.return_value = "upload-id-002"
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.create.get_client", return_value=mock_client):
             result = create_upload(
                 name="Test Upload",
                 source="diann_tabular",
@@ -48,7 +48,7 @@ class TestCreateUpload:
         mock_client = MagicMock()
         mock_client.uploads.create.return_value = "upload-id-003"
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.create.get_client", return_value=mock_client):
             result = create_upload(
                 name="Test",
                 source="diann_tabular",
@@ -73,7 +73,7 @@ class TestCreateUploadFromCsv:
         mock_client = MagicMock()
         mock_client.uploads.create.return_value = "upload-id-from-csv"
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.create.get_client", return_value=mock_client):
             result = create_upload_from_csv(
                 name="CSV Upload",
                 source="md_format",
@@ -89,7 +89,7 @@ class TestCreateUploadFromCsv:
         csv = tmp_path / "bad.csv"
         csv.write_text("sample_name,dose\ns1,0\ns2,10\n")  # missing filename/condition
 
-        with patch("mcp_tools.uploads.get_client", return_value=MagicMock()):
+        with patch("mcp_tools.uploads.create.get_client", return_value=MagicMock()):
             result = create_upload_from_csv(
                 name="Bad",
                 source="md_format",
@@ -103,7 +103,7 @@ class TestCreateUploadFromCsv:
         csv = tmp_path / "metadata.csv"
         csv.write_text("filename,sample_name,condition\nfile1,s1,ctrl\n")
 
-        with patch("mcp_tools.uploads.get_client", return_value=MagicMock()):
+        with patch("mcp_tools.uploads.create.get_client", return_value=MagicMock()):
             result = create_upload_from_csv(
                 name="Test",
                 source="md_format",
@@ -115,7 +115,7 @@ class TestCreateUploadFromCsv:
         assert "file_location" in result
 
     def test_large_files_use_sequential_executor(self, tmp_path):
-        from mcp_tools.uploads import _large_upload_executor
+        from mcp_tools.uploads._executor import _large_upload_executor
 
         csv = tmp_path / "metadata.csv"
         csv.write_text(
@@ -128,8 +128,8 @@ class TestCreateUploadFromCsv:
 
         large_size = 60 * 1024 * 1024  # 60 MB × 2 files = 120 MB > 100 MB threshold
         with (
-            patch("mcp_tools.uploads.get_client", return_value=mock_client),
-            patch("mcp_tools.uploads.os.path.getsize", return_value=large_size),
+            patch("mcp_tools.uploads.create.get_client", return_value=mock_client),
+            patch("mcp_tools.uploads.create.os.path.getsize", return_value=large_size),
         ):
             result = create_upload_from_csv(
                 name="Large Upload",
@@ -154,8 +154,8 @@ class TestCreateUploadFromCsv:
 
         small_size = 10 * 1024 * 1024  # 10 MB × 2 = 20 MB < 100 MB threshold
         with (
-            patch("mcp_tools.uploads.get_client", return_value=mock_client),
-            patch("mcp_tools.uploads.os.path.getsize", return_value=small_size),
+            patch("mcp_tools.uploads.create.get_client", return_value=mock_client),
+            patch("mcp_tools.uploads.create.os.path.getsize", return_value=small_size),
         ):
             result = create_upload_from_csv(
                 name="Small Upload",

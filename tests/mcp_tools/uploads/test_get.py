@@ -14,7 +14,7 @@ class TestGetUpload:
         mock_client = MagicMock()
         mock_client.uploads.get_by_id.return_value = mock_upload
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
             result = get_upload(upload_id="abc-123")
 
         mock_client.uploads.get_by_id.assert_called_once_with("abc-123")
@@ -26,7 +26,7 @@ class TestGetUpload:
         mock_client = MagicMock()
         mock_client.uploads.get_by_name.return_value = mock_upload
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
             result = get_upload(name="my-upload")
 
         mock_client.uploads.get_by_name.assert_called_once_with("my-upload")
@@ -36,7 +36,7 @@ class TestGetUpload:
         mock_client = MagicMock()
         mock_client.uploads.get_by_id.return_value = None
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
             result = get_upload(upload_id="missing")
 
         assert "not found" in result.lower()
@@ -50,7 +50,7 @@ class TestUpdateSampleMetadata:
         mock_client = MagicMock()
         mock_client.uploads.update_sample_metadata.return_value = True
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
             result = update_sample_metadata("upload-123", METADATA)
 
         assert "successfully" in result
@@ -59,7 +59,7 @@ class TestUpdateSampleMetadata:
         mock_client = MagicMock()
         mock_client.uploads.update_sample_metadata.return_value = False
 
-        with patch("mcp_tools.uploads.get_client", return_value=mock_client):
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
             result = update_sample_metadata("upload-123", METADATA)
 
         assert "Failed" in result

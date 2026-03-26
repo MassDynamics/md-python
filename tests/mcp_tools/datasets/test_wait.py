@@ -13,7 +13,7 @@ class TestWaitForDataset:
         mock_client.datasets.wait_until_complete.return_value = mock_dataset(
             state="COMPLETED"
         )
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = wait_for_dataset(
                 "upload-123", "ds-1", poll_seconds=1, timeout_seconds=60
             )
@@ -28,7 +28,7 @@ class TestWaitForDataset:
         mock_client.datasets.list_by_upload.return_value = [
             mock_dataset(id="ds-1", state="RUNNING")
         ]
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = wait_for_dataset(
                 "upload-123", "ds-1", poll_seconds=1, timeout_seconds=5
             )
@@ -39,7 +39,7 @@ class TestWaitForDataset:
         mock_client = MagicMock()
         mock_client.datasets.wait_until_complete.side_effect = TimeoutError("timed out")
         mock_client.datasets.list_by_upload.return_value = []
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = wait_for_dataset(
                 "upload-123", "ds-missing", poll_seconds=1, timeout_seconds=5
             )
@@ -54,7 +54,7 @@ class TestFetchDatasetState:
         mock_client.datasets.list_by_upload.return_value = [ds]
 
         job = {"upload_id": "up-1", "dataset_id": str(ds.id)}
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = _fetch_dataset_state(job)
 
         assert result["state"] == "COMPLETED"
@@ -65,7 +65,7 @@ class TestFetchDatasetState:
         mock_client.datasets.list_by_upload.return_value = []
 
         job = {"upload_id": "up-1", "dataset_id": "ds-missing"}
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = _fetch_dataset_state(job)
 
         assert result["state"] == "NOT_FOUND"
@@ -80,7 +80,7 @@ class TestFetchDatasetState:
         )
 
         job = {"upload_id": "up-1", "dataset_id": "ds-1"}
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = _fetch_dataset_state(job)
 
         assert result["state"] == "FETCH_ERROR"
@@ -95,7 +95,7 @@ class TestFetchDatasetState:
         mock_client.datasets.get_by_id.return_value = ds
 
         job = {"dataset_id": "ds-1"}
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = _fetch_dataset_state(job)
 
         mock_client.datasets.get_by_id.assert_called_once_with("ds-1")
@@ -109,7 +109,7 @@ class TestFetchDatasetState:
         mock_client.datasets.get_by_id.side_effect = RuntimeError("not found")
 
         job = {"dataset_id": "ds-bad"}
-        with patch("mcp_tools.datasets.get_client", return_value=mock_client):
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
             result = _fetch_dataset_state(job)
 
         assert result["state"] == "FETCH_ERROR"
