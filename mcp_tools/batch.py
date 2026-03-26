@@ -17,6 +17,7 @@ from .health import get_workflow_guide, health_check
 from .pipelines import (
     describe_pipeline,
     generate_pairwise_comparisons,
+    run_anova,
     run_dose_response,
     run_dose_response_bulk,
     run_dose_response_from_upload,
@@ -26,6 +27,7 @@ from .pipelines import (
     run_pairwise_comparison_bulk,
 )
 from .uploads import (
+    cancel_upload_queue,
     create_upload,
     create_upload_from_csv,
     get_upload,
@@ -44,6 +46,7 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "get_upload": get_upload,
     "create_upload": create_upload,
     "create_upload_from_csv": create_upload_from_csv,
+    "cancel_upload_queue": cancel_upload_queue,
     "list_uploads_status": list_uploads_status,
     "validate_upload_inputs": validate_upload_inputs,
     "update_sample_metadata": update_sample_metadata,
@@ -57,13 +60,14 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "delete_dataset": delete_dataset,
     "describe_pipeline": describe_pipeline,
     "run_normalisation_imputation": run_normalisation_imputation,
+    "run_normalisation_imputation_bulk": run_normalisation_imputation_bulk,
     "generate_pairwise_comparisons": generate_pairwise_comparisons,
     "run_pairwise_comparison": run_pairwise_comparison,
+    "run_pairwise_comparison_bulk": run_pairwise_comparison_bulk,
+    "run_anova": run_anova,
     "run_dose_response": run_dose_response,
     "run_dose_response_from_upload": run_dose_response_from_upload,
     "run_dose_response_bulk": run_dose_response_bulk,
-    "run_normalisation_imputation_bulk": run_normalisation_imputation_bulk,
-    "run_pairwise_comparison_bulk": run_pairwise_comparison_bulk,
     "wait_for_datasets_bulk": wait_for_datasets_bulk,
 }
 
@@ -85,16 +89,16 @@ def batch(
       independent inspection operations.
 
     Available tools: read_csv_preview, load_metadata_from_csv, plan_wide_to_md_format,
-    health_check, get_workflow_guide,
-    get_upload, create_upload, create_upload_from_csv, list_uploads_status,
-    validate_upload_inputs, update_sample_metadata,
-    wait_for_upload, list_jobs, list_datasets,
+    get_md_format_spec, health_check, get_workflow_guide,
+    get_upload, create_upload, create_upload_from_csv, cancel_upload_queue,
+    list_uploads_status, validate_upload_inputs, update_sample_metadata,
+    wait_for_upload, list_jobs, list_datasets, search_entities,
     find_initial_dataset, find_initial_datasets,
     wait_for_dataset, wait_for_datasets_bulk,
     retry_dataset, delete_dataset, describe_pipeline,
     run_normalisation_imputation, run_normalisation_imputation_bulk,
     generate_pairwise_comparisons, run_pairwise_comparison, run_pairwise_comparison_bulk,
-    run_dose_response, run_dose_response_from_upload, run_dose_response_bulk.
+    run_anova, run_dose_response, run_dose_response_from_upload, run_dose_response_bulk.
 
     ── WORKFLOW EXAMPLE A: inspect an upload by name ────────────────────────────
       operations=[
@@ -131,7 +135,7 @@ def batch(
 
     Phase 2 — normalisation:
       3. find_initial_dataset
-      4. run_normalisation_imputation (valid methods: normalisation="median"/"quantile", imputation="min_value"/"knn")
+      4. run_normalisation_imputation (valid methods: normalisation="median"/"quantile", imputation="mnar"/"knn")
       5. wait_for_dataset (separate call)
 
     Phase 3 — pairwise comparison:

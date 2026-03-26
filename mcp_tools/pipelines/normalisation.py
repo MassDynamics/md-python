@@ -63,7 +63,7 @@ def run_normalisation_imputation(
     "median_by_entity" No extra params. Replaces each missing with that
                        protein/gene's own median intensity.
     "set to constant"  Required imputation_extra_params:
-                         constant_value  float  value to substitute for every NaN
+                         constant_value  int  integer value to substitute for every NaN (range 0–100)
     "set to missing"   No extra params. Sets all values to NaN (removes data).
     "skip"             No extra params. Leaves NaN in output (no imputation).
 

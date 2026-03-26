@@ -13,7 +13,7 @@ def describe_pipeline(job_slug: str) -> str:
     Call this when you need to verify valid parameter values before running a pipeline.
     Not required if the parameter values are already known from context or prior calls.
 
-    job_slug: one of "normalisation_imputation", "dose_response", "pairwise_comparison".
+    job_slug: one of "normalisation_imputation", "pairwise_comparison", "anova", "dose_response".
     Use list_jobs() to see all available slugs.
     """
     schema = _PIPELINE_SCHEMAS.get(job_slug)

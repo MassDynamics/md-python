@@ -16,9 +16,4 @@ __all__ = [
     "load_metadata_from_csv",
     "get_md_format_spec",
     "plan_wide_to_md_format",
-    "_build_ed_rows",
-    "_collect_notes",
-    "_deduplicate_rows_by_sample_name",
-    "_safe_get",
-    "_sm_column_order",
 ]

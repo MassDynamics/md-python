@@ -196,14 +196,14 @@ def _submit_dr_job(
         entry["error_code"] = "dataset_not_found"
         return entry
 
-    job_sample_names = job["sample_names"]
-    job_metadata = job.get("sample_metadata")
-    if job_metadata is None:
-        raw = upload_meta_cache.get(upload_id)
-        if raw:
-            job_metadata = _filter_sample_metadata(raw, job_sample_names)
-
     try:
+        job_sample_names = job["sample_names"]
+        job_metadata = job.get("sample_metadata")
+        if job_metadata is None:
+            raw = upload_meta_cache.get(upload_id)
+            if raw:
+                job_metadata = _filter_sample_metadata(raw, job_sample_names)
+
         run_result = run_dose_response(
             input_dataset_ids=[initial_id],
             dataset_name=dataset_name,

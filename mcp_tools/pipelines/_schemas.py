@@ -461,10 +461,10 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             },
             "use_imputed_intensities": {
                 "type": "bool",
-                "default": False,
+                "default": True,
                 "description": (
-                    "Fit models with imputed intensity values. "
-                    "Default False (uses only observed values for model fitting)."
+                    "Use imputed intensity values from a prior normalisation_imputation step. "
+                    "Default True. Set False to use only observed (non-imputed) values."
                 ),
             },
             "normalise": {
