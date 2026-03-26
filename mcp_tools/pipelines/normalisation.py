@@ -51,13 +51,14 @@ def run_normalisation_imputation(
 
     ── IMPUTATION METHODS ─────────────────────────────────────────────────────
     "mnar"             PREFERRED for standard DDA proteomics (MNAR pattern).
-                       Optional imputation_extra_params:
-                         std_position  float  default 1.8 — left-shift from mean
-                         std_width     float  default 0.3 — width as fraction of std
-                       Ask user if they want to change from defaults (1.8, 0.3).
+                       Defaults sent automatically: std_position=1.8, std_width=0.3.
+                       Override via imputation_extra_params if user requests different values.
+                         std_position  float  left-shift from mean (default 1.8)
+                         std_width     float  width as fraction of std (default 0.3)
     "knn"              K-nearest neighbours. Better for MAR (missing at random) data.
-                       Required imputation_extra_params:
-                         n_neighbors  int   number of neighbours, default 3 (range 1–10)
+                       Defaults sent automatically: n_neighbors=3, weights=null.
+                       Override via imputation_extra_params if user requests different values.
+                         n_neighbors  int   number of neighbours (default 3, range 1–10)
                          weights      str   null (default) or "distance"
     "global_median"    No extra params. Replaces all missing with global median.
     "median_by_entity" No extra params. Replaces each missing with that
@@ -70,11 +71,24 @@ def run_normalisation_imputation(
     Call describe_pipeline("normalisation_imputation") for the full schema.
     Returns the new dataset ID on success.
     """
+    # Per-method defaults — always sent so the server receives complete params.
+    # User-supplied extra_params override these.
+    _norm_defaults: Dict[str, Dict[str, Any]] = {
+        "cpm": {"prior_count": 0},
+    }
+    _imp_defaults: Dict[str, Dict[str, Any]] = {
+        "mnar": {"std_position": 1.8, "std_width": 0.3},
+        "knn": {"n_neighbors": 3, "weights": None},
+        "set to constant": {"constant_value": 0},
+    }
+
     norm: Dict[str, Any] = {"method": normalisation_method}
+    norm.update(_norm_defaults.get(normalisation_method, {}))
     if normalisation_extra_params:
         norm.update(normalisation_extra_params)
 
     imp: Dict[str, Any] = {"method": imputation_method}
+    imp.update(_imp_defaults.get(imputation_method, {}))
     if imputation_extra_params:
         imp.update(imputation_extra_params)
 
