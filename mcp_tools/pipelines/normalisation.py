@@ -35,7 +35,7 @@ def run_normalisation_imputation(
                        Robust. RECOMMENDED for most proteomics experiments.
     "quantile"         No extra params. Forces identical quantile distributions.
                        Stronger assumption — ask user if distributions are comparable.
-    "none"             No extra params. Skips normalisation entirely.
+    "skip"             No extra params. Skips normalisation entirely.
     "batch_correction" Requires normalisation_extra_params:
                          batch_variables  List[str]  columns that define batch
                                           (e.g. ["batch"]). REQUIRED.
@@ -53,14 +53,15 @@ def run_normalisation_imputation(
                        Ask user if they want to change from defaults (1.8, 0.3).
     "knn"              K-nearest neighbours. Better for MAR (missing at random) data.
                        Required imputation_extra_params:
-                         n_neighbors  int   number of neighbours (typical: 2–10)
-                         weights      str   "uniform" (default) or "distance"
+                         n_neighbors  int   number of neighbours, default 3 (range 1–10)
+                         weights      str   null (default) or "distance"
     "global_median"    No extra params. Replaces all missing with global median.
     "median_by_entity" No extra params. Replaces each missing with that
                        protein/gene's own median intensity.
-    "constant"         Required imputation_extra_params:
+    "set to constant"  Required imputation_extra_params:
                          constant_value  float  value to substitute for every NaN
-    "none"             No extra params. Leaves NaN in output (no imputation).
+    "set to missing"   No extra params. Sets all values to NaN (removes data).
+    "skip"             No extra params. Leaves NaN in output (no imputation).
 
     Call describe_pipeline("normalisation_imputation") for the full schema.
     Returns the new dataset ID on success.

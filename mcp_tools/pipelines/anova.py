@@ -18,6 +18,7 @@ def run_anova(
     comparisons_type: str = "all",
     filter_method: str = "percentage",
     filter_threshold_percentage: float = 0.5,
+    filter_valid_values_logic: str = "at least one condition",
     limma_trend: bool = True,
     robust_empirical_bayes: bool = True,
 ) -> str:
@@ -41,7 +42,9 @@ def run_anova(
 
     filter_method / filter_threshold_percentage: control which rows pass the
       valid-value completeness filter before modelling. Default keeps rows with
-      at least 50% valid values across the experiment.
+      at least 50% valid values.
+    filter_valid_values_logic: how the filter is applied — "at least one condition"
+      (default), "all conditions", or "full experiment".
 
     Returns the new dataset ID on success.
     """
@@ -59,6 +62,7 @@ def run_anova(
         "condition_column": condition_column,
         "comparisons_type": comparisons_type,
         "filter_values_criteria": filter_values_criteria,
+        "filter_valid_values_logic": filter_valid_values_logic,
         "limma_trend": limma_trend,
         "robust_empirical_bayes": robust_empirical_bayes,
     }

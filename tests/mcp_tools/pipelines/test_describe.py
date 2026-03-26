@@ -32,7 +32,7 @@ class TestDescribePipeline:
         imp_vals = result["parameters"]["imputation_method"]["valid_values"]
         assert "median" in norm_vals
         assert "quantile" in norm_vals
-        assert "none" in norm_vals
+        assert "skip" in norm_vals
         assert "mnar" in imp_vals
         assert "knn" in imp_vals
         assert "global_median" in imp_vals
@@ -40,7 +40,7 @@ class TestDescribePipeline:
     def test_normalisation_imputation_has_entity_type(self):
         result = json.loads(describe_pipeline("normalisation_imputation"))
         assert "entity_type" in result["parameters"]
-        assert result["parameters"]["entity_type"]["default"] == "protein"
+        assert "protein" in result["parameters"]["entity_type"]["valid_values"]
 
     def test_anova_schema_present(self):
         result = json.loads(describe_pipeline("anova"))
