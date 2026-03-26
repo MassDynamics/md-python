@@ -42,6 +42,10 @@ def run_normalisation_imputation(
                          design_variables List[str]  columns encoding biological
                                           design to preserve (e.g. ["condition"]).
                                           Optional but strongly recommended.
+                         experiment_design dict  sample metadata as column dict
+                                          (pass load_metadata_from_csv output
+                                          converted via SampleMetadata.to_columns()).
+                                          REQUIRED for ComBat correction.
     "cpm"              Gene data only. Optional extra param:
                          prior_count  float  default 0. Added before CPM calculation.
 
@@ -148,9 +152,16 @@ def run_normalisation_imputation_bulk(jobs: List[Dict[str, Any]]) -> str:
     Each job spec (dict):
       upload_id                str   — upload to run against (required)
       dataset_name             str   — name for the output dataset (required)
-      normalisation_method     str   — "median" or "quantile" (required)
-      imputation_method        str   — "min_value" or "knn" (required)
-      normalisation_extra_params dict — extra kwargs for normalisation (optional)
+      normalisation_method     str   — "median", "quantile", "skip",
+                                       "batch_correction", or "cpm" (required)
+      imputation_method        str   — "mnar", "knn", "global_median",
+                                       "median_by_entity", "set to constant",
+                                       "set to missing", or "skip" (required)
+      entity_type              str   — "protein" (default), "peptide", or "gene"
+      normalisation_extra_params dict — extra kwargs for normalisation (optional).
+                                       For batch_correction: include batch_variables,
+                                       design_variables, and experiment_design (the
+                                       sample metadata dict from load_metadata_from_csv).
       imputation_extra_params    dict — extra kwargs for imputation (optional)
       if_exists                str   — "skip" (default) or "run"
 

@@ -50,7 +50,7 @@ _WORKFLOW_GUIDE = {
                 "",
                 "── Phase 2: Normalisation & Imputation ──",
                 "7. describe_pipeline('normalisation_imputation') — inspect valid parameter values.",
-                "8. run_normalisation_imputation(input_dataset_ids=[<initial_dataset_id>], dataset_name=..., normalisation_method='median', imputation_method='min_value') — start the pipeline.",
+                "8. run_normalisation_imputation(input_dataset_ids=[<initial_dataset_id>], dataset_name=..., normalisation_method='median', imputation_method='mnar') — start the pipeline.",
                 "   For many uploads at once, use Workflow E (run_normalisation_imputation_bulk) instead.",
                 "9. wait_for_dataset(upload_id, norm_dataset_id) — poll until COMPLETED.",
                 "",
@@ -111,6 +111,30 @@ _WORKFLOW_GUIDE = {
                 "Monitor progress by checking by_state in the wait_for_datasets_bulk response.",
             ],
         },
+        "F_anova": {
+            "description": (
+                "Full ANOVA analysis: upload → normalise/impute → ANOVA. "
+                "Use instead of pairwise comparison when the user wants an omnibus F-test "
+                "across 3 or more conditions simultaneously."
+            ),
+            "steps": [
+                "── Phase 1 & 2: Upload + Normalise (same as DEA Phases 1-2) ──",
+                "1-9. Follow Workflow B steps 1-9.",
+                "",
+                "── Phase 3: ANOVA ──",
+                "10. describe_pipeline('anova') — inspect valid parameter values.",
+                "11. run_anova(input_dataset_ids=[<norm_dataset_id>], dataset_name=..., sample_metadata=..., condition_column=...) — start the ANOVA pipeline.",
+                "    comparisons_type='all' (default): tests all pairwise combinations between condition levels.",
+                "    comparisons_type='custom': also pass condition_comparisons=[[case, control], ...] to limit to specific pairs.",
+                "12. wait_for_dataset(upload_id, anova_dataset_id) — poll until COMPLETED.",
+                "    Results are now visible in the Mass Dynamics app.",
+            ],
+            "notes": [
+                "ANOVA is an omnibus test — it detects any difference across groups but does not directly identify which pairs differ.",
+                "For specific group-vs-group contrasts, use Workflow B (pairwise comparison) instead.",
+                "sample_metadata must come from load_metadata_from_csv — never construct manually.",
+            ],
+        },
         "D_format_conversion": {
             "description": (
                 "Convert a wide-format file (DIA-NN matrix, MaxQuant proteinGroups, Spectronaut export) "
@@ -150,7 +174,6 @@ _WORKFLOW_GUIDE = {
             "retry_dataset": "Retry a FAILED or ERROR pipeline job.",
             "delete_dataset": "Permanently delete a pipeline result dataset.",
             "search_entities": "Search proteins, genes, or peptides by keyword (e.g. gene symbol or UniProt ID) across one or more datasets.",
-            "run_anova": "Run ANOVA differential abundance analysis across 3+ conditions using limma.",
         },
         "pipeline_tools": {
             "describe_pipeline": "Return the full parameter schema for a pipeline (valid_values, defaults). Call when you need to verify parameter values.",
@@ -159,6 +182,7 @@ _WORKFLOW_GUIDE = {
             "generate_pairwise_comparisons": "Generate [case, control] comparison pairs from sample_metadata.",
             "run_pairwise_comparison": "Run limma-based pairwise differential analysis for one upload. Prefer run_pairwise_comparison_bulk for many.",
             "run_pairwise_comparison_bulk": "PREFERRED for many pairwise jobs: parallel submission (20 threads), max 500 jobs, if_exists='skip' by default. input_dataset_ids must be explicit (use NI output IDs). Each job also needs upload_id (for dedup), sample_metadata, condition_column, condition_comparisons.",
+            "run_anova": "Run ANOVA differential abundance across 3+ conditions using limma. Use instead of pairwise_comparison when the user wants an omnibus test across all groups. Supports comparisons_type='all' or 'custom'.",
             "run_dose_response": "Fit 4-parameter log-logistic dose-response curves. Prefer run_dose_response_from_upload (single) or run_dose_response_bulk (many).",
             "run_dose_response_from_upload": "PREFERRED for single DR job: resolves input_dataset_ids from upload_id automatically. if_exists='skip' by default; sample_metadata auto-fetched if omitted.",
             "run_dose_response_bulk": "PREFERRED for many DR jobs: parallel submission (20 threads), max 500 jobs, caches per-upload data, if_exists='skip' by default. Each job needs upload_id, dataset_name, sample_names, control_samples.",

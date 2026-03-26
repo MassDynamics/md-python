@@ -311,7 +311,7 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
                     "Additional parameters for the chosen imputation method. "
                     "See method_params in imputation_method for per-method keys. "
                     "Example for mnar: {'std_position': 1.8, 'std_width': 0.3}. "
-                    "Example for knn: {'n_neighbors': 3, 'weights': 'uniform'}."
+                    "Example for knn: {'n_neighbors': 3} (weights defaults to null)."
                 ),
             },
         },

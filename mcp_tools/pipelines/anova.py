@@ -16,6 +16,7 @@ def run_anova(
     sample_metadata: List[List[str]],
     condition_column: str,
     comparisons_type: str = "all",
+    condition_comparisons: Optional[List[List[str]]] = None,
     filter_method: str = "percentage",
     filter_threshold_percentage: float = 0.5,
     filter_valid_values_logic: str = "at least one condition",
@@ -38,7 +39,10 @@ def run_anova(
 
     sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
     condition_column: the column defining the groups to compare (e.g. "condition").
-    comparisons_type: currently only "all" is supported.
+    comparisons_type: "all" (default) tests all pairwise combinations.
+      "custom" restricts to the pairs supplied in condition_comparisons.
+    condition_comparisons: required when comparisons_type="custom". List of
+      [case, control] pairs, e.g. [["treated", "control"]].
 
     filter_method / filter_threshold_percentage: control which rows pass the
       valid-value completeness filter before modelling. Default keeps rows with
@@ -66,6 +70,8 @@ def run_anova(
         "limma_trend": limma_trend,
         "robust_empirical_bayes": robust_empirical_bayes,
     }
+    if condition_comparisons:
+        job_run_params["condition_comparisons"] = condition_comparisons
 
     dataset_id = MinimalDataset(
         input_dataset_ids=input_dataset_ids,
@@ -74,20 +80,3 @@ def run_anova(
         job_run_params=job_run_params,
     ).run(get_client())
     return f"ANOVA pipeline started. Dataset ID: {dataset_id}"
-
-
-def _anova_filter_threshold(
-    filter_method: str,
-    filter_threshold_percentage: float,
-    filter_threshold_count: Optional[int] = None,
-) -> Dict[str, Any]:
-    """Build filter_values_criteria dict."""
-    if filter_method == "count":
-        return {
-            "method": "count",
-            "filter_threshold_count": filter_threshold_count or 0,
-        }
-    return {
-        "method": "percentage",
-        "filter_threshold_percentage": filter_threshold_percentage,
-    }

@@ -11,7 +11,8 @@ TOOL CATEGORIES — use roughly in this order:
   2. Upload tools  : validate_upload_inputs, create_upload, wait_for_upload
   3. Dataset tools : find_initial_dataset, list_datasets, search_entities
   4. Pipeline tools: describe_pipeline, run_normalisation_imputation,
-                     run_pairwise_comparison, run_dose_response, wait_for_dataset
+                     run_pairwise_comparison, run_anova, run_dose_response,
+                     wait_for_dataset
   5. Utility       : health_check, list_jobs, batch, get_workflow_guide
 
 CRITICAL RULES — always follow, no exceptions:
