@@ -15,7 +15,7 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             "imputation_method",
         ],
         "guidance": (
-            "Always ask the user which methods to use. "
+            "Always present ALL method parameters to the user and ask whether to keep defaults or change them. "
             "For standard DDA proteomics, 'mnar' imputation is preferred."
         ),
         "parameters": {
@@ -35,43 +35,127 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             },
             "normalisation_method": {
                 "type": "str",
-                "valid_values": ["median", "quantile", "none", "batch_correction"],
+                "valid_values": [
+                    "median",
+                    "quantile",
+                    "none",
+                    "batch_correction",
+                    "cpm",
+                ],
+                "method_params": {
+                    "median": "No extra parameters.",
+                    "quantile": "No extra parameters.",
+                    "none": "No extra parameters. Skips normalisation entirely.",
+                    "batch_correction": {
+                        "batch_variables": {
+                            "type": "List[str]",
+                            "required": True,
+                            "description": "Column names in sample_metadata that identify batch membership (e.g. ['batch']). Must have ≥2 distinct values.",
+                        },
+                        "design_variables": {
+                            "type": "List[str]",
+                            "required": False,
+                            "default": None,
+                            "description": "Column names that encode the biological design to preserve (e.g. ['condition']). Protects biological signal from being removed by batch correction.",
+                        },
+                    },
+                    "cpm": {
+                        "prior_count": {
+                            "type": "float",
+                            "required": False,
+                            "default": 0,
+                            "description": "Prior count added to raw counts before CPM calculation (edgeR convention). Use 0 for plain CPM. Gene entity_type only.",
+                        },
+                    },
+                },
                 "description": (
-                    "Normalisation algorithm. "
-                    "'median': robust, recommended for most proteomics. "
-                    "'quantile': stronger, assumes similar distributions. "
-                    "'none': skip (use if data already normalised). "
-                    "'batch_correction': correct batch effects; requires batch_variables "
-                    "and design_variables in normalisation_extra_params."
+                    "Normalisation algorithm to apply. "
+                    "'median': subtract per-sample median in log2 space; robust, recommended for most proteomics. "
+                    "'quantile': force all samples to the same quantile distribution; stronger assumption. "
+                    "'none': skip normalisation (use when data is already normalised upstream). "
+                    "'batch_correction': ComBat-style batch effect removal; requires batch_variables. "
+                    "'cpm': Counts Per Million; gene data only."
                 ),
             },
             "imputation_method": {
                 "type": "str",
-                "valid_values": ["mnar", "knn", "global_median", "median_by_entity"],
+                "valid_values": [
+                    "mnar",
+                    "knn",
+                    "global_median",
+                    "median_by_entity",
+                    "constant",
+                    "none",
+                ],
+                "method_params": {
+                    "mnar": {
+                        "std_position": {
+                            "type": "float",
+                            "required": False,
+                            "default": 1.8,
+                            "description": "How many standard deviations below the observed mean to centre the imputed distribution. Higher = more left-shifted (more aggressive imputation).",
+                        },
+                        "std_width": {
+                            "type": "float",
+                            "required": False,
+                            "default": 0.3,
+                            "description": "Width of the imputed Gaussian as a fraction of the observed standard deviation. Smaller = tighter imputed cluster.",
+                        },
+                    },
+                    "knn": {
+                        "n_neighbors": {
+                            "type": "int",
+                            "required": True,
+                            "description": "Number of nearest neighbours to use for imputation. Typical range: 2–10.",
+                        },
+                        "weights": {
+                            "type": "str",
+                            "required": True,
+                            "valid_values": ["uniform", "distance"],
+                            "default": "uniform",
+                            "description": "'uniform': all neighbours weighted equally. 'distance': closer neighbours weighted more.",
+                        },
+                    },
+                    "global_median": "No extra parameters. Replaces all missing values with the global median intensity.",
+                    "median_by_entity": "No extra parameters. Replaces each missing value with that protein/gene's own median.",
+                    "constant": {
+                        "constant_value": {
+                            "type": "float",
+                            "required": True,
+                            "description": "Fixed numeric value to substitute for every missing entry.",
+                        },
+                    },
+                    "none": "No extra parameters. Sets all imputed positions to NaN (no imputation performed).",
+                },
                 "description": (
-                    "Imputation algorithm. "
-                    "'mnar' (PREFERRED for DDA proteomics): left-tail Gaussian draw for MNAR data; "
-                    "accepts std_position (default 1.8) and std_width (default 0.3) in imputation_extra_params. "
-                    "'knn': K-nearest neighbours for MAR data; accepts k in imputation_extra_params. "
-                    "'global_median': replace missing with global median intensity. "
-                    "'median_by_entity': replace missing with per-entity median."
+                    "Imputation algorithm to apply. "
+                    "'mnar' (PREFERRED for standard DDA proteomics): Perseus-style left-tail Gaussian draw, "
+                    "models Missing Not At Random data where low-abundance proteins are systematically absent. "
+                    "'knn': K-nearest neighbours; better when data is MAR (missing at random); requires n_neighbors and weights. "
+                    "'global_median': fast, simple; replaces all missing with the global median. "
+                    "'median_by_entity': per-protein/gene median; better than global_median for heterogeneous data. "
+                    "'constant': replace all missing with a fixed value; requires constant_value. "
+                    "'none': skip imputation (leaves NaN in output)."
                 ),
             },
             "normalisation_extra_params": {
                 "type": "Dict[str, Any]",
                 "default": None,
                 "description": (
-                    "Extra kwargs merged into the normalisation method dict (optional). "
-                    "For batch_correction: {'batch_variables': [...], 'design_variables': [...]}."
+                    "Additional parameters for the chosen normalisation method. "
+                    "See method_params in normalisation_method for per-method keys. "
+                    "Example for batch_correction: "
+                    "{'batch_variables': ['batch'], 'design_variables': ['condition']}."
                 ),
             },
             "imputation_extra_params": {
                 "type": "Dict[str, Any]",
                 "default": None,
                 "description": (
-                    "Extra kwargs merged into the imputation method dict (optional). "
-                    "For knn: {'k': 5}. "
-                    "For mnar: {'std_position': 1.8, 'std_width': 0.3}."
+                    "Additional parameters for the chosen imputation method. "
+                    "See method_params in imputation_method for per-method keys. "
+                    "Example for mnar: {'std_position': 1.8, 'std_width': 0.3}. "
+                    "Example for knn: {'n_neighbors': 5, 'weights': 'uniform'}."
                 ),
             },
         },

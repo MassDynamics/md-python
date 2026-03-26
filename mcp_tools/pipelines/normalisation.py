@@ -22,31 +22,45 @@ def run_normalisation_imputation(
 ) -> str:
     """Run a normalisation + imputation pipeline.
 
-    ALWAYS ask the user which normalisation and imputation methods to use before
-    calling this tool, unless the user has explicitly asked you to suggest the
-    best option based on their data type. Do not silently pick defaults.
+    ALWAYS present the method parameters below to the user and ask whether to
+    keep the defaults or change them — even for simple runs. Do not silently
+    pick defaults. If the user asks you to suggest the best option, use the
+    guidance notes below.
 
-    entity_type: "protein" (default), "peptide", or "gene". Must match the data type
-      in the upstream intensity dataset.
+    entity_type: "protein" (default), "peptide", or "gene".
+      Must match the data type in the upstream intensity dataset.
 
-    Valid normalisation_method values:
-      "median"           — robust, recommended for most proteomics experiments
-      "quantile"         — stronger normalisation, assumes similar distributions
-      "none"             — skip normalisation (use if data is already normalised)
-      "batch_correction" — correct for batch effects; requires batch_variables and
-                           design_variables in normalisation_extra_params
+    ── NORMALISATION METHODS ──────────────────────────────────────────────────
+    "median"           No extra params. Subtracts per-sample median (log2 space).
+                       Robust. RECOMMENDED for most proteomics experiments.
+    "quantile"         No extra params. Forces identical quantile distributions.
+                       Stronger assumption — ask user if distributions are comparable.
+    "none"             No extra params. Skips normalisation entirely.
+    "batch_correction" Requires normalisation_extra_params:
+                         batch_variables  List[str]  columns that define batch
+                                          (e.g. ["batch"]). REQUIRED.
+                         design_variables List[str]  columns encoding biological
+                                          design to preserve (e.g. ["condition"]).
+                                          Optional but strongly recommended.
+    "cpm"              Gene data only. Optional extra param:
+                         prior_count  float  default 0. Added before CPM calculation.
 
-    Valid imputation_method values:
-      "mnar"             — PREFERRED for proteomics: left-tail Gaussian draw for
-                           Missing Not At Random data. Accepts optional extra params:
-                           std_position (default 1.8) and std_width (default 0.3).
-      "knn"              — K-nearest neighbours; good for MAR data. Accepts k in
-                           imputation_extra_params (e.g. {"k": 5}).
-      "global_median"    — replace missing with the global median intensity
-      "median_by_entity" — replace missing with per-protein/gene median
-
-    For standard DDA proteomics, "mnar" is the recommended imputation method
-    because low-abundance proteins are systematically absent (MNAR pattern).
+    ── IMPUTATION METHODS ─────────────────────────────────────────────────────
+    "mnar"             PREFERRED for standard DDA proteomics (MNAR pattern).
+                       Optional imputation_extra_params:
+                         std_position  float  default 1.8 — left-shift from mean
+                         std_width     float  default 0.3 — width as fraction of std
+                       Ask user if they want to change from defaults (1.8, 0.3).
+    "knn"              K-nearest neighbours. Better for MAR (missing at random) data.
+                       Required imputation_extra_params:
+                         n_neighbors  int   number of neighbours (typical: 2–10)
+                         weights      str   "uniform" (default) or "distance"
+    "global_median"    No extra params. Replaces all missing with global median.
+    "median_by_entity" No extra params. Replaces each missing with that
+                       protein/gene's own median intensity.
+    "constant"         Required imputation_extra_params:
+                         constant_value  float  value to substitute for every NaN
+    "none"             No extra params. Leaves NaN in output (no imputation).
 
     Call describe_pipeline("normalisation_imputation") for the full schema.
     Returns the new dataset ID on success.
