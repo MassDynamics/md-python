@@ -33,5 +33,4 @@ __all__ = [
     "run_normalisation_imputation_bulk",
     "run_pairwise_comparison",
     "run_pairwise_comparison_bulk",
-    "_filter_sample_metadata",
 ]

@@ -174,12 +174,12 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
                             "description": "Number of nearest neighbours to use for imputation.",
                         },
                         "weights": {
-                            "type": "str",
-                            "required": True,
-                            "valid_values": ["uniform", "distance"],
+                            "type": "str | null",
+                            "required": False,
+                            "valid_values": [None, "distance"],
                             "default": None,
                             "description": (
-                                "'uniform': all neighbours weighted equally. "
+                                "null (default): all neighbours weighted equally (uniform). "
                                 "'distance': closer neighbours contribute more."
                             ),
                         },
@@ -579,8 +579,11 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             "entity_type": {
                 "type": "str",
                 "default": "protein",
-                "valid_values": ["protein", "peptide", "gene"],
-                "description": "Entity level to analyse. Use 'protein' unless user requests peptide- or gene-level results.",
+                "valid_values": ["protein", "peptide"],
+                "description": (
+                    "Entity level to analyse. Use 'protein' unless user requests peptide-level results. "
+                    "NOTE: gene-level pairwise is not yet supported — use run_anova for gene data."
+                ),
             },
             "control_variables": {
                 "type": "Optional[List[Dict[str, str]]]",

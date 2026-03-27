@@ -12,7 +12,13 @@ from .datasets import (
     wait_for_dataset,
     wait_for_datasets_bulk,
 )
-from .files import load_metadata_from_csv, plan_wide_to_md_format, read_csv_preview
+from .entities import search_entities
+from .files import (
+    get_md_format_spec,
+    load_metadata_from_csv,
+    plan_wide_to_md_format,
+    read_csv_preview,
+)
 from .health import get_workflow_guide, health_check
 from .pipelines import (
     describe_pipeline,
@@ -41,6 +47,8 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "read_csv_preview": read_csv_preview,
     "load_metadata_from_csv": load_metadata_from_csv,
     "plan_wide_to_md_format": plan_wide_to_md_format,
+    "get_md_format_spec": get_md_format_spec,
+    "search_entities": search_entities,
     "health_check": health_check,
     "get_workflow_guide": get_workflow_guide,
     "get_upload": get_upload,

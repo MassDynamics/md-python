@@ -1,6 +1,6 @@
 """Unit tests for the private helper functions extracted from load_metadata_from_csv."""
 
-from mcp_tools.files import (
+from mcp_tools.files.metadata import (
     _build_ed_rows,
     _collect_notes,
     _deduplicate_rows_by_sample_name,

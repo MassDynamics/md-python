@@ -25,12 +25,38 @@ def run_anova(
 ) -> str:
     """Run an ANOVA-based differential abundance analysis across multiple conditions.
 
-    Use when comparing 3 or more groups simultaneously. ANOVA tests for any
-    difference across all groups at once; use run_pairwise_comparison when you
-    need specific group-vs-group contrasts.
+    Use when comparing 3 or more groups simultaneously. ANOVA is an omnibus test —
+    it detects any difference across groups but does not identify which specific
+    pairs differ. For specific group-vs-group contrasts, use run_pairwise_comparison.
 
-    ALWAYS ask the user which parameters to use before calling this tool, unless
-    the user has explicitly asked you to suggest the best option based on their data.
+    ══ MANDATORY BEFORE CALLING ════════════════════════════════════════════════
+    Present this parameter table to the user and wait for explicit confirmation
+    before submitting. Do NOT choose any value autonomously.
+
+    Parameter                    Default                  Options / notes
+    ──────────────────────────────────────────────────────────────────────────────
+    comparisons_type             "all"                    "all" — test all pairwise
+                                                            combinations across all
+                                                            condition levels at once.
+                                                          "custom" — restrict to
+                                                            specific [case, control]
+                                                            pairs via condition_comparisons.
+    condition_comparisons        None                     Required only when
+                                                            comparisons_type="custom".
+                                                          List of [case, control] pairs,
+                                                            e.g. [["treated","control"]].
+    filter_valid_values_logic    "at least one            "at least one condition" |
+                                  condition"               "all conditions" |
+                                                           "full experiment"
+    filter_threshold_percentage  0.5 (50 %)               float 0.0 – 1.0
+    limma_trend                  True                     True | False
+    robust_empirical_bayes       True                     True | False
+
+    NOTE: ANOVA does not expose entity_type — it always operates at protein level.
+    Use run_pairwise_comparison if you need peptide- or gene-level analysis.
+
+    Explain each choice in plain language. Only proceed once the user confirms.
+    ═══════════════════════════════════════════════════════════════════════════════
 
     BEFORE calling this tool:
       Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
@@ -39,16 +65,15 @@ def run_anova(
 
     sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
     condition_column: the column defining the groups to compare (e.g. "condition").
-    comparisons_type: "all" (default) tests all pairwise combinations.
-      "custom" restricts to the pairs supplied in condition_comparisons.
-    condition_comparisons: required when comparisons_type="custom". List of
-      [case, control] pairs, e.g. [["treated", "control"]].
 
-    filter_method / filter_threshold_percentage: control which rows pass the
-      valid-value completeness filter before modelling. Default keeps rows with
-      at least 50% valid values.
-    filter_valid_values_logic: how the filter is applied — "at least one condition"
-      (default), "all conditions", or "full experiment".
+    filter_valid_values_logic controls which proteins pass the completeness filter:
+      "at least one condition" (default) — keep rows with enough valid values in at
+        least one compared condition. Good for most experiments.
+      "all conditions" — require completeness in every compared condition.
+      "full experiment" — require completeness across the entire experiment.
+
+    filter_threshold_percentage: fraction of samples in a condition that must have
+      valid (non-missing) values to pass the filter. Default 0.5 = 50%.
 
     Returns the new dataset ID on success.
     """

@@ -44,12 +44,32 @@ def run_dose_response(
 ) -> str:
     """Run a dose-response curve fitting pipeline (4-parameter log-logistic model).
 
-    ALWAYS ask the user which parameters to use (control_samples, dose_column,
-    normalise setting) before calling this tool, unless the user has explicitly asked
-    you to suggest the best option based on their data.
-
     PREFER run_dose_response_from_upload for a single upload (auto-resolves dataset ID).
     PREFER run_dose_response_bulk for many uploads at once.
+
+    ══ MANDATORY BEFORE CALLING ════════════════════════════════════════════════
+    Present this parameter table to the user and wait for explicit confirmation
+    before submitting. Do NOT choose any value autonomously.
+
+    Parameter                    Default    Options / notes
+    ──────────────────────────────────────────────────────────────────────────────
+    control_samples              (required) MUST come verbatim from sample_metadata
+                                            rows. These are the samples at dose=0 —
+                                            ask the user explicitly if not obvious.
+    dose_column                  "dose"     Column in sample_metadata containing
+                                            dose values. Confirm the column name.
+    normalise                    "none"     "none" (recommended — data already
+                                            normalised upstream) | "sum" | "median"
+    log_intensities              True       True | False
+    use_imputed_intensities      True       True (uses NI-imputed values) | False
+    span_rollmean_k              1          Rolling mean window. 1 = disabled.
+                                            Increase (e.g. 3–5) to smooth noisy
+                                            dose-response curves.
+    prop_required_in_protein     0.5        Min fraction of non-missing values per
+                                            protein. Default 50% (range 0.0–1.0).
+
+    Explain each choice in plain language. Only proceed once the user confirms.
+    ═══════════════════════════════════════════════════════════════════════════════
 
     MINIMUM DATA REQUIREMENTS:
       - At least 3 distinct dose levels in sample_metadata[dose_column]
@@ -66,10 +86,7 @@ def run_dose_response(
 
     sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
     sample_names: read from sample_metadata rows, not from filenames or inference.
-    control_samples: ask the user which samples are controls; never guess.
-
-    use_imputed_intensities: defaults to True (uses imputed values from a prior
-      normalisation_imputation step). Set False to use raw intensities only.
+    control_samples: ask the user which samples are controls (dose=0); never guess.
 
     Returns the new dataset ID on success.
     """
@@ -112,14 +129,38 @@ def run_dose_response_from_upload(
     PREFERRED over run_dose_response for a single DR job per upload.
     For many DR jobs at once, use run_dose_response_bulk instead.
 
+    ══ MANDATORY BEFORE CALLING ════════════════════════════════════════════════
+    Present this parameter table to the user and wait for explicit confirmation
+    before submitting. Do NOT choose any value autonomously.
+
+    Parameter                    Default    Options / notes
+    ──────────────────────────────────────────────────────────────────────────────
+    control_samples              (required) MUST come verbatim from sample_metadata
+                                            rows. These are the samples at dose=0 —
+                                            ask the user explicitly if not obvious.
+    dose_column                  "dose"     Column in sample_metadata containing
+                                            dose values. Confirm the column name.
+    normalise                    "none"     "none" (recommended — data already
+                                            normalised upstream) | "sum" | "median"
+    log_intensities              True       True | False
+    use_imputed_intensities      True       True (uses NI-imputed values) | False
+    span_rollmean_k              1          Rolling mean window. 1 = disabled.
+                                            Increase (e.g. 3–5) to smooth noisy curves.
+    prop_required_in_protein     0.5        Min fraction of non-missing values per
+                                            protein (range 0.0–1.0).
+
+    Explain each choice in plain language. Only proceed once the user confirms.
+    ═══════════════════════════════════════════════════════════════════════════════
+
     Args:
         upload_id: the upload to run the DR pipeline against.
         dataset_name: name for the output dataset.
-        sample_names: all sample names included in the analysis.
-        control_samples: subset of sample_names used as controls (dose = 0).
+        sample_names: all sample names included in the analysis — must come verbatim
+            from sample_metadata rows; never infer from filenames.
+        control_samples: subset of sample_names at dose=0; ask user if not obvious.
         sample_metadata: optional 2D array with header row. When omitted, the tool
-            auto-fetches sample metadata from the upload and filters to sample_names —
-            avoid passing it if the upload already has metadata (saves token overhead).
+            auto-fetches metadata from the upload and filters to sample_names —
+            omit when the upload already has metadata (saves token overhead).
         dose_column: column in sample_metadata with dose values (default "dose").
         if_exists: deduplication behaviour (default "skip"):
             "skip" — if a DOSE_RESPONSE dataset with dataset_name already exists,

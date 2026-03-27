@@ -49,7 +49,8 @@ def find_initial_dataset(upload_id: str) -> str:
     reflects the data format, not which pipeline step produced it. Do not flag
     INTENSITY on NI output as unexpected or attempt to correct it.
     """
-    ds = get_client().datasets.find_initial_dataset(upload_id)
-    if not ds:
-        return "No initial INTENSITY dataset found for this upload"
+    try:
+        ds = get_client().datasets.find_initial_dataset(upload_id)
+    except ValueError as e:
+        return f"Error: {e}"
     return f"Initial dataset found.\nID: {ds.id}\n{ds}"

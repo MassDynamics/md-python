@@ -1,5 +1,7 @@
 """Wait for a single pipeline dataset and fetch dataset state."""
 
+import contextlib
+import io
 from typing import Dict
 
 from .. import mcp
@@ -71,9 +73,10 @@ def wait_for_dataset(
     On FAILED/ERROR: call retry_dataset(dataset_id) to re-run.
     """
     try:
-        ds = get_client().datasets.wait_until_complete(
-            upload_id, dataset_id, poll_s=poll_seconds, timeout_s=timeout_seconds
-        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            ds = get_client().datasets.wait_until_complete(
+                upload_id, dataset_id, poll_s=poll_seconds, timeout_s=timeout_seconds
+            )
         return str(ds)
     except TimeoutError:
         # Return current state — caller should call again to continue monitoring

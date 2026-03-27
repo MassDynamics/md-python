@@ -1,5 +1,8 @@
 """Wait for an upload to reach a terminal state."""
 
+import contextlib
+import io
+
 from .. import mcp
 from .._client import get_client
 
@@ -23,17 +26,22 @@ def wait_for_upload(
       FAILED / ERROR — ingestion failed; check the returned message for details.
       CANCELLED  — upload was stopped.
 
-    Non-terminal (call again):
+    Non-terminal (call again) — this is normal, not stalled:
       PROCESSING / PENDING — still in progress; call wait_for_upload again.
+      File transfers for large experiments can take several minutes; server
+      ingestion typically adds another 5–20 minutes on top of transfer time.
+      Do NOT report PROCESSING/PENDING as a failure or alert the user — only
+      FAILED or ERROR require action.
 
     For background file uploads started by create_upload_from_csv: the upload
     will initially show PENDING while files are transferring, then transition to
     PROCESSING once the server begins ingestion.
     """
     try:
-        upload = get_client().uploads.wait_until_complete(
-            upload_id, poll_s=poll_seconds, timeout_s=timeout_seconds
-        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            upload = get_client().uploads.wait_until_complete(
+                upload_id, poll_s=poll_seconds, timeout_s=timeout_seconds
+            )
         return str(upload)
     except TimeoutError:
         # Return current status — caller should call again to continue monitoring

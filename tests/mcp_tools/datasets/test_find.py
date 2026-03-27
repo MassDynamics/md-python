@@ -20,10 +20,13 @@ class TestFindInitialDataset:
 
     def test_not_found(self):
         mock_client = MagicMock()
-        mock_client.datasets.find_initial_dataset.return_value = None
+        mock_client.datasets.find_initial_dataset.side_effect = ValueError(
+            "No intensity dataset found for upload upload-123"
+        )
         with patch("mcp_tools.datasets.find.get_client", return_value=mock_client):
             result = find_initial_dataset("upload-123")
-        assert "No initial" in result
+        assert "Error:" in result
+        assert "upload-123" in result
 
 
 class TestFindInitialDatasets:

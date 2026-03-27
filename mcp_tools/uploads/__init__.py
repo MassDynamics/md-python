@@ -16,5 +16,4 @@ __all__ = [
     "wait_for_upload",
     "cancel_upload_queue",
     "list_uploads_status",
-    "_get_executor",
 ]

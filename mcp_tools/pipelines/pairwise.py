@@ -26,7 +26,12 @@ def generate_pairwise_comparisons(
     If control is provided: generates all [case, control] pairs vs that one control.
     If control is omitted: generates all unique pairwise combinations.
 
-    Returns a JSON list of [case, control] pairs to pass to run_pairwise_comparison.
+    !! CRITICAL — after calling this tool !!
+    Pass the ENTIRE returned list as condition_comparisons to ONE single
+    run_pairwise_comparison call. Do NOT loop over the pairs and submit
+    one call per pair. All pairs must go into one call so limma models
+    all contrasts jointly — this is required for correct FDR correction.
+    One dataset_id is returned; it covers every pair in the list.
     """
     sm = SampleMetadata(data=sample_metadata)
     if control:
@@ -65,7 +70,9 @@ def run_pairwise_comparison(
     condition_comparisons        (from generate_*)        ALL pairs as one list.
                                                           Do NOT make one call per
                                                           pair — see note below.
-    entity_type                  "protein"                "protein" | "peptide" | "gene"
+    entity_type                  "protein"                "protein" | "peptide"
+                                                          NOTE: gene not supported for
+                                                          pairwise — use run_anova instead.
     fit_separate_models          True                     True  = one limma model per
                                                             comparison (recommended)
                                                           False = full contrast matrix
@@ -97,8 +104,9 @@ def run_pairwise_comparison(
           ["CKD1","CKD2"],   ["CKD1","CKD3"],   ["CKD2","CKD3"],
         ]
 
-    entity_type: "protein" (default), "peptide", or "gene".
+    entity_type: "protein" (default) or "peptide".
       Must match the entity type in the upstream intensity dataset.
+      NOTE: gene-level pairwise is not yet supported — use run_anova for gene data.
 
     filter_valid_values_logic controls which proteins/peptides/genes pass the
       completeness filter before modelling:
@@ -226,7 +234,7 @@ def run_pairwise_comparison_bulk(jobs: List[Dict[str, Any]]) -> str:
       fit_separate_models     bool       — default True
       limma_trend             bool       — default True
       robust_empirical_bayes  bool       — default True
-      entity_type             str        — default "protein"
+      entity_type             str        — "protein" (default) or "peptide" (gene not supported)
       control_variables       list       — optional covariates
       if_exists               str        — "skip" (default) or "run"
 

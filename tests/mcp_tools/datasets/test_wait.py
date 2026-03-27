@@ -2,7 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
-from mcp_tools.datasets import _fetch_dataset_state, wait_for_dataset
+from mcp_tools.datasets import wait_for_dataset
+from mcp_tools.datasets.wait import _fetch_dataset_state
 
 from .conftest import mock_dataset
 

@@ -202,9 +202,11 @@ _WORKFLOW_GUIDE = {
         "Sample name matching is exact and case-sensitive across all tables.",
     ],
     "common_mistakes": [
-        "PAIRWISE: Do NOT submit one run_pairwise_comparison call per comparison pair. "
-        "Pass ALL pairs as a list to a SINGLE call — limma models all contrasts jointly "
-        "for correct FDR correction. One dataset_id covers all contrasts.",
+        "PAIRWISE — ONE CALL FOR ALL PAIRS: generate_pairwise_comparisons returns a list "
+        "of N pairs. Pass that ENTIRE list as condition_comparisons to ONE single "
+        "run_pairwise_comparison call. Do NOT loop, do NOT call once per pair, do NOT "
+        "split by condition. limma must see all contrasts together for correct FDR "
+        "correction. One dataset_id is returned and covers every pair in the list.",
         "WAITING: Do NOT treat RUNNING or PENDING as failure or stalled. Proteomics "
         "pipelines take 10–40 minutes. Call wait_for_dataset again without alarming the user.",
         "INTENSITY TYPE: NI pipeline output datasets are typed INTENSITY — same as the raw "

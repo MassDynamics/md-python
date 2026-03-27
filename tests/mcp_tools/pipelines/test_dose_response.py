@@ -2,7 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
-from mcp_tools.pipelines import _filter_sample_metadata, run_dose_response
+from mcp_tools.pipelines import run_dose_response
+from mcp_tools.pipelines._metadata import _filter_sample_metadata
 
 from .conftest import INTENSITY_ID, OUTPUT_ID, SAMPLE_METADATA, patch_pipeline_client
 

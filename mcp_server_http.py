@@ -18,6 +18,10 @@ Claude desktop config (~/.../Claude/claude_desktop_config.json):
 For remote deployment replace 127.0.0.1 with the server's address and set:
     FASTMCP_HOST=0.0.0.0   # bind to all interfaces
 
+WARNING: HTTP transport sends MD_AUTH_TOKEN in plaintext. For remote/production
+deployments, always place a TLS-terminating reverse proxy (nginx, Caddy, etc.)
+in front of this server so the token is protected in transit.
+
 Config via env vars (or .env file):
     FASTMCP_HOST=127.0.0.1   (default)
     FASTMCP_PORT=8000         (default)
@@ -36,6 +40,12 @@ import mcp_tools.pipelines  # noqa: F401
 import mcp_tools.uploads  # noqa: F401
 from mcp_tools import mcp
 
+# NOTE: Global server state — not user-isolated
+#
+# The large-file upload executor (_large_upload_executor) is a process-level
+# singleton. In a multi-user HTTP deployment, cancel_upload_queue() resets it
+# for ALL users, not just the caller. Acceptable for single-user deployments.
+#
 # TODO(auth): Per-request authentication for multi-user deployments
 #
 # Currently MD_AUTH_TOKEN is read from the environment (or .env) as a
