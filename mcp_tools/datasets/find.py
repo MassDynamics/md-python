@@ -43,6 +43,11 @@ def find_initial_dataset(upload_id: str) -> str:
 
     Returns the dataset ID and details on success, or an error if the upload
     has not finished processing yet.
+
+    NOTE: Both the raw upload input dataset AND the NI pipeline output dataset
+    are typed INTENSITY in this API. This is correct by design — the type
+    reflects the data format, not which pipeline step produced it. Do not flag
+    INTENSITY on NI output as unexpected or attempt to correct it.
     """
     ds = get_client().datasets.find_initial_dataset(upload_id)
     if not ds:

@@ -22,10 +22,42 @@ def run_normalisation_imputation(
 ) -> str:
     """Run a normalisation + imputation pipeline.
 
-    ALWAYS present the method parameters below to the user and ask whether to
-    keep the defaults or change them — even for simple runs. Do not silently
-    pick defaults. If the user asks you to suggest the best option, use the
-    guidance notes below.
+    ══ MANDATORY BEFORE CALLING ════════════════════════════════════════════════
+    Present this table to the user and wait for explicit confirmation.
+    Do NOT silently pick defaults — even for simple runs.
+
+    Parameter               Default        Options
+    ─────────────────────────────────────────────────────────────────────────────
+    normalisation_method    (required)     "median" (recommended for most DDA),
+                                           "quantile", "global_median",
+                                           "batch_correction", "cpm" (gene data),
+                                           "skip"
+    imputation_method       (required)     "mnar" (recommended for standard DDA),
+                                           "knn", "set to constant",
+                                           "set to missing", "skip"
+    entity_type             "protein"      "protein" | "peptide" | "gene"
+
+    If imputation_method = "mnar" — defaults sent automatically, confirm with user:
+      std_position   1.8   left-shift from sample mean (lower = more extreme imputation)
+      std_width      0.3   width as fraction of sample std dev
+
+    If imputation_method = "knn" — defaults sent automatically, confirm with user:
+      n_neighbors    3     range 1–10
+      weights        null  null (uniform) or "distance"
+
+    If imputation_method = "set to constant":
+      constant_value (required) — integer 0–100, ask user what value to substitute
+
+    If normalisation_method = "batch_correction":
+      batch_variables   (required) — ask user which metadata column defines batches
+      experiment_design (required) — pass load_metadata_from_csv output
+      design_variables  (recommended) — columns to preserve (e.g. ["condition"])
+
+    If normalisation_method = "cpm" (gene data only):
+      prior_count    0     added before CPM calculation
+
+    Explain each choice in plain language. Only proceed once the user confirms.
+    ═══════════════════════════════════════════════════════════════════════════════
 
     entity_type: "protein" (default), "peptide", or "gene".
       Must match the data type in the upstream intensity dataset.

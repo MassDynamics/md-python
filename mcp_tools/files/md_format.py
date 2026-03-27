@@ -85,8 +85,17 @@ _MD_FORMAT_PROTEIN_SPEC = {
     "ProteinGroup": "string — primary protein group identifier (e.g. UniProt accession)",
     "GeneNames": "string — gene name(s), empty string if unknown",
     "SampleName": "string — sample identifier (must match experiment_design sample_name)",
-    "ProteinIntensity": "float — intensity value; use 0.0 for missing",
-    "Imputed": "integer 0 or 1 — 1 if intensity was missing/imputed",
+    "ProteinIntensity": (
+        "float — measured intensity. Use 0.0 for missing values, "
+        "BUT every row with ProteinIntensity=0.0 MUST also have Imputed=1. "
+        "A zero with Imputed=0 is treated as a real measured intensity (almost never "
+        "correct in proteomics) and will cause downstream pairwise jobs to fail."
+    ),
+    "Imputed": (
+        "integer 0 or 1 — set to 1 for every row where ProteinIntensity=0.0. "
+        "If your source uses 0.0 for missing (not NaN), add after melting: "
+        "long_df.loc[long_df['ProteinIntensity'] == 0, 'Imputed'] = 1"
+    ),
 }
 
 _MD_FORMAT_PEPTIDE_SPEC = {
@@ -96,14 +105,27 @@ _MD_FORMAT_PEPTIDE_SPEC = {
     "ProteinGroupId": "integer — matches protein-level ProteinGroupId",
     "GeneNames": "string — gene name(s)",
     "SampleName": "string — sample identifier",
-    "PeptideIntensity": "float — intensity value; use 0.0 for missing",
-    "Imputed": "integer 0 or 1",
+    "PeptideIntensity": (
+        "float — measured intensity. Use 0.0 for missing values, "
+        "BUT every row with PeptideIntensity=0.0 MUST also have Imputed=1."
+    ),
+    "Imputed": (
+        "integer 0 or 1 — set to 1 for every row where PeptideIntensity=0.0. "
+        "A zero with Imputed=0 is treated as a real measurement and causes downstream failures."
+    ),
 }
 
 _MD_FORMAT_GENE_SPEC = {
     "GeneId": "string — gene identifier (e.g. Ensembl ID or gene symbol)",
     "SampleName": "string — sample identifier",
-    "GeneExpression": "float — expression value; use 0.0 for missing",
+    "GeneExpression": (
+        "float — expression value. Use 0.0 for missing values, "
+        "BUT every row with GeneExpression=0.0 MUST also have Imputed=1."
+    ),
+    "Imputed": (
+        "integer 0 or 1 — set to 1 for every row where GeneExpression=0.0. "
+        "A zero with Imputed=0 is treated as a real measurement and causes downstream failures."
+    ),
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -130,6 +152,8 @@ long_df = df.melt(
 
 long_df["Imputed"] = long_df["ProteinIntensity"].isna().astype(int)
 long_df["ProteinIntensity"] = long_df["ProteinIntensity"].fillna(0.0)
+# CRITICAL: if source uses 0.0 for missing (not NaN), uncomment the line below:
+# long_df.loc[long_df["ProteinIntensity"] == 0, "Imputed"] = 1
 long_df["ProteinGroupId"] = pd.factorize(long_df["ProteinGroup"])[0] + 1
 long_df["GeneNames"] = long_df["GeneNames"].fillna("") if "GeneNames" in long_df.columns else ""
 
@@ -157,6 +181,8 @@ long_df = df.melt(
 
 long_df["Imputed"] = long_df["GeneExpression"].isna().astype(int)
 long_df["GeneExpression"] = long_df["GeneExpression"].fillna(0.0)
+# CRITICAL: if source uses 0.0 for missing (not NaN), uncomment the line below:
+# long_df.loc[long_df["GeneExpression"] == 0, "Imputed"] = 1
 
 result = long_df[["GeneId", "SampleName", "GeneExpression"]]
 result.to_csv("output_md_format_gene.tsv", sep="\\t", index=False)
@@ -226,6 +252,8 @@ long_df = df.melt(
 # ── 3. Map to md_format columns ───────────────────────────────────────────────
 long_df["Imputed"] = long_df["ProteinIntensity"].isna().astype(int)
 long_df["ProteinIntensity"] = long_df["ProteinIntensity"].fillna(0.0)
+# CRITICAL: if source uses 0.0 for missing (not NaN), uncomment:
+# long_df.loc[long_df["ProteinIntensity"] == 0, "Imputed"] = 1
 long_df["ProteinGroupId"] = pd.factorize(long_df[{repr(protein_col)}])[0] + 1
 long_df["ProteinGroup"] = long_df[{repr(protein_col)}]
 long_df["GeneNames"] = long_df[{repr(gene_col)}].fillna("") if {repr(gene_col)} in long_df.columns else ""
@@ -277,6 +305,8 @@ long_df = df.melt(
 
 long_df["Imputed"] = long_df["GeneExpression"].isna().astype(int)
 long_df["GeneExpression"] = long_df["GeneExpression"].fillna(0.0)
+# CRITICAL: if source uses 0.0 for missing (not NaN), uncomment:
+# long_df.loc[long_df["GeneExpression"] == 0, "Imputed"] = 1
 long_df["GeneId"] = long_df[{repr(gene_col)}]
 
 result = long_df[["GeneId", "SampleName", "GeneExpression"]]
@@ -340,7 +370,12 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
             "notes": [
                 "SampleName values in the output MUST exactly match sample_name values "
                 "in your experiment_design and sample_metadata — case-sensitive.",
-                "Imputed=1 means the value was missing; use 0.0 for missing intensities.",
+                "CRITICAL: Every row where the intensity/expression value is 0.0 MUST have "
+                "Imputed=1. A zero with Imputed=0 is treated as a real measured value "
+                "(almost never correct in proteomics/genomics) and will cause downstream "
+                "pairwise analysis to fail silently. If your source uses 0.0 for missing "
+                "(not NaN), add after melting: "
+                "long_df.loc[long_df['<intensity_col>'] == 0, 'Imputed'] = 1",
                 f"After converting, upload with source='{source}' in create_upload.",
                 "You still need an experiment_design CSV and a sample_metadata CSV alongside the data file.",
             ],

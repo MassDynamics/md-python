@@ -50,8 +50,9 @@ def list_datasets(upload_id: str, type_filter: Optional[str] = None) -> str:
             "PAIRWISE_COMPARISON", "INTENSITY". Case-insensitive.
             Use this to check which pipeline jobs have already been submitted.
 
-    Dataset types: INTENSITY (input for pipelines), NORMALISATION_IMPUTATION,
-    PAIRWISE_COMPARISON, DOSE_RESPONSE.
+    Dataset types: INTENSITY, NORMALISATION_IMPUTATION, PAIRWISE_COMPARISON, DOSE_RESPONSE.
+    NOTE: NI pipeline output datasets are typed INTENSITY (same as the raw upload input).
+    This is correct — the type reflects data format, not which step produced it.
 
     For the common case of finding the INTENSITY dataset ID, prefer find_initial_dataset.
     """

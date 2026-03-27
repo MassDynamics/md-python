@@ -56,29 +56,66 @@ def run_pairwise_comparison(
 ) -> str:
     """Run a pairwise differential abundance analysis using limma.
 
-    ALWAYS ask the user which statistical parameters to use (entity_type,
-    filter_valid_values_logic, limma settings) before calling this tool, unless
-    the user has explicitly asked you to suggest the best option based on their data.
+    ══ MANDATORY BEFORE CALLING ════════════════════════════════════════════════
+    Present this parameter table to the user and wait for explicit confirmation
+    before submitting. Do NOT choose any value autonomously.
+
+    Parameter                    Default                  Options / notes
+    ──────────────────────────────────────────────────────────────────────────────
+    condition_comparisons        (from generate_*)        ALL pairs as one list.
+                                                          Do NOT make one call per
+                                                          pair — see note below.
+    entity_type                  "protein"                "protein" | "peptide" | "gene"
+    fit_separate_models          True                     True  = one limma model per
+                                                            comparison (recommended)
+                                                          False = full contrast matrix
+                                                            (all pairs, one model)
+    filter_valid_values_logic    "at least one            "at least one condition" |
+                                  condition"               "all conditions" |
+                                                           "full experiment"
+    filter_threshold_percentage  0.5 (50 %)               float 0.0 – 1.0
+    limma_trend                  True                     True | False
+    robust_empirical_bayes       True                     True | False
+    control_variables            None                     list of covariate dicts or None
+
+    Explain each choice in plain language. Only proceed once the user has
+    confirmed or explicitly asked you to use the recommended defaults.
+    ═══════════════════════════════════════════════════════════════════════════════
 
     BEFORE calling this tool:
-      1. Use load_metadata_from_csv to read sample_metadata from the user's CSV file.
-         NEVER construct sample_metadata manually — sample names must be read verbatim.
-      2. Use generate_pairwise_comparisons to build condition_comparisons.
-      Call describe_pipeline("pairwise_comparison") if you need the full parameter schema.
+      1. load_metadata_from_csv — read sample_metadata from the user's CSV file.
+         NEVER construct sample_metadata manually — sample names must come verbatim.
+      2. generate_pairwise_comparisons — build condition_comparisons from metadata.
 
-    sample_metadata: pass load_metadata_from_csv["sample_metadata"] directly.
+    condition_comparisons: ALL comparison pairs in ONE list.
+      A single run_pairwise_comparison call handles any number of pairs — limma
+      models all contrasts jointly, which is required for correct FDR correction.
+      Do NOT submit separate calls per pair.
+      Example — 6 pairs, ONE call:
+        condition_comparisons=[
+          ["CKD1","Control"], ["CKD2","Control"], ["CKD3","Control"],
+          ["CKD1","CKD2"],   ["CKD1","CKD3"],   ["CKD2","CKD3"],
+        ]
 
-    entity_type: "protein" (default) for protein-level analysis, "peptide" for peptide-level.
-      Use "protein" unless the user explicitly requests peptide-level results.
+    entity_type: "protein" (default), "peptide", or "gene".
+      Must match the entity type in the upstream intensity dataset.
 
-    filter_valid_values_logic controls which rows (proteins/peptides) pass the
+    filter_valid_values_logic controls which proteins/peptides/genes pass the
       completeness filter before modelling:
         "at least one condition" (default) — keep rows with enough valid values
-          in at least one of the compared conditions. Good for most experiments.
-        "all conditions" — require completeness in every condition being compared.
+          in at least one compared condition. Good for most experiments.
+        "all conditions" — require completeness in every compared condition.
           More stringent; reduces false positives but loses more data.
         "full experiment" — require completeness across the entire experiment.
-          Most stringent; use for very clean, complete datasets.
+          Most stringent; best for very clean, complete datasets.
+
+    filter_threshold_percentage: fraction of samples in a condition that must have
+      valid (non-missing) values to pass the filter. Default 0.5 = 50%.
+
+    fit_separate_models: True (default) = fit one limma model per comparison pair,
+      recommended for most analyses. False = fit a single full contrast matrix
+      model across all pairs simultaneously — can be preferred when sharing
+      variance estimates across many comparisons is appropriate.
 
     Returns the new dataset ID on success.
     """

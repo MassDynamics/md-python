@@ -61,7 +61,11 @@ def wait_for_dataset(
             If timeout is reached, call again to continue monitoring.
 
     Terminal states (stops polling): COMPLETED, FAILED, ERROR, CANCELLED.
-    Non-terminal (call again): RUNNING, PENDING.
+    Non-terminal — call again, this is normal, not stalled:
+      RUNNING, PENDING, QUEUED.
+      Proteomics pipelines typically complete in 10–40 minutes. RUNNING or
+      PENDING immediately after submission is expected — do NOT report it as
+      a failure or alert the user. Only FAILED or ERROR require action.
 
     On COMPLETED: use dataset_id as input_dataset_ids for the next pipeline.
     On FAILED/ERROR: call retry_dataset(dataset_id) to re-run.

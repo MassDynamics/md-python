@@ -201,6 +201,24 @@ _WORKFLOW_GUIDE = {
         "sample_names and control_samples for dose-response must come verbatim from sample_metadata rows.",
         "Sample name matching is exact and case-sensitive across all tables.",
     ],
+    "common_mistakes": [
+        "PAIRWISE: Do NOT submit one run_pairwise_comparison call per comparison pair. "
+        "Pass ALL pairs as a list to a SINGLE call — limma models all contrasts jointly "
+        "for correct FDR correction. One dataset_id covers all contrasts.",
+        "WAITING: Do NOT treat RUNNING or PENDING as failure or stalled. Proteomics "
+        "pipelines take 10–40 minutes. Call wait_for_dataset again without alarming the user.",
+        "INTENSITY TYPE: NI pipeline output datasets are typed INTENSITY — same as the raw "
+        "upload. This is correct. Do not flag it as unexpected or try to correct it.",
+        "PARAMETERS: Never choose statistical parameters (normalisation/imputation method, "
+        "filter logic, fit_separate_models, etc.) autonomously. Always present all parameters "
+        "and defaults to the user in a table and wait for explicit confirmation.",
+        "md_format IMPUTED FLAG: Every row where ProteinIntensity (or PeptideIntensity / "
+        "GeneExpression) = 0.0 MUST have Imputed=1. A zero with Imputed=0 is treated as a "
+        "real measurement and causes downstream pairwise jobs to fail. If source data uses "
+        "0.0 for missing, run: long_df.loc[long_df['ProteinIntensity'] == 0, 'Imputed'] = 1",
+        "METADATA: Never construct experiment_design or sample_metadata by hand. Always call "
+        "load_metadata_from_csv on the user's CSV file.",
+    ],
     "batch_tips": [
         "Use batch() to collapse independent or short sequential operations into one round-trip.",
         "Do NOT include wait_for_upload or wait_for_dataset inside a batch with other operations — they are long-running blocking calls; run them as standalone calls.",
