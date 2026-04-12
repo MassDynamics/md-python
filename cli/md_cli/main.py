@@ -135,6 +135,54 @@ def resolve_design(design_csv, conditions, condition_column="condition"):
         sys.exit(1)
 
 
+def detect_md_format(files_dir, filenames):
+    """Auto-detect if data files are in MD format by checking TSV column headers.
+
+    MD format protein files have columns: ProteinGroupId, ProteinIntensity, Imputed,
+    SampleName, ProteinGroup, ProteinNames, GeneNames, Description
+
+    MD format peptide files have columns: PeptideIntensity, Imputed, SampleName,
+    ProteinGroup, ProteinNames, GeneNames, Description, ModifiedSequence,
+    StrippedSequence, Unique, ProteinGroupId, OtherProteinGroupIDs
+
+    Returns:
+        "md_format" if MD format protein columns detected
+        None if not MD format
+    """
+    if not files_dir:
+        return None
+
+    files_path = Path(files_dir)
+    md_protein_required = {"ProteinGroupId", "ProteinIntensity", "Imputed", "SampleName",
+                           "ProteinGroup", "GeneNames"}
+    md_peptide_required = {"PeptideIntensity", "Imputed", "SampleName", "ProteinGroup",
+                           "ModifiedSequence", "StrippedSequence", "ProteinGroupId"}
+
+    found_protein = False
+    found_peptide = False
+
+    for fn in filenames:
+        fp = files_path / fn
+        if not fp.exists():
+            continue
+        try:
+            with open(fp) as f:
+                header_line = f.readline().strip()
+                delim = '\t' if '\t' in header_line else ','
+                cols = set(header_line.split(delim))
+
+                if md_protein_required.issubset(cols):
+                    found_protein = True
+                if md_peptide_required.issubset(cols):
+                    found_peptide = True
+        except Exception:
+            continue
+
+    if found_protein or found_peptide:
+        return "md_format"
+    return None
+
+
 def read_csv_as_arrays(path):
     """Read a CSV file into array-of-arrays format (with header row).
 
@@ -475,9 +523,11 @@ def experiments_get(identifier, by_name):
 
 @experiments.command("create")
 @click.option("--name", required=True, help="Experiment name (must be unique)")
-@click.option("--source", required=True,
-              type=click.Choice(["diann_tabular", "diann_raw", "maxquant", "spectronaut", "generic_format"]),
-              help="Data source format")
+@click.option("--source", default=None,
+              type=click.Choice(["diann_tabular", "diann_raw", "tims_diann", "maxquant",
+                                 "spectronaut", "msfragger", "generic_format",
+                                 "md_format", "md_format_gene", "simple", "raw", "unknown"]),
+              help="Data source format (auto-detected for MD format if omitted)")
 @click.option("--labelling-method", default="lfq",
               type=click.Choice(["lfq", "tmt"]),
               help="Labelling method (default: lfq)")
@@ -529,6 +579,19 @@ def experiments_create(name, source, labelling_method, species, description,
       sample1,treatment
       sample2,control
     """
+    # Auto-detect MD format if --source not explicitly provided
+    if source is None and files_dir:
+        detected = detect_md_format(files_dir, filenames)
+        if detected:
+            source = detected
+            click.echo(f"  Auto-detected source: {source}", err=True)
+        else:
+            click.echo("Error: --source is required (could not auto-detect format)", err=True)
+            sys.exit(1)
+    elif source is None:
+        click.echo("Error: --source is required when --files-dir is not provided", err=True)
+        sys.exit(1)
+
     # Parse CSVs into array-of-arrays
     experiment_design = []
     if design_csv and Path(design_csv).exists():
@@ -541,6 +604,15 @@ def experiments_create(name, source, labelling_method, species, description,
         sample_metadata = read_csv_as_arrays(metadata_csv)
     elif metadata_csv:
         click.echo(f"Warning: metadata CSV not found: {metadata_csv}", err=True)
+
+    # For MD format: ensure filename column = sample_name (no raw files)
+    if source in ("md_format", "md_format_gene") and experiment_design:
+        header = experiment_design[0]
+        if "filename" in header and "sample_name" in header:
+            fn_idx = header.index("filename")
+            sn_idx = header.index("sample_name")
+            for row in experiment_design[1:]:
+                row[fn_idx] = row[sn_idx]
 
     # Auto-generate design/metadata from filenames if not provided
     if not experiment_design and filenames:
