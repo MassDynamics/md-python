@@ -29,7 +29,9 @@ def query_datasets_example():
     try:
         result = client.datasets.query(upload_id="YOUR_UPLOAD_ID")
         for ds in result["data"]:
-            print(f"  {ds['id']}: {ds.get('name', 'unnamed')} ({ds.get('state', 'unknown')})")
+            print(
+                f"  {ds['id']}: {ds.get('name', 'unnamed')} ({ds.get('state', 'unknown')})"
+            )
     except Exception as e:
         print(f"Error querying datasets: {e}")
 

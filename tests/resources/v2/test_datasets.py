@@ -215,7 +215,9 @@ class TestV2Datasets:
 
         call_args = mock_client._make_request.call_args
         assert call_args[1]["method"] == "GET"
-        assert call_args[1]["endpoint"] == "/datasets/11111111-1111-1111-1111-111111111111"
+        assert (
+            call_args[1]["endpoint"] == "/datasets/11111111-1111-1111-1111-111111111111"
+        )
 
     def test_get_by_id_not_found(self, datasets, mock_client):
         mock_response = Mock()
@@ -253,7 +255,9 @@ class TestV2Datasets:
     def test_download_table_url_parquet(self, datasets, mock_client):
         mock_response = Mock()
         mock_response.status_code = 302
-        mock_response.headers = {"Location": "https://s3.amazonaws.com/presigned-parquet"}
+        mock_response.headers = {
+            "Location": "https://s3.amazonaws.com/presigned-parquet"
+        }
         mock_client._make_request.return_value = mock_response
 
         result = datasets.download_table_url("ds-1", "intensity", format="parquet")

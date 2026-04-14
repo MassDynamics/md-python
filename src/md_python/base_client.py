@@ -53,4 +53,6 @@ class BaseMDClient:
         if headers:
             request_headers.update(headers)
 
-        return requests.request(method, url, headers=request_headers, json=json, **kwargs)
+        return requests.request(
+            method, url, headers=request_headers, json=json, **kwargs
+        )

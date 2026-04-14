@@ -30,7 +30,9 @@ def download_table_example():
 
     # Get a Parquet download URL
     try:
-        url = client.datasets.download_table_url(dataset_id, table_name, format="parquet")
+        url = client.datasets.download_table_url(
+            dataset_id, table_name, format="parquet"
+        )
         print(f"Parquet download URL: {url}")
     except Exception as e:
         print(f"Error getting Parquet download URL: {e}")
