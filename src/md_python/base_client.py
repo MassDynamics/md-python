@@ -44,6 +44,7 @@ class BaseMDClient:
         endpoint: str,
         headers: Optional[dict] = None,
         json: Optional[dict] = None,
+        **kwargs,
     ) -> requests.Response:
         """Make HTTP request to the API"""
         url = f"{self.base_url}{endpoint}"
@@ -52,4 +53,4 @@ class BaseMDClient:
         if headers:
             request_headers.update(headers)
 
-        return requests.request(method, url, headers=request_headers, json=json)
+        return requests.request(method, url, headers=request_headers, json=json, **kwargs)
