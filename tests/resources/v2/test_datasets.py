@@ -90,14 +90,17 @@ class TestV2Datasets:
     def test_list_by_upload_success(self, datasets, mock_client):
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = [
-            {
-                "id": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
-                "name": "DS1",
-                "job_slug": "flow_1",
-                "job_run_params": {},
-            }
-        ]
+        mock_response.json.return_value = {
+            "data": [
+                {
+                    "id": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
+                    "name": "DS1",
+                    "job_slug": "flow_1",
+                    "job_run_params": {},
+                }
+            ],
+            "pagination": {"page": 1},
+        }
         mock_client._make_request.return_value = mock_response
 
         result = datasets.list_by_upload("upload-1")
@@ -107,18 +110,19 @@ class TestV2Datasets:
         assert result[0].name == "DS1"
 
         call_args = mock_client._make_request.call_args
-        assert call_args[1]["endpoint"] == "/datasets?experiment_id=upload-1"
+        assert call_args[1]["method"] == "POST"
+        assert call_args[1]["endpoint"] == "/datasets/query"
+        assert call_args[1]["json"] == {"upload_id": "upload-1"}
 
-    def test_list_by_upload_no_custom_headers(self, datasets, mock_client):
+    def test_list_by_upload_empty(self, datasets, mock_client):
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = []
+        mock_response.json.return_value = {"data": [], "pagination": {}}
         mock_client._make_request.return_value = mock_response
 
-        datasets.list_by_upload("upload-1")
+        result = datasets.list_by_upload("upload-1")
 
-        call_args = mock_client._make_request.call_args
-        assert "headers" not in call_args[1] or call_args[1].get("headers") is None
+        assert result == []
 
     def test_list_by_upload_failure(self, datasets, mock_client):
         mock_response = Mock()
@@ -191,6 +195,140 @@ class TestV2Datasets:
 
         with pytest.raises(Exception, match="Failed to cancel dataset: 400"):
             datasets.cancel("ds-1")
+
+    def test_get_by_id_success(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "name": "DS1",
+            "job_slug": "flow_1",
+            "job_run_params": {},
+            "input_dataset_ids": [],
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = datasets.get_by_id("11111111-1111-1111-1111-111111111111")
+
+        assert isinstance(result, Dataset)
+        assert result.name == "DS1"
+
+        call_args = mock_client._make_request.call_args
+        assert call_args[1]["method"] == "GET"
+        assert (
+            call_args[1]["endpoint"] == "/datasets/11111111-1111-1111-1111-111111111111"
+        )
+
+    def test_get_by_id_not_found(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_client._make_request.return_value = mock_response
+
+        result = datasets.get_by_id("nonexistent")
+
+        assert result is None
+
+    def test_get_by_id_failure(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Server error"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to get dataset: 500"):
+            datasets.get_by_id("ds-1")
+
+    def test_download_table_url_success(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 302
+        mock_response.headers = {"Location": "https://s3.amazonaws.com/presigned-url"}
+        mock_client._make_request.return_value = mock_response
+
+        result = datasets.download_table_url("ds-1", "intensity", format="csv")
+
+        assert result == "https://s3.amazonaws.com/presigned-url"
+
+        call_args = mock_client._make_request.call_args
+        assert call_args[1]["method"] == "GET"
+        assert call_args[1]["endpoint"] == "/datasets/ds-1/tables/intensity.csv"
+        assert call_args[1]["allow_redirects"] is False
+
+    def test_download_table_url_parquet(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 302
+        mock_response.headers = {
+            "Location": "https://s3.amazonaws.com/presigned-parquet"
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = datasets.download_table_url("ds-1", "intensity", format="parquet")
+
+        assert result == "https://s3.amazonaws.com/presigned-parquet"
+
+        call_args = mock_client._make_request.call_args
+        assert call_args[1]["endpoint"] == "/datasets/ds-1/tables/intensity.parquet"
+
+    def test_download_table_url_invalid_format(self, datasets):
+        with pytest.raises(ValueError, match="format must be 'csv' or 'parquet'"):
+            datasets.download_table_url("ds-1", "intensity", format="json")
+
+    def test_download_table_url_failure(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.text = "Not found"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to get download URL: 404"):
+            datasets.download_table_url("ds-1", "intensity")
+
+    def test_query_with_all_filters(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [{"name": "DS1", "job_slug": "flow_1"}],
+            "pagination": {"page": 1, "total_pages": 1},
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = datasets.query(
+            upload_id="upload-1",
+            state=["COMPLETED"],
+            type=["INTENSITY"],
+            search="test",
+            page=2,
+        )
+
+        assert result["data"][0]["name"] == "DS1"
+
+        call_args = mock_client._make_request.call_args
+        assert call_args[1]["method"] == "POST"
+        assert call_args[1]["endpoint"] == "/datasets/query"
+
+        payload = call_args[1]["json"]
+        assert payload["upload_id"] == "upload-1"
+        assert payload["state"] == ["COMPLETED"]
+        assert payload["type"] == ["INTENSITY"]
+        assert payload["search"] == "test"
+        assert payload["page"] == 2
+
+    def test_query_with_defaults(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": [], "pagination": {}}
+        mock_client._make_request.return_value = mock_response
+
+        datasets.query()
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload == {"page": 1}
+
+    def test_query_failure(self, datasets, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Server error"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to query datasets: 500"):
+            datasets.query()
 
     def test_wait_until_complete_success(self, datasets, mock_client, mocker):
         completed_ds = Dataset(

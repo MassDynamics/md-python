@@ -131,17 +131,6 @@ class TestV2Uploads:
         with pytest.raises(ValueError, match="filenames must be provided"):
             uploads.create(upload)
 
-    def test_create_validation_missing_experiment_design(self, uploads):
-        upload = Upload(
-            name="Bad",
-            source="maxquant",
-            s3_bucket="bucket",
-            filenames=["a.txt"],
-        )
-
-        with pytest.raises(ValueError, match="experiment_design is required"):
-            uploads.create(upload)
-
     def test_create_validation_missing_sample_metadata(self, uploads):
         upload = Upload(
             name="Bad",
@@ -199,31 +188,115 @@ class TestV2Uploads:
         with pytest.raises(Exception, match="Failed to get upload: 404"):
             uploads.get_by_id("bad-id")
 
-    def test_get_by_name_success(self, uploads, mock_client):
+    def test_delete_success(self, uploads, mock_client):
         mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "name": "Named Upload",
-            "source": "maxquant",
-        }
+        mock_response.status_code = 204
         mock_client._make_request.return_value = mock_response
 
-        result = uploads.get_by_name("Named Upload")
+        result = uploads.delete("upload-1")
 
-        assert isinstance(result, Upload)
-        assert result.name == "Named Upload"
-
+        assert result is True
         call_args = mock_client._make_request.call_args
-        assert call_args[1]["endpoint"] == "/uploads?name=Named Upload"
+        assert call_args[1]["method"] == "DELETE"
+        assert call_args[1]["endpoint"] == "/uploads/upload-1"
 
-    def test_get_by_name_failure(self, uploads, mock_client):
+    def test_delete_failure(self, uploads, mock_client):
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.text = "Not found"
         mock_client._make_request.return_value = mock_response
 
-        with pytest.raises(Exception, match="Failed to get upload by name: 404"):
-            uploads.get_by_name("nope")
+        with pytest.raises(Exception, match="Failed to delete upload: 404"):
+            uploads.delete("upload-1")
+
+    def test_get_sample_metadata_success(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "sample_metadata": [
+                ["sample_name", "dose"],
+                ["s1", "1"],
+            ]
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = uploads.get_sample_metadata("upload-1")
+
+        assert isinstance(result, SampleMetadata)
+        assert result.data == [["sample_name", "dose"], ["s1", "1"]]
+
+        call_args = mock_client._make_request.call_args
+        assert call_args[1]["method"] == "GET"
+        assert call_args[1]["endpoint"] == "/uploads/upload-1/sample_metadata"
+
+    def test_get_sample_metadata_returns_none_when_missing(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {}
+        mock_client._make_request.return_value = mock_response
+
+        result = uploads.get_sample_metadata("upload-1")
+
+        assert result is None
+
+    def test_get_sample_metadata_failure(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.text = "Not found"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to get sample metadata: 404"):
+            uploads.get_sample_metadata("upload-1")
+
+    def test_query_with_all_filters(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [{"name": "Upload 1", "source": "maxquant"}],
+            "pagination": {"page": 1, "total_pages": 1},
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = uploads.query(
+            status=["COMPLETED"],
+            source=["maxquant"],
+            search="test",
+            sample_metadata=[{"column": "dose", "value": "1"}],
+            page=2,
+        )
+
+        assert result["data"][0]["name"] == "Upload 1"
+
+        call_args = mock_client._make_request.call_args
+        assert call_args[1]["method"] == "POST"
+        assert call_args[1]["endpoint"] == "/uploads/query"
+
+        payload = call_args[1]["json"]
+        assert payload["status"] == ["COMPLETED"]
+        assert payload["source"] == ["maxquant"]
+        assert payload["search"] == "test"
+        assert payload["sample_metadata"] == [{"column": "dose", "value": "1"}]
+        assert payload["page"] == 2
+
+    def test_query_with_defaults(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": [], "pagination": {}}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.query()
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload == {"page": 1}
+
+    def test_query_failure(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Server error"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to query uploads: 500"):
+            uploads.query()
 
     def test_update_sample_metadata_success(self, uploads, mock_client):
         sm = SampleMetadata(data=[["group"], ["a"], ["b"]])
