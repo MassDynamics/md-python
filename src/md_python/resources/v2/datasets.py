@@ -136,7 +136,8 @@ class Datasets:
         )
 
         if response.status_code == 200:
-            return response.json()
+            result: Dict[str, Any] = response.json()
+            return result
         else:
             raise Exception(
                 f"Failed to query datasets: {response.status_code} - {response.text}"
