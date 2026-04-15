@@ -21,16 +21,31 @@ class TestGetUpload:
         assert "Upload: test" in result
 
     def test_by_name(self):
-        mock_upload = MagicMock()
-        mock_upload.__str__ = lambda self: "Upload: my-upload"
         mock_client = MagicMock()
-        mock_client.uploads.get_by_name.return_value = mock_upload
+        mock_client.uploads.query.return_value = {
+            "data": [
+                {"id": "other-id", "name": "other-upload"},
+                {"id": "abc-123", "name": "my-upload"},
+            ]
+        }
 
         with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
             result = get_upload(name="my-upload")
 
-        mock_client.uploads.get_by_name.assert_called_once_with("my-upload")
-        assert "Upload: my-upload" in result
+        mock_client.uploads.query.assert_called_once_with(search="my-upload")
+        assert "my-upload" in result
+        assert "abc-123" in result
+
+    def test_by_name_not_found_when_no_exact_match(self):
+        mock_client = MagicMock()
+        mock_client.uploads.query.return_value = {
+            "data": [{"id": "x", "name": "some-other-upload"}]
+        }
+
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
+            result = get_upload(name="my-upload")
+
+        assert "not found" in result.lower()
 
     def test_not_found(self):
         mock_client = MagicMock()

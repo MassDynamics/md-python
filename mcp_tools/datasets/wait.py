@@ -33,7 +33,13 @@ def _fetch_dataset_state(job: Dict[str, str]) -> Dict[str, str]:
                 }
         else:
             ds = get_client().datasets.get_by_id(dataset_id)
-        return {"dataset_id": dataset_id, "state": ds.state}
+            if ds is None:
+                return {
+                    "dataset_id": dataset_id,
+                    "state": "NOT_FOUND",
+                    "error": "Dataset ID not found.",
+                }
+        return {"dataset_id": dataset_id, "state": ds.state or "UNKNOWN"}
     except Exception as e:
         result: Dict[str, str] = {
             "dataset_id": dataset_id,

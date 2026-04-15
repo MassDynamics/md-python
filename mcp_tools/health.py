@@ -173,7 +173,7 @@ _WORKFLOW_GUIDE = {
             "wait_for_datasets_bulk": "PREFERRED for many datasets: poll up to 500 datasets concurrently. Returns {total, all_terminal, by_state, pending, failed}. Call again when all_terminal is false.",
             "retry_dataset": "Retry a FAILED or ERROR pipeline job.",
             "delete_dataset": "Permanently delete a pipeline result dataset.",
-            "search_entities": "Search proteins, genes, or peptides by keyword (e.g. gene symbol or UniProt ID) across one or more datasets.",
+            "query_entities": "Search proteins, genes, or peptides by keyword (e.g. gene symbol or UniProt ID) across one or more datasets.",
         },
         "pipeline_tools": {
             "describe_pipeline": "Return the full parameter schema for a pipeline (valid_values, defaults). Call when you need to verify parameter values.",

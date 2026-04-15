@@ -71,15 +71,14 @@ class TestBatch:
         assert "result" in data[1]
 
     def test_get_upload_by_name(self):
-        mock_upload = type(
-            "U", (), {"__str__": lambda self: "Upload: my-exp | ID: abc-123"}
-        )()
         with patch("mcp_tools.uploads.get.get_client") as mock_client:
-            mock_client.return_value.uploads.get_by_name.return_value = mock_upload
+            mock_client.return_value.uploads.query.return_value = {
+                "data": [{"id": "abc-123", "name": "my-exp"}]
+            }
             result = batch([{"tool": "get_upload", "params": {"name": "my-exp"}}])
         data = json.loads(result)
         assert "my-exp" in data[0]["result"]
-        mock_client.return_value.uploads.get_by_name.assert_called_once_with("my-exp")
+        mock_client.return_value.uploads.query.assert_called_once_with(search="my-exp")
 
     def test_unknown_tool_returns_error(self):
         data = json.loads(batch([{"tool": "nonexistent_tool"}]))

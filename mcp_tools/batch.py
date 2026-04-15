@@ -12,7 +12,7 @@ from .datasets import (
     wait_for_dataset,
     wait_for_datasets_bulk,
 )
-from .entities import search_entities
+from .entities import query_entities
 from .files import (
     get_md_format_spec,
     load_metadata_from_csv,
@@ -48,7 +48,7 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "load_metadata_from_csv": load_metadata_from_csv,
     "plan_wide_to_md_format": plan_wide_to_md_format,
     "get_md_format_spec": get_md_format_spec,
-    "search_entities": search_entities,
+    "query_entities": query_entities,
     "health_check": health_check,
     "get_workflow_guide": get_workflow_guide,
     "get_upload": get_upload,
@@ -100,7 +100,7 @@ def batch(
     get_md_format_spec, health_check, get_workflow_guide,
     get_upload, create_upload, create_upload_from_csv, cancel_upload_queue,
     list_uploads_status, validate_upload_inputs, update_sample_metadata,
-    wait_for_upload, list_jobs, list_datasets, search_entities,
+    wait_for_upload, list_jobs, list_datasets, query_entities,
     find_initial_dataset, find_initial_datasets,
     wait_for_dataset, wait_for_datasets_bulk,
     retry_dataset, delete_dataset, describe_pipeline,

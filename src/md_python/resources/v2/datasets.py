@@ -51,20 +51,6 @@ class Datasets:
                 f"Failed to create dataset: {response.status_code} - {response.text}"
             )
 
-    def get_by_id(self, dataset_id: str) -> Dataset:
-        """Get a single dataset by its ID."""
-        response = self._client._make_request(
-            method="GET",
-            endpoint=f"/datasets/{dataset_id}",
-        )
-
-        if response.status_code == 200:
-            return Dataset.from_json(response.json())
-        else:
-            raise Exception(
-                f"Failed to get dataset: {response.status_code} - {response.text}"
-            )
-
     def list_by_upload(self, upload_id: str) -> List[Dataset]:
         """Get datasets belonging to an upload"""
         response = self._client._make_request(

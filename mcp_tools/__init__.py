@@ -9,7 +9,7 @@ lets you upload proteomics data and run downstream analysis pipelines.
 TOOL CATEGORIES — use roughly in this order:
   1. File tools    : read_csv_preview, load_metadata_from_csv, plan_wide_to_md_format
   2. Upload tools  : validate_upload_inputs, create_upload, wait_for_upload
-  3. Dataset tools : find_initial_dataset, list_datasets, search_entities
+  3. Dataset tools : find_initial_dataset, list_datasets, query_entities
   4. Pipeline tools: describe_pipeline, run_normalisation_imputation,
                      run_pairwise_comparison, run_anova, run_dose_response,
                      wait_for_dataset

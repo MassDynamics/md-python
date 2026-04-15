@@ -133,34 +133,6 @@ class TestV2Datasets:
         with pytest.raises(Exception, match="Failed to get datasets: 500"):
             datasets.list_by_upload("upload-1")
 
-    def test_get_by_id_success(self, datasets, mock_client):
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "id": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
-            "name": "DS1",
-            "job_slug": "flow_1",
-            "job_run_params": {},
-        }
-        mock_client._make_request.return_value = mock_response
-
-        result = datasets.get_by_id("ds-1")
-
-        assert isinstance(result, Dataset)
-        assert result.name == "DS1"
-        call_args = mock_client._make_request.call_args
-        assert call_args[1]["method"] == "GET"
-        assert call_args[1]["endpoint"] == "/datasets/ds-1"
-
-    def test_get_by_id_failure(self, datasets, mock_client):
-        mock_response = Mock()
-        mock_response.status_code = 404
-        mock_response.text = "Not found"
-        mock_client._make_request.return_value = mock_response
-
-        with pytest.raises(Exception, match="Failed to get dataset: 404"):
-            datasets.get_by_id("ds-missing")
-
     def test_delete_success(self, datasets, mock_client):
         mock_response = Mock()
         mock_response.status_code = 204

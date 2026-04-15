@@ -48,10 +48,18 @@ def create_upload(
 
     source — the proteomics software that produced the data files. Valid values:
       maxquant       — MaxQuant output (requires proteinGroups.txt + summary.txt)
-      diann_tabular  — DIA-NN tabular report (requires report.tsv)
-      diann_matrix   — DIA-NN matrix format (requires report.pg_matrix.tsv;
-                        optionally report.pr_matrix.tsv for peptide-level)
-      tims_diann     — timsTOF DIA-NN output (pg_matrix format, same as diann_matrix)
+      diann_tabular  — Primary choice for DIA-NN matrix-first uploads, e.g.
+                        report.pg_matrix.tsv (optional report.pr_matrix.tsv for
+                        peptide-level). Matches md-converter --format diann_tabular,
+                        which runs the mdconverter.diann_matrix reader — not the
+                        main report.tsv + log tabular branch.
+      tims_diann     — DIA-NN ingest where the main table is report.tsv together
+                        with the DIANN log (md-converter: DiannVersionSwitcher →
+                        mdconverter.diann or mdconverter.paser). Not for pg_matrix-only
+                        bundles; use diann_tabular for those.
+      diann_matrix   — May still be accepted by the API for the same matrix workflow
+                        as diann_tabular; prefer diann_tabular for new uploads (naming
+                        aligned with md-converter seamless_input --format choices).
       spectronaut    — Spectronaut export (report.txt / .tsv / .csv)
       msfragger      — MSFragger/FragPipe output (combined_protein.tsv +
                         combined_modified_peptide.tsv + combined_ion.tsv)
@@ -61,7 +69,11 @@ def create_upload(
       md_format_gene — pre-converted MD gene-level TSV:
                         GeneId, SampleName, GeneExpression
       md_diann_maxlfq — DIA-NN output with MD's MaxLFQ implementation applied
+                        (md-converter groups with tims_diann: report.tsv + log path)
       unknown        — flexible wide-format with a mapping.json descriptor
+
+    Maintainers: see md-converter mdconverter.utils.experiment_runner.WorkflowSwitcher
+    for how format flags map to readers.
 
     NOTE: labelling_method (lfq vs tmt) is not yet exposed in this client —
     LFQ is assumed. Contact support for TMT upload support.
@@ -134,8 +146,10 @@ def create_upload_from_csv(
       to restrict which files are included.
 
     source — proteomics software that produced the data files. Valid values:
-      maxquant, diann_tabular, diann_matrix, tims_diann, spectronaut,
-      msfragger, md_format, md_format_gene, md_diann_maxlfq, unknown
+      maxquant, diann_tabular, tims_diann, diann_matrix, spectronaut, msfragger,
+      md_format, md_format_gene, md_diann_maxlfq, unknown
+      Prefer diann_tabular for DIA-NN pg_matrix (and optional pr_matrix) uploads;
+      use tims_diann for report.tsv + DIANN log. Full definitions: create_upload.
 
     Returns the upload ID on success, or a validation/error message.
     """

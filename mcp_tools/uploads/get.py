@@ -1,11 +1,21 @@
 """Get and update upload records."""
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from md_python.models.metadata import SampleMetadata
 
 from .. import mcp
 from .._client import get_client
+
+
+def _find_upload_by_name(name: str) -> Optional[Dict[str, Any]]:
+    """Look up an upload by exact name via the V2 /uploads/query endpoint."""
+    response = get_client().uploads.query(search=name)
+    for item in response.get("data", []) or []:
+        if item.get("name") == name:
+            match: Dict[str, Any] = item
+            return match
+    return None
 
 
 @mcp.tool()
@@ -17,14 +27,18 @@ def get_upload(
 
     Provide either upload_id (UUID string) or name — not both.
     Returns upload details including status, source, and metadata.
+
+    Name lookup uses POST /uploads/query with a search filter and then matches
+    the result by exact name. If multiple uploads share the name, the first
+    match from the server's first page is returned.
     """
     if not upload_id and not name:
         return "Error: provide either upload_id or name"
-    c = get_client()
-    upload = (
-        c.uploads.get_by_id(upload_id) if upload_id else c.uploads.get_by_name(name)
-    )
-    return str(upload) if upload else "Upload not found"
+    if upload_id:
+        upload = get_client().uploads.get_by_id(upload_id)
+        return str(upload) if upload else "Upload not found"
+    match = _find_upload_by_name(name)  # type: ignore[arg-type]
+    return str(match) if match else "Upload not found"
 
 
 @mcp.tool()
