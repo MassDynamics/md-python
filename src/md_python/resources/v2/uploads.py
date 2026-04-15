@@ -47,9 +47,6 @@ class Uploads:
         if upload.file_location and not upload.filenames:
             raise ValueError("filenames must be provided when using file_location")
 
-        if not upload.experiment_design:
-            raise ValueError("experiment_design is required")
-
         if not upload.sample_metadata:
             raise ValueError("sample_metadata is required")
 
@@ -57,9 +54,11 @@ class Uploads:
             "name": upload.name,
             "source": upload.source,
             "filenames": upload.filenames,
-            "experiment_design": upload.experiment_design.data,
             "sample_metadata": upload.sample_metadata.data,
         }
+
+        if upload.experiment_design:
+            payload["experiment_design"] = upload.experiment_design.data
 
         if upload.file_location:
             payload["file_location"] = upload.file_location
@@ -137,17 +136,71 @@ class Uploads:
                 f"Failed to get upload: {response.status_code} - {response.text}"
             )
 
-    def get_by_name(self, name: str) -> Optional[Upload]:
-        """Get an upload by its name"""
+    def delete(self, upload_id: str) -> bool:
+        """Delete an upload by ID"""
         response = self._client._make_request(
-            method="GET", endpoint=f"/uploads?name={name}"
+            method="DELETE",
+            endpoint=f"/uploads/{upload_id}",
+        )
+
+        if response.status_code == 204:
+            return True
+        else:
+            raise Exception(
+                f"Failed to delete upload: {response.status_code} - {response.text}"
+            )
+
+    def get_sample_metadata(self, upload_id: str) -> Optional[SampleMetadata]:
+        """Get an upload's sample metadata"""
+        response = self._client._make_request(
+            method="GET",
+            endpoint=f"/uploads/{upload_id}/sample_metadata",
         )
 
         if response.status_code == 200:
-            return Upload.from_json(response.json())
+            data = response.json()
+            raw = data.get("sample_metadata")
+            if raw is not None:
+                return SampleMetadata(data=raw)
+            return None
         else:
             raise Exception(
-                f"Failed to get upload by name: {response.status_code} - {response.text}"
+                f"Failed to get sample metadata: {response.status_code} - {response.text}"
+            )
+
+    def query(
+        self,
+        status: Optional[List[str]] = None,
+        source: Optional[List[str]] = None,
+        search: Optional[str] = None,
+        sample_metadata: Optional[List[Dict[str, str]]] = None,
+        page: int = 1,
+    ) -> Dict[str, Any]:
+        """Query uploads with filters"""
+        payload: Dict[str, Any] = {"page": page}
+
+        if status is not None:
+            payload["status"] = status
+        if source is not None:
+            payload["source"] = source
+        if search is not None:
+            payload["search"] = search
+        if sample_metadata is not None:
+            payload["sample_metadata"] = sample_metadata
+
+        response = self._client._make_request(
+            method="POST",
+            endpoint="/uploads/query",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+
+        if response.status_code == 200:
+            result: Dict[str, Any] = response.json()
+            return result
+        else:
+            raise Exception(
+                f"Failed to query uploads: {response.status_code} - {response.text}"
             )
 
     def update_sample_metadata(

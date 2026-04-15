@@ -7,4 +7,4 @@ from .entities import Entities
 from .jobs import Jobs
 from .uploads import Uploads
 
-__all__ = ["Uploads", "Datasets", "Jobs", "Entities"]
+__all__ = ["Uploads", "Datasets", "Entities", "Jobs"]

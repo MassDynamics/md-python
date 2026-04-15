@@ -24,6 +24,7 @@ The client defaults to the v2 API. For v1 usage, see [V1.md](V1.md).
 
 - **Uploads**: Create, retrieve, and manage file uploads
 - **Datasets**: Create, list, retry, cancel, and delete datasets
+- **Entities**: Query entity metadata across datasets
 - **Jobs**: List available dataset jobs
 - **Health**: Check API health status
 
@@ -69,9 +70,11 @@ upload = Upload(
 )
 upload_id = client.uploads.create(upload)
 
-# Get upload by ID or name
+# Get upload by ID
 upload = client.uploads.get_by_id(upload_id)
-upload = client.uploads.get_by_name("My Upload")
+
+# Get upload sample metadata
+metadata = client.uploads.get_sample_metadata(upload_id)
 
 # Update sample metadata
 sample_metadata = SampleMetadata(data=[
@@ -80,6 +83,14 @@ sample_metadata = SampleMetadata(data=[
     ["sample2", "treated"],
 ])
 client.uploads.update_sample_metadata(upload_id, sample_metadata)
+
+# Query uploads with filters and pagination
+result = client.uploads.query(status=["completed"], source=["maxquant"], search="my upload", page=1)
+uploads = result["data"]
+pagination = result["pagination"]
+
+# Delete an upload
+client.uploads.delete(upload_id)
 
 # Wait for upload processing to complete
 upload = client.uploads.wait_until_complete(upload_id)
@@ -100,8 +111,19 @@ dataset = Dataset(
 )
 dataset_id = client.datasets.create(dataset)
 
-# List datasets for an upload
+# Get a single dataset by ID (includes error_message)
+dataset = client.datasets.get_by_id(dataset_id)
+
+# List datasets for an upload (uses the query endpoint internally)
 datasets = client.datasets.list_by_upload(upload_id)
+
+# Query datasets with filters and pagination
+result = client.datasets.query(upload_id=upload_id, state=["COMPLETED"], type=["INTENSITY"], page=1)
+datasets = result["data"]
+pagination = result["pagination"]
+
+# Get a presigned URL for table download (csv or parquet)
+url = client.datasets.download_table_url(dataset_id, "table_name", format="csv")
 
 # Find the initial intensity dataset
 initial = client.datasets.find_initial_dataset(upload_id)
@@ -117,6 +139,14 @@ client.datasets.delete(dataset_id)
 
 # Wait for a dataset to complete
 ds = client.datasets.wait_until_complete(upload_id, dataset_id)
+```
+
+## Entities
+
+```python
+# Query entity metadata (proteins, genes, peptides) across datasets
+result = client.entities.query(keyword="BRCA1", dataset_ids=["dataset-id-1", "dataset-id-2"])
+entities = result["results"]
 ```
 
 ## Jobs

@@ -24,6 +24,7 @@ class Dataset:
     id: Optional[UUID] = None
     sample_names: Optional[List[str]] = None
     job_run_start_time: Optional[datetime] = None
+    error_message: Optional[str] = None
 
     def __str__(self) -> str:
         """Return a readable string representation of the dataset"""
@@ -86,4 +87,5 @@ class Dataset:
             type=data.get("type"),
             state=data.get("state"),
             job_run_start_time=job_run_start_time,
+            error_message=data.get("error_message"),
         )
