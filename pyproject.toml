@@ -36,11 +36,21 @@ dev = [
     "mypy>=1.0.0",
     "types-requests>=2.32.0",
     "pre-commit>=3.0.0",
+    # Notebook-running deps are bundled into `dev` so `pip install -e ".[dev]"`
+    # is a single-shot setup that can run tests AND execute the example/smoke
+    # notebooks under notebooks/. Keep in sync with the `notebook` extra.
+    "jupyter>=1.0.0",
+    "ipykernel>=6.0.0",
+    "notebook>=6.0.0",
+    "pandas>=2.0.0",
+    "pyarrow>=15.0.0",
 ]
 notebook = [
     "jupyter>=1.0.0",
     "ipykernel>=6.0.0",
-    "notebook>=6.0.0"
+    "notebook>=6.0.0",
+    "pandas>=2.0.0",
+    "pyarrow>=15.0.0",
 ]
 mcp = [
     "mcp>=1.0.0",
@@ -56,10 +66,19 @@ where = ["src"]
 [tool.black]
 line-length = 88
 target-version = ['py311', 'py312', 'py313']
+# tmp/ is a local staging area for sibling-repo snapshots used by docstring
+# audit agents; it is not project source.
+extend-exclude = '''
+/(
+    \.venv
+  | tmp
+)/
+'''
 
 [tool.isort]
 profile = "black"
 line_length = 88
+skip_glob = ["tmp/*", ".venv/*"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -71,6 +90,7 @@ exclude = [
     "tests/",
     "examples/",
     "setup.py",
+    "tmp/",
 ]
 plugins = ["pydantic.mypy"]
 

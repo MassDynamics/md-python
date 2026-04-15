@@ -13,7 +13,7 @@ from ._io import _read_header_only, _sniff_delimiter
 # ──────────────────────────────────────────────────────────────────────────────
 
 _FORMAT_ANNOTATION_COLS: Dict[str, Set[str]] = {
-    "diann_matrix": {
+    "diann_tabular": {
         "protein.group",
         "protein.ids",
         "protein.names",
@@ -417,7 +417,7 @@ def plan_wide_to_md_format(
     - file_path:          path to the wide-format input file
     - target:             "md_format" (protein or peptide) or "md_format_gene"
     - source_hint:        optional format name to improve auto-detection:
-                          diann_matrix, maxquant, spectronaut, md_format_gene
+                          diann_tabular, maxquant, spectronaut, md_format_gene
     - annotation_columns: optional explicit list of annotation column names
                           (everything else will be treated as sample columns).
                           Use annotation_columns to fix wrong auto-detection.

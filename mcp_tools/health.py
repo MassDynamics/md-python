@@ -30,7 +30,7 @@ _WORKFLOW_GUIDE = {
                 "2. load_metadata_from_csv(file_path) — parse experiment_design and sample_metadata from the CSV. Never construct these arrays manually.",
                 "   LFQ SHORTCUT: if the CSV has sample_name + condition but no filename column, suggest adding filename=sample_name (standard LFQ single-file setup).",
                 "3. validate_upload_inputs(experiment_design, sample_metadata) — check for column mismatches before submitting.",
-                "4. create_upload(name, source, experiment_design, sample_metadata, file_location=...) — submit the upload.",
+                "4. create_upload_from_csv(name, source, metadata_csv_path, file_location) — PREFERRED: loads metadata, validates, creates the upload, and backgrounds the file transfer. Returns immediately. Fall back to create_upload only if you already have experiment_design / sample_metadata arrays in memory AND the upload is S3-backed (local-file uploads through create_upload will time out).",
                 "5. wait_for_upload(upload_id) — poll until COMPLETED (may take several minutes for large files).",
                 "6. find_initial_dataset(upload_id) — get the INTENSITY dataset ID needed as input for all pipelines.",
             ],
@@ -56,7 +56,7 @@ _WORKFLOW_GUIDE = {
                 "",
                 "── Phase 3: Pairwise Comparison ──",
                 "10. describe_pipeline('pairwise_comparison') — inspect valid parameter values.",
-                "11. generate_pairwise_comparisons(sample_metadata, condition_column='condition') — build comparison pairs.",
+                "11. generate_pairwise_comparisons(sample_metadata, condition_column='condition', control=<control_name>) — build comparison pairs. Pass control= for case-vs-one-control designs (the common case); omit control= to generate all unique pairs. The returned list is the EXACT condition_comparisons to pass — do NOT filter it.",
                 "12. run_pairwise_comparison(input_dataset_ids=[<norm_dataset_id>], dataset_name=..., sample_metadata=..., condition_column=..., condition_comparisons=...) — start limma analysis.",
                 "13. wait_for_dataset(upload_id, pairwise_dataset_id) — poll until COMPLETED.",
                 "    Results are now visible in the Mass Dynamics app.",
@@ -141,9 +141,72 @@ _WORKFLOW_GUIDE = {
                 "to MD long format before uploading."
             ),
             "steps": [
-                "1. plan_wide_to_md_format(file_path, source_hint='diann_matrix') — reads header only; returns a ready-to-run Python/pandas conversion script.",
+                "1. plan_wide_to_md_format(file_path, source_hint='diann_tabular') — reads header only; returns a ready-to-run Python/pandas conversion script.",
                 "2. Share the script with the user and ask them to run it locally (do NOT execute it yourself).",
-                "3. Once the user has the converted file, follow Workflow A with source='md_format' (or 'md_format_gene').",
+                "3. Once the user has the converted file, follow Workflow A with source='md_format' (or 'md_format_gene'). CRITICAL: every row where ProteinIntensity / PeptideIntensity / GeneExpression = 0 MUST have Imputed=1 — a zero with Imputed=0 is treated as a real measurement and breaks pairwise/anova downstream.",
+            ],
+        },
+        "G_dry_run_inspection": {
+            "description": (
+                "Inspect a local folder + metadata CSV before committing to "
+                "create_upload_from_csv. Use when the user is unsure the files are ready."
+            ),
+            "steps": [
+                "1. read_csv_preview(file_path=<metadata_csv>) — confirm it is a metadata CSV, not raw proteomics data.",
+                "2. load_metadata_from_csv(file_path=<metadata_csv>) — parse the arrays. Do NOT call create_upload yet.",
+                "3. validate_upload_inputs(experiment_design, sample_metadata) — check alignment.",
+                "4. Show the user: source format, sample count, filename count from file_location, and any validation warnings. Wait for explicit go-ahead.",
+                "5. Only then call create_upload_from_csv with the same inputs.",
+            ],
+            "notes": [
+                "Pure inspection. No side effects. Use when the user wants a plan before committing to an upload.",
+            ],
+        },
+        "H_retry_after_failure": {
+            "description": (
+                "A pipeline job returned FAILED, ERROR, or CANCELLED. Diagnose, then retry or delete."
+            ),
+            "steps": [
+                "1. wait_for_dataset(upload_id, dataset_id) — confirm terminal state and capture the error message.",
+                "2. list_datasets(upload_id) — confirm which inputs are still available.",
+                "3. If the failure is transient (network / quota / worker crash): retry_dataset(dataset_id), then wait_for_dataset again.",
+                "4. If parameters were wrong: delete_dataset(dataset_id) after user confirmation, then re-submit with corrected parameters.",
+                "5. Do not retry more than twice in a row without checking in with the user.",
+            ],
+            "notes": [
+                "retry_dataset reuses the same dataset_id. The retried run lands in place of the failed one.",
+                "NOT_FOUND and FETCH_ERROR are terminal in wait_for_datasets_bulk — they indicate a bad id or an upstream fetch failure, not a pipeline failure. Do not retry them; escalate.",
+            ],
+        },
+        "I_metadata_correction": {
+            "description": (
+                "Fix a typo or missing column in sample_metadata on an upload that already exists."
+            ),
+            "steps": [
+                "1. get_upload_sample_metadata(upload_id) — fetch the current metadata as a 2D array.",
+                "2. Show the array to the user and propose an exact diff. Wait for explicit 'yes, overwrite <upload_id>' confirmation — update_sample_metadata is DESTRUCTIVE.",
+                "3. load_metadata_from_csv on the user's corrected CSV (preferred) OR apply the diff to the returned array.",
+                "4. update_sample_metadata(upload_id, sample_metadata=<new_array>) — commits the overwrite.",
+                "5. Any downstream datasets (NI, pairwise, anova, dose_response) submitted before the correction are now analytically stale. Ask the user whether to delete_dataset and re-run them.",
+            ],
+            "notes": [
+                "update_sample_metadata replaces the whole array; there is no cell-level patch API.",
+                "Sample names must still match exactly what the upload was created with — the backend links samples to files by name.",
+            ],
+        },
+        "J_entity_lookup": {
+            "description": (
+                "Find specific proteins / genes / peptides in one or more datasets before "
+                "or after running differential analysis."
+            ),
+            "steps": [
+                "1. find_initial_dataset(upload_id) or list_datasets(upload_id) — collect the relevant dataset_ids.",
+                "2. query_entities(keyword=<gene_symbol_or_uniprot>, dataset_ids=[...]) — server-side search; returns a {'results': [...]} JSON. Field names come from the server (gene_name, dataset_id, protein_accession) — parse defensively.",
+                "3. Use the returned association to decide whether to run pairwise / anova, or to fetch a specific dataset table via download_dataset_table.",
+            ],
+            "notes": [
+                "Keyword must be ≥2 characters. Matching is case-insensitive substring.",
+                "Empty 'results' is a valid negative answer, not an error.",
             ],
         },
     },
@@ -201,11 +264,14 @@ _WORKFLOW_GUIDE = {
     },
     "constraints": [
         "NEVER construct experiment_design or sample_metadata manually. Always use load_metadata_from_csv.",
-        "Call describe_pipeline(<slug>) if you need to verify valid parameter values before running a pipeline — optional when parameters are already known.",
-        "ALWAYS call validate_upload_inputs before create_upload.",
-        "NEVER read proteomics data files (DIA-NN report.tsv, MaxQuant proteinGroups.txt, Spectronaut exports, MD_Format tables) — upload them as-is.",
+        "describe_pipeline(<slug>) is OPTIONAL — call it only when you need to verify a parameter value. It is NOT required before every pipeline run.",
+        "ALWAYS call validate_upload_inputs before create_upload (create_upload_from_csv does this internally).",
+        "Prefer create_upload_from_csv for local-file uploads. create_upload blocks on file transfer and will time out for large files.",
+        "NEVER read proteomics data files (DIA-NN report.tsv, MaxQuant proteinGroups.txt, Spectronaut exports, md_format tables) — upload them as-is.",
         "sample_names and control_samples for dose-response must come verbatim from sample_metadata rows.",
         "Sample name matching is exact and case-sensitive across all tables.",
+        "DESTRUCTIVE tools (delete_upload, delete_dataset, cancel_dataset, cancel_upload_queue, update_sample_metadata) require explicit user confirmation — echo the target id back before calling.",
+        "Upload source must be one of: maxquant, diann_tabular, tims_diann, spectronaut, md_format, md_format_gene. Every other value is rejected client-side and server-side.",
     ],
     "common_mistakes": [
         "PAIRWISE — ONE CALL FOR ALL PAIRS: generate_pairwise_comparisons returns a list "

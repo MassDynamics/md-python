@@ -61,6 +61,24 @@ def run_pairwise_comparison(
 ) -> str:
     """Run a pairwise differential abundance analysis using limma.
 
+    Returns: prose. Exact string "Pairwise comparison pipeline started.
+    Dataset ID: <uuid>" on success. The "Dataset ID:" sentinel is stable
+    and parsed by run_pairwise_comparison_bulk.
+
+    Use this when: the user wants case-vs-control differential testing
+    between specific pairs of conditions. All pairs go into ONE call so
+    limma computes a joint FDR correction.
+
+    Do NOT use this when: the user wants an omnibus test across 3+
+    conditions (use run_anova); when entity_type is "gene" (not supported);
+    when processing many uploads (use run_pairwise_comparison_bulk).
+
+    Parameter defaults are cited to
+    tmp/audit_refs/data-set-service/flows/pairwise_comparison/pairwise_comparison_params.py:
+      fit_separate_models=True (:65-69), limma_trend=True (:53-57),
+      robust_empirical_bayes=True (:59-63), filter_threshold_percentage=0.5
+      (:22-30), filter_valid_values_logic="at least one condition" (:79-85).
+
     ══ MANDATORY BEFORE CALLING ════════════════════════════════════════════════
     Present this parameter table to the user and wait for explicit confirmation
     before submitting. Do NOT choose any value autonomously.
@@ -125,7 +143,20 @@ def run_pairwise_comparison(
       model across all pairs simultaneously — can be preferred when sharing
       variance estimates across many comparisons is appropriate.
 
-    Returns the new dataset ID on success.
+    control_variables: optional list of covariate dicts to add to the limma
+      design matrix. Each entry forwards as-is to the server — shape:
+        [{"variable": "batch"}, {"variable": "sex"}]
+      Use when batch or other known covariates should be regressed out.
+
+    Errors:
+      - ValueError: condition_comparisons empty or references unknown
+        condition values; entity_type="gene" rejected client-side.
+      - APIError 422: input dataset not an NI output, entity_type mismatch,
+        fewer than 2 replicates per group.
+
+    Guardrails:
+      - ONE call for ALL pairs. Never loop one call per pair — breaks FDR.
+      - For gene-level data use run_anova.
     """
     cv: Optional[Dict[str, List[Dict[str, str]]]] = (
         {"control_variables": control_variables} if control_variables else None

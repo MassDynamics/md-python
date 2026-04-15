@@ -7,22 +7,36 @@ from ._client import get_client
 
 @mcp.tool()
 def query_entities(keyword: str, dataset_ids: List[str]) -> str:
-    """Search for proteins, genes, or peptides by keyword across one or more datasets.
+    """Search proteins / genes / peptides by keyword across one or more datasets.
 
-    Use this to find which proteins/genes exist in an experiment before building
-    comparisons or interpreting results.
+    Returns: JSON. Shape:
+      {"results": [ {...server-defined fields...}, ... ]}
+    Field names are passed through verbatim from the server (typically
+    "gene_name", "dataset_id", "protein_accession", etc.) — do NOT assume
+    a fixed schema; parse defensively. Empty "results" is a valid negative
+    answer, not an error. On transport / HTTP failure returns
+    {"error": "<message>"}.
+
+    Use this when: the user asks whether a specific gene or protein is
+    present in an experiment, or wants to confirm an entity of interest
+    before running a pipeline or interpreting a result.
+
+    Do NOT use this when: you want to fetch a full dataset table (use
+    download_dataset_table); when the dataset ids are not yet known
+    (call find_initial_dataset or list_datasets first).
 
     Args:
-        keyword: Gene symbol, protein name, or UniProt ID (min 2 chars).
-                 Examples: "BRCA1", "P12345", "EGFR".
-        dataset_ids: List of dataset IDs to search across. Use find_initial_dataset
-                     or list_datasets to obtain these.
+      keyword: gene symbol, protein name, or UniProt accession. Minimum
+        2 characters — shorter keywords fail server-side with a 400.
+        Matching is case-insensitive substring. Examples: "BRCA1",
+        "P12345", "EGFR".
+      dataset_ids: list of dataset UUIDs to search. Use find_initial_dataset
+        or list_datasets to obtain them.
 
-    Returns JSON of the server response, which has a "results" key whose value is
-    a list of matching entity records. Field names come straight from the server
-    (e.g. gene_name, dataset_id) — do not assume a fixed schema.
+    Guardrails: non-destructive. Safe to batch with other read-only tools.
 
-    Returns {"error": "..."} on transport/HTTP errors.
+    See also: find_initial_dataset, list_datasets, download_dataset_table,
+      Workflow J (entity lookup).
     """
     try:
         result = get_client().entities.query(keyword=keyword, dataset_ids=dataset_ids)

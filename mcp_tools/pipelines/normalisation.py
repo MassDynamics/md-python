@@ -20,7 +20,19 @@ def run_normalisation_imputation(
     normalisation_extra_params: Optional[Dict[str, Any]] = None,
     imputation_extra_params: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Run a normalisation + imputation pipeline.
+    """Run a normalisation + imputation pipeline on an INTENSITY dataset.
+
+    Returns: prose. Exact string "Normalisation/imputation pipeline started.
+    Dataset ID: <uuid>" on success. The "Dataset ID:" sentinel is stable
+    and is parsed by run_normalisation_imputation_bulk.
+
+    Use this when: the user has a COMPLETED upload and wants normalised,
+    imputed data for downstream pairwise / anova / dose-response.
+
+    Do NOT use this when: processing many uploads at once — use
+    run_normalisation_imputation_bulk. The output dataset has type
+    INTENSITY (not NORMALISATION_IMPUTATION); this is correct, do not
+    flag it.
 
     ══ MANDATORY BEFORE CALLING ════════════════════════════════════════════════
     Present this table to the user and wait for explicit confirmation.
@@ -100,8 +112,22 @@ def run_normalisation_imputation(
     "set to missing"   No extra params. Sets all values to NaN (removes data).
     "skip"             No extra params. Leaves NaN in output (no imputation).
 
-    Call describe_pipeline("normalisation_imputation") for the full schema.
-    Returns the new dataset ID on success.
+    Call describe_pipeline("normalisation_imputation") only if you need to
+    verify a parameter value you are unsure of — it is not a mandatory
+    pre-step.
+
+    Numeric defaults (MNAR std_position=1.8, std_width=0.3; KNN n_neighbors=3,
+    weights=None; constant_value=0) are set client-side in normalisation.py
+    and sent on every call — the R package (lfq_processing/R/impute_lfq.R)
+    treats the arguments as required, so the MCP ships the defaults
+    explicitly.
+
+    Errors:
+      - APIError 422: required per-method params missing (e.g.
+        batch_variables without batch_correction), bad entity_type,
+        missing input dataset.
+      - ValueError: raised by NormalisationImputationDataset on local
+        validation.
     """
     # Per-method defaults — always sent so the server receives complete params.
     # User-supplied extra_params override these.

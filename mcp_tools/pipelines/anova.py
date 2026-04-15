@@ -25,9 +25,23 @@ def run_anova(
 ) -> str:
     """Run an ANOVA-based differential abundance analysis across multiple conditions.
 
-    Use when comparing 3 or more groups simultaneously. ANOVA is an omnibus test —
-    it detects any difference across groups but does not identify which specific
-    pairs differ. For specific group-vs-group contrasts, use run_pairwise_comparison.
+    Returns: prose. Exact string "ANOVA pipeline started. Dataset ID: <uuid>"
+    on success. Branch on the "Dataset ID:" sentinel.
+
+    Use this when: the user wants an omnibus test across 3+ condition levels
+    to detect any difference, or gene-level differential analysis (pairwise
+    does not support gene entity_type).
+
+    Do NOT use this when: only two conditions are being compared (use
+    run_pairwise_comparison — ANOVA reduces to a t-test and pairwise gives
+    direction information). ANOVA tells you some groups differ but NOT which
+    specific pairs differ — follow up with run_pairwise_comparison for
+    targeted contrasts.
+
+    Parameter defaults cited to
+    tmp/audit_refs/MDFlexiComparisons/R/limmaStatsFun.R and runANOVA.R
+    (limma_trend + robust_empirical_bayes passed directly to eBayes;
+    filter_threshold_percentage=0.5 is the limma-standard completeness floor).
 
     ══ MANDATORY BEFORE CALLING ════════════════════════════════════════════════
     Present this parameter table to the user and wait for explicit confirmation
@@ -74,8 +88,14 @@ def run_anova(
 
     filter_threshold_percentage: fraction of samples in a condition that must have
       valid (non-missing) values to pass the filter. Default 0.5 = 50%.
+      Only used when filter_method="percentage" (default). "count" mode is
+      accepted but the MCP does not currently expose a filter_threshold_count
+      knob — callers needing count-mode must drop to the REST client directly.
 
-    Returns the new dataset ID on success.
+    Errors:
+      - ValueError: comparisons_type="custom" without condition_comparisons.
+      - APIError 422: fewer than 3 condition levels, input dataset not an
+        NI output.
     """
     sm = SampleMetadata(data=sample_metadata)
     experiment_design: Dict[str, Any] = dict(sm.to_columns())

@@ -14,6 +14,26 @@ if TYPE_CHECKING:
     from ...base_client import BaseMDClient
 
 
+# Authoritative server-side allow-list. Mirrors VALID_SOURCE_FORMATS in the
+# Rails app (workflow/app/models/experiment.rb:27-34). Any value outside this
+# set is rejected by the Rails create-time validator (experiment.rb:68-72),
+# so the client refuses them up front to give the caller a clearer error.
+#
+# Deliberately excluded (all server-rejected): raw, diann_raw, generic_format,
+# simple, unknown, diann_matrix, md_diann_maxlfq, msfragger. See the commit
+# that introduced this constant for the per-value rationale.
+ALLOWED_UPLOAD_SOURCES: frozenset[str] = frozenset(
+    {
+        "maxquant",
+        "diann_tabular",
+        "tims_diann",
+        "spectronaut",
+        "md_format",
+        "md_format_gene",
+    }
+)
+
+
 class Uploads:
     """V2 uploads resource — replaces v1 experiments"""
 
@@ -41,6 +61,13 @@ class Uploads:
         Returns:
             Upload ID
         """
+        if upload.source not in ALLOWED_UPLOAD_SOURCES:
+            allowed = ", ".join(sorted(ALLOWED_UPLOAD_SOURCES))
+            raise ValueError(
+                f"source={upload.source!r} is not a supported upload format. "
+                f"Valid values: {allowed}."
+            )
+
         if not upload.file_location and not upload.s3_bucket:
             raise ValueError("Either file_location or s3_bucket must be provided")
 

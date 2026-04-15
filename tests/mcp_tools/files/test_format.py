@@ -8,7 +8,7 @@ from .conftest import write_tsv
 
 
 class TestPlanWideToMdFormat:
-    def test_diann_matrix_auto_detected(self, cleanup):
+    def test_diann_tabular_auto_detected(self, cleanup):
         path = write_tsv(
             [
                 [
@@ -23,7 +23,7 @@ class TestPlanWideToMdFormat:
             ]
         )
         cleanup.append(path)
-        result = json.loads(plan_wide_to_md_format(path, source_hint="diann_matrix"))
+        result = json.loads(plan_wide_to_md_format(path, source_hint="diann_tabular"))
         assert "conversion_script" in result
         assert "Protein.Group" in result["detected_annotation_cols"]
         assert "/data/s1.raw" in result["detected_sample_cols"]
