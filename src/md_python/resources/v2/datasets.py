@@ -54,15 +54,93 @@ class Datasets:
     def list_by_upload(self, upload_id: str) -> List[Dataset]:
         """Get datasets belonging to an upload"""
         response = self._client._make_request(
-            method="GET",
-            endpoint=f"/datasets?experiment_id={upload_id}",
+            method="POST",
+            endpoint="/datasets/query",
+            json={"upload_id": upload_id},
+            headers={"Content-Type": "application/json"},
         )
 
         if response.status_code == 200:
-            return [Dataset.from_json(d) for d in response.json()]
+            return [Dataset.from_json(d) for d in response.json().get("data", [])]
         else:
             raise Exception(
                 f"Failed to get datasets: {response.status_code} - {response.text}"
+            )
+
+    def get_by_id(self, dataset_id: str) -> Optional[Dataset]:
+        """Get a single dataset by ID"""
+        response = self._client._make_request(
+            method="GET",
+            endpoint=f"/datasets/{dataset_id}",
+        )
+
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise Exception(
+                f"Failed to get dataset: {response.status_code} - {response.text}"
+            )
+        return Dataset.from_json(response.json())
+
+    def download_table_url(
+        self, dataset_id: str, table_name: str, format: str = "csv"
+    ) -> str:
+        """Get a presigned download URL for a dataset table.
+
+        The API returns a 302 redirect to a presigned URL.
+        """
+        if format not in ("csv", "parquet"):
+            raise ValueError(f"format must be 'csv' or 'parquet', got '{format}'")
+
+        response = self._client._make_request(
+            method="GET",
+            endpoint=f"/datasets/{dataset_id}/tables/{table_name}.{format}",
+            allow_redirects=False,
+        )
+
+        if response.status_code == 302:
+            location = response.headers.get("Location")
+            if location:
+                return location
+            raise Exception("302 response missing Location header")
+        else:
+            raise Exception(
+                f"Failed to get download URL: {response.status_code} - {response.text}"
+            )
+
+    def query(
+        self,
+        upload_id: Optional[str] = None,
+        state: Optional[List[str]] = None,
+        type: Optional[List[str]] = None,
+        search: Optional[str] = None,
+        page: int = 1,
+    ) -> Dict[str, Any]:
+        """Query datasets with filters"""
+        payload: Dict[str, Any] = {"page": page}
+
+        if upload_id is not None:
+            payload["upload_id"] = upload_id
+        if state is not None:
+            payload["state"] = state
+        if type is not None:
+            payload["type"] = type
+        if search is not None:
+            payload["search"] = search
+
+        response = self._client._make_request(
+            method="POST",
+            endpoint="/datasets/query",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+
+        if response.status_code == 200:
+            result: Dict[str, Any] = response.json()
+            return result
+        else:
+            raise Exception(
+                f"Failed to query datasets: {response.status_code} - {response.text}"
             )
 
     def delete(self, dataset_id: str) -> bool:

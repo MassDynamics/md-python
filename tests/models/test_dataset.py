@@ -28,6 +28,7 @@ class TestDataset:
         assert dataset.sample_names is None
         assert dataset.job_run_params == {}
         assert dataset.job_run_start_time is None
+        assert dataset.error_message is None
 
     def test_init_full(self):
         """Test Dataset initialization with all fields"""
@@ -67,3 +68,31 @@ class TestDataset:
         # This test documents the current behavior
         assert dataset.name == "Test Dataset"
         assert dataset.job_slug == "test_job"
+
+    def test_from_json_with_error_message(self):
+        data = {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "input_dataset_ids": [],
+            "name": "Failed Dataset",
+            "job_slug": "test_job",
+            "job_run_params": {},
+            "state": "FAILED",
+            "error_message": "Processing failed: out of memory",
+        }
+
+        dataset = Dataset.from_json(data)
+
+        assert dataset.error_message == "Processing failed: out of memory"
+        assert dataset.state == "FAILED"
+
+    def test_from_json_without_error_message(self):
+        data = {
+            "input_dataset_ids": [],
+            "name": "OK Dataset",
+            "job_slug": "test_job",
+            "job_run_params": {},
+        }
+
+        dataset = Dataset.from_json(data)
+
+        assert dataset.error_message is None
