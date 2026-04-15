@@ -386,6 +386,23 @@ def batch(commands, output, stop_on_error):
         click.echo(out)
 
 
+def _parse_opts(args, mapping):
+    """Extract --key value pairs from an args list into a dict.
+
+    *mapping* maps CLI flag names to result keys, e.g.
+    {"--search": "search", "--page": "page"}.
+    """
+    result = {}
+    i = 0
+    while i < len(args):
+        if args[i] in mapping and i + 1 < len(args):
+            result[mapping[args[i]]] = args[i + 1]
+            i += 2
+        else:
+            i += 1
+    return result
+
+
 def _dispatch_batch_command(client, args):
     """Route a batch command to the appropriate API call.
 
@@ -410,6 +427,19 @@ def _dispatch_batch_command(client, args):
         elif subcmd == "list":
             scope = args[2] if len(args) > 2 else "mine"
             return client.list_experiments(scope)
+        elif subcmd == "query":
+            opts = _parse_opts(args[2:], {
+                "--search": "search", "--status": "status",
+                "--source": "source", "--page": "page",
+            })
+            return client.query_uploads(
+                search=opts.get("search"), status=opts.get("status"),
+                source=opts.get("source"), page=int(opts.get("page", 1)),
+            )
+        elif subcmd == "metadata" and len(args) > 2:
+            return client.get_upload_sample_metadata(args[2])
+        elif subcmd == "delete" and len(args) > 2:
+            return client.delete_upload(args[2])
 
     elif cmd == "datasets" and len(args) > 1:
         subcmd = args[1]
@@ -422,6 +452,29 @@ def _dispatch_batch_command(client, args):
                 if a in ("-e", "--experiment-id") and i + 1 < len(args):
                     exp_id = args[i + 1]
             return client.get_dataset(ds_id, experiment_id=exp_id)
+        elif subcmd == "query":
+            opts = _parse_opts(args[2:], {
+                "--upload-id": "upload_id", "--state": "state",
+                "--type": "ds_type", "--search": "search", "--page": "page",
+            })
+            return client.query_datasets(
+                upload_id=opts.get("upload_id"),
+                state=[opts["state"]] if opts.get("state") else None,
+                type=[opts["ds_type"]] if opts.get("ds_type") else None,
+                search=opts.get("search"),
+                page=int(opts.get("page", 1)),
+            )
+        elif subcmd == "download-url" and len(args) > 3:
+            fmt = "csv"
+            for i, a in enumerate(args):
+                if a == "--format" and i + 1 < len(args):
+                    fmt = args[i + 1]
+            return client.download_table_url(args[2], args[3], fmt)
+
+    elif cmd == "jobs" and len(args) > 1:
+        subcmd = args[1]
+        if subcmd == "list":
+            return client.list_dataset_jobs()
 
     elif cmd == "tables" and len(args) > 1:
         subcmd = args[1]
