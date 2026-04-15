@@ -440,6 +440,20 @@ def _dispatch_batch_command(client, args):
                 return client.query_table(args[2], args[3], args[4].split()[0] if " " in args[4] else args[4], sql)
             raise Exception("Missing --sql argument for tables query")
 
+    elif cmd == "entities" and len(args) > 1:
+        subcmd = args[1]
+        if subcmd == "query":
+            keyword = None
+            dataset_ids = []
+            for i, a in enumerate(args):
+                if a == "--keyword" and i + 1 < len(args):
+                    keyword = args[i + 1]
+                if a == "--dataset-ids" and i + 1 < len(args):
+                    dataset_ids.append(args[i + 1])
+            if keyword and dataset_ids:
+                return client.query_entities(keyword=keyword, dataset_ids=dataset_ids)
+            raise Exception("entities query requires --keyword and --dataset-ids")
+
     elif cmd == "viz" and len(args) > 1:
         raise Exception("Visualisation commands are not yet supported in batch mode")
 
@@ -716,6 +730,80 @@ def experiments_cancel(experiment_id):
     output_json(result)
 
 
+@experiments.command("query")
+@click.option("--search", default=None, help="Search term to filter by name")
+@click.option("--status", multiple=True, help="Filter by status (repeatable)")
+@click.option("--source", multiple=True, help="Filter by source type (repeatable)")
+@click.option("--page", default=1, type=int, help="Page number (default: 1)")
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "ids-only", "table"]),
+              help="Output format (default: json)")
+def experiments_query(search, status, source, page, output_format):
+    """Search and filter experiments/uploads (V2 API).
+
+    More powerful than 'list' — supports text search and filtering by
+    status or source type. Works with bearer token auth.
+
+    Examples:
+      md experiments query --search "TPD screen"
+      md experiments query --status COMPLETED --source diann_tabular
+      md experiments query --search kinase --format ids-only
+    """
+    client = get_client()
+    result = client.query_uploads(
+        search=search,
+        status=list(status) if status else None,
+        source=list(source) if source else None,
+        page=page,
+    )
+    items = result.get("data", [])
+    if output_format == "ids-only":
+        for item in items:
+            click.echo(item.get("id", ""))
+    elif output_format == "table":
+        click.echo(f"Found {len(items)} uploads:")
+        for item in items:
+            name = item.get("name", "?")
+            uid = item.get("id", "?")
+            st = item.get("status", "?")
+            click.echo(f"  [{st}] {name} ({uid})")
+    else:
+        output_json(result)
+
+
+@experiments.command("delete")
+@click.argument("experiment_id")
+@click.option("--yes", is_flag=True, help="Skip confirmation")
+def experiments_delete(experiment_id, yes):
+    """Delete an experiment/upload (V2 API).
+
+    Permanently removes the upload and all associated datasets.
+
+    Example:
+      md experiments delete <experiment-id> --yes
+    """
+    if not yes:
+        click.confirm(f"Delete experiment {experiment_id}?", abort=True)
+    client = get_client()
+    client.delete_upload(experiment_id)
+    click.echo(f"✓ Experiment {experiment_id} deleted")
+
+
+@experiments.command("metadata")
+@click.argument("experiment_id")
+def experiments_metadata(experiment_id):
+    """Get sample metadata for an experiment/upload (V2 API).
+
+    Shows the sample metadata table associated with this upload.
+
+    Example:
+      md experiments metadata <experiment-id>
+    """
+    client = get_client()
+    result = client.get_upload_sample_metadata(experiment_id)
+    output_json(result)
+
+
 # =============================================================================
 # DESIGN (experiment design helpers)
 # =============================================================================
@@ -980,6 +1068,123 @@ def datasets_wait(dataset_id, timeout, interval):
     client = get_client()
     terminal = {"completed", "done", "failed", "error", "cancelled"}
     wait_for_status(client, client.get_dataset, dataset_id, terminal, timeout, interval)
+
+
+@datasets.command("query")
+@click.option("--upload-id", default=None, help="Filter by upload/experiment UUID")
+@click.option("--state", multiple=True, help="Filter by state (repeatable: COMPLETED, PROCESSING, FAILED)")
+@click.option("--type", "ds_type", multiple=True,
+              help="Filter by type (repeatable: INTENSITY, PAIRWISE, DOSE_RESPONSE, ANOVA)")
+@click.option("--search", default=None, help="Search term")
+@click.option("--page", default=1, type=int, help="Page number")
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "ids-only", "table"]),
+              help="Output format (default: json)")
+def datasets_query(upload_id, state, ds_type, search, page, output_format):
+    """Search and filter datasets across uploads (V2 API).
+
+    More powerful than 'list' — can search across all uploads and
+    filter by state/type.
+
+    Examples:
+      md datasets query --upload-id <UUID> --state COMPLETED
+      md datasets query --search "pairwise" --type PAIRWISE
+      md datasets query --state COMPLETED --format ids-only
+    """
+    client = get_client()
+    result = client.query_datasets(
+        upload_id=upload_id,
+        state=list(state) if state else None,
+        type=list(ds_type) if ds_type else None,
+        search=search,
+        page=page,
+    )
+    items = result.get("data", [])
+    if output_format == "ids-only":
+        for item in items:
+            click.echo(item.get("id", ""))
+    elif output_format == "table":
+        click.echo(f"Found {len(items)} datasets:")
+        for item in items:
+            name = item.get("name", "?")
+            did = item.get("id", "?")
+            dtype = item.get("type", "?")
+            st = item.get("state", "?")
+            click.echo(f"  [{st}] {dtype}: {name} ({did})")
+    else:
+        output_json(result)
+
+
+@datasets.command("download-url")
+@click.argument("dataset_id")
+@click.argument("table_name")
+@click.option("--format", "fmt", default="csv",
+              type=click.Choice(["csv", "parquet"]),
+              help="Download format (default: csv)")
+def datasets_download_url(dataset_id, table_name, fmt):
+    """Get a presigned download URL for a dataset table (V2 API).
+
+    Returns a temporary S3 URL that can be used to download the table
+    data directly. Useful for large tables or integration with other tools.
+
+    Examples:
+      md datasets download-url <dataset-id> output_comparisons
+      md datasets download-url <dataset-id> Protein_Intensity --format parquet
+    """
+    client = get_client()
+    url = client.download_table_url(dataset_id, table_name, fmt)
+    click.echo(url)
+
+
+# =============================================================================
+# ENTITIES (V2 — cross-dataset search from Aaron's PR #3)
+# =============================================================================
+
+@cli.group()
+def entities():
+    """Query entity metadata across datasets.
+
+    Entities are proteins, genes, and peptides. The entities endpoint
+    lets you search across multiple datasets to find where a protein
+    appears, its abundance, fold-changes, and significance.
+
+    This is key for cross-study comparisons and historical lookups —
+    the "substrate search" capability.
+    """
+    pass
+
+
+@entities.command("query")
+@click.option("--keyword", required=True, help="Search keyword (min 2 characters)")
+@click.option("--dataset-ids", required=True, multiple=True,
+              help="Dataset UUID(s) to search across (repeatable)")
+@click.option("--format", "output_format", default="json",
+              type=click.Choice(["json", "table"]),
+              help="Output format (default: json)")
+def entities_query(keyword, dataset_ids, output_format):
+    """Search for proteins/genes/peptides across datasets.
+
+    Finds entity metadata across one or more datasets. Use this to:
+    - Check if a protein of interest appears in historical studies
+    - Compare fold-changes for the same protein across experiments
+    - Validate hits from a new screen against prior work
+
+    Examples:
+      md entities query --keyword TP53 --dataset-ids ds1 --dataset-ids ds2
+      md entities query --keyword BRCA1 --dataset-ids ds1 --format table
+    """
+    client = get_client()
+    result = client.query_entities(keyword=keyword, dataset_ids=list(dataset_ids))
+
+    if output_format == "table":
+        items = result.get("results", [])
+        click.echo(f"Found {len(items)} entities matching '{keyword}':")
+        for item in items:
+            name = item.get("name", item.get("protein_name", "?"))
+            gene = item.get("gene_name", "")
+            click.echo(f"  {name}" + (f" ({gene})" if gene else ""))
+    else:
+        output_json(result)
 
 
 # =============================================================================

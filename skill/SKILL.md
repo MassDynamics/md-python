@@ -2,14 +2,17 @@
 name: md-platform
 description: >
   Mass Dynamics proteomics platform interface via the `md` CLI. Use for: uploading
-  data (DIA-NN, MaxQuant, Spectronaut, MD format, MSFragger), creating experiments, running analyses
-  (pairwise, dose-response, ANOVA), downloading results, generating plots (volcano,
-  heatmap, PCA, box plot), pathway enrichment (Reactome, STRING), and workspace
-  management. Trigger on: Mass Dynamics, MD platform, proteomics, DIA-NN, MaxQuant,
-  Spectronaut, MD format, MSFragger, experiment design, pairwise comparison, dose-response,
-  ANOVA, volcano plot, heatmap, PCA, enrichment, Reactome, STRING, protein list,
-  intensity dataset, or the `md` CLI tool. Even if the user just says "run a differential
-  expression analysis" or "upload my proteomics data" — this skill should activate.
+  data (DIA-NN, MaxQuant, Spectronaut, MD format, MSFragger), creating experiments,
+  running analyses (pairwise, dose-response, ANOVA), downloading results, generating
+  plots (volcano, heatmap, PCA, box plot), pathway enrichment (Reactome, STRING),
+  workspace management, searching entities (proteins/genes) across datasets, and
+  querying uploads/datasets with filters. Trigger on: Mass Dynamics, MD platform,
+  proteomics, DIA-NN, MaxQuant, Spectronaut, MD format, MSFragger, experiment design,
+  pairwise comparison, dose-response, ANOVA, volcano plot, heatmap, PCA, enrichment,
+  Reactome, STRING, protein list, intensity dataset, entity search, cross-study
+  comparison, or the `md` CLI tool. Even if the user just says "run a differential
+  expression analysis", "upload my proteomics data", or "find this protein across
+  our studies" — this skill should activate.
 ---
 
 # Mass Dynamics Platform Skill
@@ -416,6 +419,55 @@ md viz qc --workspace-id <WS> --dataset-ids <DS> --type intensity-distribution
 ```bash
 md enrichment reactome --experiment-id <EXP> --proteins P04637 --proteins BRCA1_HUMAN
 md enrichment string --experiment-id <EXP> --protein-list-id <LIST_ID> --species 9606
+```
+
+### Experiment Search & Management (V2 API)
+
+```bash
+# Search experiments/uploads by keyword
+md experiments query --search "TPD screen"
+
+# Filter by status and source
+md experiments query --status COMPLETED --source diann_tabular
+
+# Search and get just IDs for piping
+md experiments query --search "kinase" --format ids-only
+
+# Get sample metadata for an experiment
+md experiments metadata <EXPERIMENT_ID>
+
+# Delete an experiment
+md experiments delete <EXPERIMENT_ID> --yes
+```
+
+### Dataset Search & Downloads (V2 API)
+
+```bash
+# Search datasets across all uploads
+md datasets query --search "pairwise" --state COMPLETED
+
+# Filter by upload and type
+md datasets query --upload-id <UUID> --type PAIRWISE --format ids-only
+
+# Get a presigned download URL for a table (for large downloads)
+md datasets download-url <DATASET_ID> output_comparisons
+md datasets download-url <DATASET_ID> Protein_Intensity --format parquet
+```
+
+### Entities — Cross-Dataset Search (V2 API)
+
+The entities endpoint is the substrate search capability — find proteins, genes,
+and peptides across multiple datasets. Use this for:
+- Validating hits from a new screen against historical work
+- Comparing the same protein across multiple studies
+- Building organisational intelligence about what's been found before
+
+```bash
+# Search for a protein across datasets
+md entities query --keyword TP53 --dataset-ids <DS1> --dataset-ids <DS2>
+
+# Validate hits from a new TPD screen
+md entities query --keyword BRCA1 --dataset-ids <NEW_DS> --dataset-ids <HISTORICAL_DS>
 ```
 
 ### Workspaces
