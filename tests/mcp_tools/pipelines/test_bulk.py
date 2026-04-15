@@ -179,7 +179,7 @@ class TestRunNormalisationImputationBulk:
                 "upload_id": "upload-1",
                 "dataset_name": f"NI {i}",
                 "normalisation_method": "median",
-                "imputation_method": "min_value",
+                "imputation_method": "mnar",
                 "if_exists": "run",
             }
             for i in range(2)
@@ -207,7 +207,7 @@ class TestRunNormalisationImputationBulk:
                             "upload_id": "upload-1",
                             "dataset_name": "NI Run",
                             "normalisation_method": "median",
-                            "imputation_method": "min_value",
+                            "imputation_method": "mnar",
                         }
                     ]
                 )
@@ -223,7 +223,7 @@ class TestRunNormalisationImputationBulk:
                 "upload_id": "upload-1",
                 "dataset_name": f"NI {i}",
                 "normalisation_method": "median",
-                "imputation_method": "min_value",
+                "imputation_method": "mnar",
             }
             for i in range(501)
         ]
@@ -243,7 +243,7 @@ class TestRunNormalisationImputationBulk:
                             "upload_id": "upload-bad",
                             "dataset_name": "NI A",
                             "normalisation_method": "median",
-                            "imputation_method": "min_value",
+                            "imputation_method": "mnar",
                         }
                     ]
                 )

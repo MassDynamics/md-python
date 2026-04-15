@@ -37,10 +37,10 @@ class TestRunNormalisationImputation:
             )
 
         params = mock_client.datasets.create.call_args[0][0].job_run_params
-        # entity_type must be top-level, NOT nested inside method dicts
+        # Flat v2 schema: entity_type at top level, methods as scalar strings.
         assert params["entity_type"] == "peptide"
-        assert "entity_type" not in params["normalisation_methods"]
-        assert "entity_type" not in params["imputation_methods"]
+        assert params["normalisation_methods_proteomics"] == "median"
+        assert params["imputation_methods"] == "mnar"
 
     def test_extra_params_merged(self):
         mock_client = MagicMock()
@@ -57,7 +57,8 @@ class TestRunNormalisationImputation:
             )
 
         call_args = mock_client.datasets.create.call_args[0][0]
-        assert (
-            call_args.job_run_params["normalisation_methods"]["reference"] == "global"
-        )
-        assert call_args.job_run_params["imputation_methods"]["k"] == 5
+        params = call_args.job_run_params
+        assert params["normalisation_methods_proteomics"] == "quantile"
+        assert params["imputation_methods"] == "knn"
+        assert params["reference"] == "global"
+        assert params["k"] == 5

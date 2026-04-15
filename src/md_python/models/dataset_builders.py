@@ -77,31 +77,80 @@ class MinimalDataset(BaseDatasetBuilder):
             raise ValueError("job_slug is required")
 
 
+_PROTEOMICS_NORMALISATION_METHODS = {
+    "skip",
+    "median",
+    "quantile",
+    "batch_correction",
+    "sum",
+}
+_GENE_NORMALISATION_METHODS = {
+    "skip",
+    "median",
+    "quantile",
+    "batch_correction",
+    "cpm",
+    "sum",
+}
+_IMPUTATION_METHODS = {
+    "skip",
+    "mnar",
+    "global_median",
+    "median_by_entity",
+    "knn",
+    "set to constant",
+    "set to missing",
+    "mindet",
+}
+_PEPTIDE_FILTRATION_METHODS = {"skip", "ptm_localization_probability"}
+_GENE_FILTRATION_METHODS = {"skip", "minimum_abundance"}
+
+
 @pydantic_dataclass
 class NormalisationImputationDataset(BaseDatasetBuilder):
-    """Builder for normalisation + imputation dataset.
+    """Builder for normalisation + imputation dataset (flat schema).
 
-    Required parameters are input datasets, output name, and two parameter blocks:
-    - normalisation_methods: {"method": str, ...}
-    - imputation_methods: {"method": str, ...}
+    The v2 dataset service expects a flat params block. Normalisation and
+    filtration field names depend on ``entity_type``:
+
+    - protein/peptide -> ``normalisation_methods_proteomics``
+    - gene            -> ``normalisation_methods_gene``
+    - peptide         -> ``filtration_methods_peptide``
+    - gene            -> ``filtration_methods_gene``
+
+    Method-specific parameters (``std_position``, ``std_width``, ``n_neighbors``,
+    ``weights``, ``constant_value``, ``q``, ``include_imputed_values``, etc.) are
+    passed via ``extra_params`` and merged into the top-level params block.
     """
 
-    normalisation_methods: Dict[str, Any]
-    imputation_methods: Dict[str, Any]
+    normalisation_method: str
+    imputation_method: str
     entity_type: str = "protein"
+    filtration_method: Optional[str] = None
+    extra_params: Optional[Dict[str, Any]] = None
     job_slug: str = "normalisation_imputation"
 
     def to_dataset(self) -> Dataset:
+        params: Dict[str, Any] = {"entity_type": self.entity_type}
+
+        if self.entity_type == "gene":
+            params["normalisation_methods_gene"] = self.normalisation_method
+            params["filtration_methods_gene"] = self.filtration_method or "skip"
+        else:
+            params["normalisation_methods_proteomics"] = self.normalisation_method
+            if self.entity_type == "peptide":
+                params["filtration_methods_peptide"] = self.filtration_method or "skip"
+
+        params["imputation_methods"] = self.imputation_method
+
+        if self.extra_params:
+            params.update(self.extra_params)
+
         return Dataset(
             input_dataset_ids=[UUID(x) for x in self.input_dataset_ids],
             name=self.dataset_name,
             job_slug=self.job_slug,
-            job_run_params={
-                "entity_type": self.entity_type,
-                "normalisation_methods": self.normalisation_methods,
-                "imputation_methods": self.imputation_methods,
-                "dataset_name": self.dataset_name,
-            },
+            job_run_params=params,
         )
 
     def validate(self) -> None:
@@ -113,15 +162,37 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
         if self.entity_type not in {"protein", "peptide", "gene"}:
             raise ValueError("entity_type must be one of: protein, peptide, gene")
 
-        if not isinstance(self.normalisation_methods, dict):
-            raise ValueError("normalisation_methods must be a dictionary")
-        if "method" not in self.normalisation_methods:
-            raise ValueError("normalisation_methods must include 'method'")
+        allowed_norm = (
+            _GENE_NORMALISATION_METHODS
+            if self.entity_type == "gene"
+            else _PROTEOMICS_NORMALISATION_METHODS
+        )
+        if self.normalisation_method not in allowed_norm:
+            raise ValueError(
+                f"normalisation_method must be one of {sorted(allowed_norm)} "
+                f"for entity_type={self.entity_type}"
+            )
 
-        if not isinstance(self.imputation_methods, dict):
-            raise ValueError("imputation_methods must be a dictionary")
-        if "method" not in self.imputation_methods:
-            raise ValueError("imputation_methods must include 'method'")
+        if self.imputation_method not in _IMPUTATION_METHODS:
+            raise ValueError(
+                f"imputation_method must be one of {sorted(_IMPUTATION_METHODS)}"
+            )
+
+        if self.filtration_method is not None:
+            if self.entity_type == "gene":
+                allowed_filt = _GENE_FILTRATION_METHODS
+            elif self.entity_type == "peptide":
+                allowed_filt = _PEPTIDE_FILTRATION_METHODS
+            else:
+                raise ValueError(
+                    "filtration_method is only supported for entity_type "
+                    "'peptide' or 'gene'"
+                )
+            if self.filtration_method not in allowed_filt:
+                raise ValueError(
+                    f"filtration_method must be one of {sorted(allowed_filt)} "
+                    f"for entity_type={self.entity_type}"
+                )
 
 
 @pydantic_dataclass

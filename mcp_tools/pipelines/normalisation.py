@@ -130,32 +130,32 @@ def run_normalisation_imputation(
         validation.
     """
     # Per-method defaults — always sent so the server receives complete params.
-    # User-supplied extra_params override these.
+    # User-supplied extras override these. The v2 dataset-service schema is
+    # flat, so everything gets merged into a single job_run_params dict.
     _norm_defaults: Dict[str, Dict[str, Any]] = {
         "cpm": {"prior_count": 0},
     }
     _imp_defaults: Dict[str, Dict[str, Any]] = {
         "mnar": {"std_position": 1.8, "std_width": 0.3},
-        "knn": {"n_neighbors": 3, "weights": None},
+        "knn": {"n_neighbors": 3, "weights": "uniform"},
         "set to constant": {"constant_value": 0},
     }
 
-    norm: Dict[str, Any] = {"method": normalisation_method}
-    norm.update(_norm_defaults.get(normalisation_method, {}))
+    extra: Dict[str, Any] = {}
+    extra.update(_norm_defaults.get(normalisation_method, {}))
     if normalisation_extra_params:
-        norm.update(normalisation_extra_params)
-
-    imp: Dict[str, Any] = {"method": imputation_method}
-    imp.update(_imp_defaults.get(imputation_method, {}))
+        extra.update(normalisation_extra_params)
+    extra.update(_imp_defaults.get(imputation_method, {}))
     if imputation_extra_params:
-        imp.update(imputation_extra_params)
+        extra.update(imputation_extra_params)
 
     dataset_id = NormalisationImputationDataset(
         input_dataset_ids=input_dataset_ids,
         dataset_name=dataset_name,
-        normalisation_methods=norm,
-        imputation_methods=imp,
+        normalisation_method=normalisation_method,
+        imputation_method=imputation_method,
         entity_type=entity_type,
+        extra_params=extra or None,
     ).run(get_client())
     return f"Normalisation/imputation pipeline started. Dataset ID: {dataset_id}"
 

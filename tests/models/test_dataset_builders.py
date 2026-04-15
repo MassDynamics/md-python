@@ -126,35 +126,70 @@ def test_builders_validation_errors():
     except ValueError as e:
         assert "control_samples" in str(e) and "sample_names" in str(e)
 
-    # NormalisationImputationDataset validation
+    # NormalisationImputationDataset validation (missing inputs)
     ni = NormalisationImputationDataset(
         input_dataset_ids=[],
         dataset_name="",
-        normalisation_methods={},
-        imputation_methods={},
+        normalisation_method="median",
+        imputation_method="mnar",
     )
     try:
         ni.validate()
         assert False, "Expected ValueError"
     except ValueError as e:
-        assert any(k in str(e) for k in ["input_dataset_ids", "dataset_name", "method"])
+        assert any(k in str(e) for k in ["input_dataset_ids", "dataset_name"])
+
+    # NormalisationImputationDataset validation (bad method)
+    ni_bad = NormalisationImputationDataset(
+        input_dataset_ids=[str(UUID(int=99))],
+        dataset_name="NI DS",
+        normalisation_method="bogus",
+        imputation_method="mnar",
+    )
+    try:
+        ni_bad.validate()
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "normalisation_method" in str(e)
 
 
 def test_normalisation_imputation_builder_build_and_run(mocker):
     ni = NormalisationImputationDataset(
         input_dataset_ids=[str(UUID(int=3))],
         dataset_name="NI DS",
-        normalisation_methods={"method": "quantile"},
-        imputation_methods={"method": "mnar", "std_position": 1.8, "std_width": 0.3},
+        normalisation_method="quantile",
+        imputation_method="mnar",
+        extra_params={"std_position": 1.8, "std_width": 0.3},
     )
     ds = ni.to_dataset()
     assert ds.name == "NI DS"
     assert ds.job_slug == "normalisation_imputation"
-    assert ds.job_run_params["normalisation_methods"]["method"] == "quantile"
-    assert ds.job_run_params["imputation_methods"]["method"] == "mnar"
+    assert ds.job_run_params["entity_type"] == "protein"
+    assert ds.job_run_params["normalisation_methods_proteomics"] == "quantile"
+    assert ds.job_run_params["imputation_methods"] == "mnar"
+    assert ds.job_run_params["std_position"] == 1.8
+    assert ds.job_run_params["std_width"] == 0.3
 
     client = mocker.Mock()
     client.datasets = mocker.Mock()
     client.datasets.create.return_value = "new-id"
     out = ni.run(client)
     assert out == "new-id"
+
+
+def test_normalisation_imputation_builder_gene_entity():
+    ni = NormalisationImputationDataset(
+        input_dataset_ids=[str(UUID(int=4))],
+        dataset_name="Gene NI",
+        entity_type="gene",
+        normalisation_method="cpm",
+        imputation_method="skip",
+        filtration_method="minimum_abundance",
+        extra_params={"minimum_abundance_threshold": 1.0},
+    )
+    ds = ni.to_dataset()
+    assert ds.job_run_params["entity_type"] == "gene"
+    assert ds.job_run_params["normalisation_methods_gene"] == "cpm"
+    assert ds.job_run_params["filtration_methods_gene"] == "minimum_abundance"
+    assert ds.job_run_params["imputation_methods"] == "skip"
+    assert "normalisation_methods_proteomics" not in ds.job_run_params
