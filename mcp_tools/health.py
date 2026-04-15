@@ -159,10 +159,13 @@ _WORKFLOW_GUIDE = {
             "validate_upload_inputs": "Validate experiment_design and sample_metadata alignment before create_upload.",
             "create_upload": "Create a new upload. Prefer create_upload_from_csv for the common case.",
             "get_upload": "Fetch upload details by ID or name.",
+            "get_upload_sample_metadata": "Fetch current sample_metadata for an upload as a 2D array. Round-trips into update_sample_metadata.",
             "update_sample_metadata": "Update sample metadata for an existing upload.",
             "wait_for_upload": "Poll an upload until COMPLETED/FAILED/ERROR/CANCELLED.",
             "list_uploads_status": "Check status of multiple uploads in one call. Pass summary=True to omit 'source' field — use this for large polls (100+ uploads) to reduce token overhead.",
+            "query_uploads": "Paginated filter search over uploads (status/source/search/sample_metadata). 50/page. Prefer get_upload(name=...) for exact-name lookup.",
             "cancel_upload_queue": "Cancel queued (not yet started) background upload transfers.",
+            "delete_upload": "Permanently delete an upload and its files. Fails with a friendly 409 message if the upload still has datasets — delete those first via delete_dataset.",
         },
         "dataset_tools": {
             "list_jobs": "Without upload_id: list global pipeline job catalog (slugs for describe_pipeline). With upload_id: list executed pipeline runs for that upload.",
@@ -173,6 +176,9 @@ _WORKFLOW_GUIDE = {
             "wait_for_datasets_bulk": "PREFERRED for many datasets: poll up to 500 datasets concurrently. Returns {total, all_terminal, by_state, pending, failed}. Call again when all_terminal is false.",
             "retry_dataset": "Retry a FAILED or ERROR pipeline job.",
             "delete_dataset": "Permanently delete a pipeline result dataset.",
+            "cancel_dataset": "Cancel a RUNNING/PROCESSING pipeline job. Only valid for non-terminal datasets.",
+            "query_datasets": "Paginated filter search over datasets (upload_id/state/type/search). 50/page. Prefer list_datasets(upload_id=...) for a single upload.",
+            "download_dataset_table": "Get a presigned download URL for a dataset table (csv/parquet). Pass output_path to stream to disk instead.",
             "query_entities": "Search proteins, genes, or peptides by keyword (e.g. gene symbol or UniProt ID) across one or more datasets.",
         },
         "pipeline_tools": {

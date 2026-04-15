@@ -81,6 +81,42 @@ class TestWaitForDatasetsBulk:
         assert "error" in result
         assert "500" in result["error"]
 
+    def test_not_found_datasets_reach_terminal_state(self):
+        """Regression: a job whose dataset_id cannot be found must end up in
+        the failed bucket with state NOT_FOUND, not loop forever in pending.
+        """
+        mock_client = MagicMock()
+        mock_client.datasets.get_by_id.return_value = None
+
+        jobs = [{"dataset_id": "ds-missing"}]
+
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
+            result = json.loads(
+                wait_for_datasets_bulk(jobs, poll_seconds=60, timeout_seconds=5)
+            )
+
+        assert result["all_terminal"] is True
+        assert result["pending"] == []
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["dataset_id"] == "ds-missing"
+        assert result["failed"][0]["state"] == "NOT_FOUND"
+
+    def test_fetch_error_datasets_reach_terminal_state(self):
+        """Regression: a transport error must also be terminal."""
+        mock_client = MagicMock()
+        mock_client.datasets.get_by_id.side_effect = RuntimeError("boom")
+
+        jobs = [{"dataset_id": "ds-1"}]
+
+        with patch("mcp_tools.datasets.wait.get_client", return_value=mock_client):
+            result = json.loads(
+                wait_for_datasets_bulk(jobs, poll_seconds=60, timeout_seconds=5)
+            )
+
+        assert result["all_terminal"] is True
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["state"] == "FETCH_ERROR"
+
     def test_timeout_returns_current_summary_with_all_terminal_false(self):
         mock_client = MagicMock()
         mock_client.datasets.list_by_upload.return_value = [

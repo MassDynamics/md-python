@@ -115,7 +115,7 @@ class TestCreateUploadFromCsv:
         assert "file_location" in result
 
     def test_large_files_use_sequential_executor(self, tmp_path):
-        from mcp_tools.uploads._executor import _large_upload_executor
+        from mcp_tools.uploads._executor import _get_executor
 
         csv = tmp_path / "metadata.csv"
         csv.write_text(
@@ -140,7 +140,9 @@ class TestCreateUploadFromCsv:
 
         assert "queued" in result
         _, kwargs = mock_client.uploads.create.call_args
-        assert kwargs.get("executor") is _large_upload_executor
+        # Assert against the live singleton — not a captured binding — so
+        # this test is robust to other tests that call _reset_executor().
+        assert kwargs.get("executor") is _get_executor()
 
     def test_small_files_use_no_executor(self, tmp_path):
         csv = tmp_path / "metadata.csv"

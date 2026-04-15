@@ -25,3 +25,27 @@ def delete_dataset(dataset_id: str) -> str:
     """
     ok = get_client().datasets.delete(dataset_id)
     return "Dataset deleted successfully" if ok else "Failed to delete dataset"
+
+
+@mcp.tool()
+def cancel_dataset(dataset_id: str) -> str:
+    """Cancel a pipeline job that is currently running.
+
+    Only valid when the dataset is in a PROCESSING / RUNNING / PENDING state.
+    The API rejects cancellation for already-terminal states (COMPLETED,
+    FAILED, ERROR, CANCELLED) with an error — the message is surfaced back
+    to the caller.
+
+    Use this to stop a runaway job that was submitted by mistake or whose
+    parameters turned out to be wrong. After cancelling, call delete_dataset
+    if you also want to remove the partial record.
+    """
+    try:
+        ok = get_client().datasets.cancel(dataset_id)
+    except Exception as e:
+        return f"Failed to cancel dataset: {e}"
+    return (
+        "Dataset cancellation requested"
+        if ok
+        else "Failed to cancel dataset (unknown server response)"
+    )

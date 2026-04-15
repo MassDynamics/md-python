@@ -1,5 +1,6 @@
 """Get and update upload records."""
 
+import json
 from typing import Any, Dict, Optional
 
 from md_python.models.metadata import SampleMetadata
@@ -39,6 +40,34 @@ def get_upload(
         return str(upload) if upload else "Upload not found"
     match = _find_upload_by_name(name)  # type: ignore[arg-type]
     return str(match) if match else "Upload not found"
+
+
+@mcp.tool()
+def get_upload_sample_metadata(upload_id: str) -> str:
+    """Fetch the sample metadata currently stored on an upload.
+
+    Returns JSON:
+      {"sample_metadata": [["sample_name", "condition", ...], ["s1", "ctrl"], ...]}
+
+    The returned 2D array is in the same shape as
+    load_metadata_from_csv(...)["sample_metadata"], so the output of this
+    tool can be passed straight to update_sample_metadata without any
+    reshaping.
+
+    Use this before editing metadata on an existing upload so you can show
+    the user what is currently stored and propose diffs, instead of
+    overwriting from scratch.
+
+    Returns {"error": "..."} on HTTP failure. Returns
+    {"sample_metadata": null} if the upload has no metadata stored yet.
+    """
+    try:
+        metadata = get_client().uploads.get_sample_metadata(upload_id)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to fetch sample metadata: {e}"})
+    if metadata is None:
+        return json.dumps({"sample_metadata": None})
+    return json.dumps({"sample_metadata": metadata.data})
 
 
 @mcp.tool()

@@ -339,7 +339,7 @@ class TestV2Datasets:
             state="COMPLETED",
             id=UUID("11111111-1111-1111-1111-111111111111"),
         )
-        mocker.patch.object(datasets, "list_by_upload", return_value=[completed_ds])
+        mocker.patch.object(datasets, "get_by_id", return_value=completed_ds)
 
         result = datasets.wait_until_complete(
             "upload-1", "11111111-1111-1111-1111-111111111111", poll_s=0, timeout_s=1
@@ -356,7 +356,7 @@ class TestV2Datasets:
             state="FAILED",
             id=UUID("11111111-1111-1111-1111-111111111111"),
         )
-        mocker.patch.object(datasets, "list_by_upload", return_value=[failed_ds])
+        mocker.patch.object(datasets, "get_by_id", return_value=failed_ds)
 
         with pytest.raises(Exception, match="failed"):
             datasets.wait_until_complete(
@@ -365,6 +365,31 @@ class TestV2Datasets:
                 poll_s=0,
                 timeout_s=1,
             )
+
+    def test_wait_until_complete_not_visible_then_completed(
+        self, datasets, mock_client, mocker
+    ):
+        """Regression: wait must use get_by_id so uploads with >50 sibling
+        datasets still find the target. Under the old list_by_upload
+        implementation a dataset beyond the first page would never be seen."""
+        completed_ds = Dataset(
+            input_dataset_ids=[],
+            name="n",
+            job_slug="j",
+            job_run_params={},
+            state="COMPLETED",
+            id=UUID("11111111-1111-1111-1111-111111111111"),
+        )
+        get_by_id = mocker.patch.object(
+            datasets, "get_by_id", side_effect=[None, completed_ds]
+        )
+
+        result = datasets.wait_until_complete(
+            "upload-1", "11111111-1111-1111-1111-111111111111", poll_s=0, timeout_s=5
+        )
+
+        assert result is completed_ds
+        assert get_by_id.call_count == 2
 
     def test_find_initial_dataset_success(self, datasets, mock_client, mocker):
         ds = Dataset(

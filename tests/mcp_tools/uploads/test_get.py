@@ -1,8 +1,14 @@
-"""Tests for get_upload and update_sample_metadata."""
+"""Tests for get_upload, get_upload_sample_metadata, and update_sample_metadata."""
 
+import json
 from unittest.mock import MagicMock, patch
 
-from mcp_tools.uploads import get_upload, update_sample_metadata
+from mcp_tools.uploads import (
+    get_upload,
+    get_upload_sample_metadata,
+    update_sample_metadata,
+)
+from md_python.models.metadata import SampleMetadata
 
 from .conftest import METADATA
 
@@ -58,6 +64,36 @@ class TestGetUpload:
 
     def test_no_args_returns_error(self):
         assert "Error" in get_upload()
+
+
+class TestGetUploadSampleMetadata:
+    def test_returns_2d_array(self):
+        mock_client = MagicMock()
+        data = [
+            ["sample_name", "condition"],
+            ["s1", "ctrl"],
+            ["s2", "treated"],
+        ]
+        mock_client.uploads.get_sample_metadata.return_value = SampleMetadata(data=data)
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
+            result = json.loads(get_upload_sample_metadata("upload-1"))
+        assert result == {"sample_metadata": data}
+        mock_client.uploads.get_sample_metadata.assert_called_once_with("upload-1")
+
+    def test_none_when_no_metadata(self):
+        mock_client = MagicMock()
+        mock_client.uploads.get_sample_metadata.return_value = None
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
+            result = json.loads(get_upload_sample_metadata("upload-1"))
+        assert result == {"sample_metadata": None}
+
+    def test_error_on_exception(self):
+        mock_client = MagicMock()
+        mock_client.uploads.get_sample_metadata.side_effect = Exception("boom")
+        with patch("mcp_tools.uploads.get.get_client", return_value=mock_client):
+            result = json.loads(get_upload_sample_metadata("upload-1"))
+        assert "error" in result
+        assert "boom" in result["error"]
 
 
 class TestUpdateSampleMetadata:

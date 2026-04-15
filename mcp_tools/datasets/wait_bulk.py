@@ -11,7 +11,18 @@ from .wait import _fetch_dataset_state
 
 _DATASETS_BULK_MAX = 500
 _DATASETS_BULK_WORKERS = 20
-_TERMINAL_STATES = {"COMPLETED", "FAILED", "ERROR", "CANCELLED"}
+# NOT_FOUND / FETCH_ERROR are terminal because re-polling a missing or
+# persistently-erroring dataset would loop forever. Callers should treat
+# them as errored rather than pending.
+_TERMINAL_STATES = {
+    "COMPLETED",
+    "FAILED",
+    "ERROR",
+    "CANCELLED",
+    "NOT_FOUND",
+    "FETCH_ERROR",
+}
+_ERROR_STATES = {"FAILED", "ERROR", "NOT_FOUND", "FETCH_ERROR"}
 
 
 @mcp.tool()
@@ -37,7 +48,7 @@ def wait_for_datasets_bulk(
     Fetches all dataset states concurrently (up to 20 parallel connections).
     Polls until all datasets reach a terminal state or timeout is reached.
 
-    Terminal states: COMPLETED, FAILED, ERROR, CANCELLED.
+    Terminal states: COMPLETED, FAILED, ERROR, CANCELLED, NOT_FOUND, FETCH_ERROR.
     Non-terminal (will appear in "pending"): RUNNING, PENDING, PROCESSING.
 
     Returns JSON:
@@ -48,8 +59,15 @@ def wait_for_datasets_bulk(
         "pending": [{"dataset_id": "...", "state": "..."}],
         "failed":  [{"dataset_id": "...", "state": "..."}]
       }
+    "failed" contains datasets in any error state: FAILED, ERROR, NOT_FOUND,
+    or FETCH_ERROR. NOT_FOUND means the dataset id does not exist (or the
+    upload_id/dataset_id mapping was wrong); FETCH_ERROR means the API call
+    raised — inspect the "error" field on the entry. Both are terminal so
+    the polling loop cannot get stuck.
+
     When all_terminal is false, call wait_for_datasets_bulk again with the same jobs.
-    Pass the "failed" list items to retry_dataset to re-run failed jobs.
+    Pass FAILED/ERROR entries to retry_dataset to re-run; NOT_FOUND/FETCH_ERROR
+    entries need caller investigation, not retry.
     """
     if len(jobs) > _DATASETS_BULK_MAX:
         return json.dumps(
@@ -72,7 +90,7 @@ def wait_for_datasets_bulk(
 
         by_state: Dict[str, int] = dict(Counter(s["state"] for s in statuses))
         pending = [s for s in statuses if s["state"] not in _TERMINAL_STATES]
-        failed = [s for s in statuses if s["state"] in ("FAILED", "ERROR")]
+        failed = [s for s in statuses if s["state"] in _ERROR_STATES]
         all_terminal = len(pending) == 0
 
         if all_terminal or time.monotonic() >= deadline:

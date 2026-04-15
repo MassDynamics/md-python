@@ -1,8 +1,10 @@
 """Dataset management MCP tools."""
 
-from .crud import delete_dataset, retry_dataset
+from .crud import cancel_dataset, delete_dataset, retry_dataset
+from .download import download_dataset_table
 from .find import find_initial_dataset, find_initial_datasets
 from .list import list_datasets, list_jobs
+from .query import query_datasets
 from .wait import wait_for_dataset
 from .wait_bulk import wait_for_datasets_bulk
 
@@ -15,4 +17,7 @@ __all__ = [
     "wait_for_datasets_bulk",
     "retry_dataset",
     "delete_dataset",
+    "cancel_dataset",
+    "query_datasets",
+    "download_dataset_table",
 ]
