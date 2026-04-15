@@ -436,6 +436,9 @@ md experiments query --search "kinase" --format ids-only
 # Get sample metadata for an experiment
 md experiments metadata <EXPERIMENT_ID>
 
+# Update sample metadata (correct conditions, add covariates, relabel samples)
+md experiments update-metadata <EXPERIMENT_ID> --metadata-csv updated_meta.csv
+
 # Delete an experiment
 md experiments delete <EXPERIMENT_ID> --yes
 ```

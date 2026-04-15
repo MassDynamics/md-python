@@ -804,6 +804,40 @@ def experiments_metadata(experiment_id):
     output_json(result)
 
 
+@experiments.command("update-metadata")
+@click.argument("experiment_id")
+@click.option("--metadata-csv", required=True, type=click.Path(exists=True),
+              help="CSV file with updated sample metadata (sample_name, condition, ...)")
+def experiments_update_metadata(experiment_id, metadata_csv):
+    """Update sample metadata for an experiment/upload (V2 API).
+
+    Replaces the sample metadata with the contents of the provided CSV.
+    The CSV must have a header row and at least a sample_name column.
+
+    Use this after upload to correct conditions, add covariates, or
+    relabel samples without re-uploading the data.
+
+    Examples:
+      md experiments update-metadata <experiment-id> --metadata-csv updated_meta.csv
+
+    CSV format:
+      sample_name,condition,batch
+      S1,Control,1
+      S2,Treatment,1
+      S3,Control,2
+      S4,Treatment,2
+    """
+    client = get_client()
+    metadata = read_csv_as_arrays(metadata_csv)
+    if len(metadata) < 2:
+        click.echo("Error: CSV must have a header row and at least one data row.", err=True)
+        sys.exit(1)
+    click.echo(f"Updating metadata for {experiment_id} ({len(metadata)-1} samples)...", err=True)
+    client.update_upload_sample_metadata(experiment_id, metadata)
+    click.echo("✓ Sample metadata updated", err=True)
+    output_json({"experiment_id": experiment_id, "rows": len(metadata)-1, "columns": metadata[0]})
+
+
 # =============================================================================
 # DESIGN (experiment design helpers)
 # =============================================================================

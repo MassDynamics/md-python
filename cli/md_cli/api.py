@@ -303,6 +303,19 @@ class MDClient:
         meta = self._v2.uploads.get_sample_metadata(upload_id)
         return self._to_dict(meta)
 
+    def update_upload_sample_metadata(
+        self, upload_id: str, metadata: list
+    ) -> bool:
+        """Update sample metadata for an upload (V2).
+
+        Args:
+            upload_id: Upload UUID
+            metadata: Array-of-arrays format, e.g.
+                [["sample_name","condition"], ["S1","Control"], ["S2","Treatment"]]
+        """
+        sm = SampleMetadata(data=metadata)
+        return self._v2.uploads.update_sample_metadata(upload_id, sm)
+
     # ==================================================================
     # DATASETS
     # ==================================================================
