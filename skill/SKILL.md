@@ -11,200 +11,65 @@ description: >
   pairwise comparison, dose-response, ANOVA, volcano plot, heatmap, PCA, enrichment,
   Reactome, STRING, protein list, intensity dataset, entity search, cross-study
   comparison, or the `md` CLI tool. Even if the user just says "run a differential
-  expression analysis", "upload my proteomics data", or "find this protein across
-  our studies" — this skill should activate.
+  expression analysis", "upload my proteomics data", "find this protein across
+  our studies", "what's significant in this comparison", or "check if my experiment
+  finished" — this skill should activate.
 ---
 
 # Mass Dynamics Platform Skill
 
-This skill operates the Mass Dynamics proteomics platform via the `md` CLI.
-Always use the CLI instead of writing inline Python — it handles auth, endpoint
-routing, payload wrapping, and error recovery automatically.
+Operate the Mass Dynamics proteomics platform via the `md` CLI. The CLI handles
+auth, endpoint routing, payload wrapping, and error recovery — prefer it over
+writing inline Python.
 
 ## Setup
-
-Install the CLI and configure auth:
 
 ```bash
 pip install <skill-path>/scripts/md-cli --break-system-packages 2>/dev/null
 md auth status
 ```
 
-If `md auth status` fails, see the Authentication section below.
+If `md auth status` fails, see Authentication below.
 
 ## Authentication
 
-The CLI checks for auth in this order:
-1. `MD_API_TOKEN` environment variable (recommended for enterprise/persistent use)
+The CLI checks for auth in order:
+1. `MD_API_TOKEN` environment variable (recommended for persistent use)
 2. `~/.md-cli/config.json` (set via `md auth login`)
 
-To check current auth status: `md auth status`
-
-### If no token is configured
-
-Ask the user:
+If no token is configured, ask the user:
 
 > "I need your Mass Dynamics API token. You can:
->
-> 1. **Quick setup**: Paste your token here and I'll configure it.
->    Get your token from: MD web app → Settings → API Access → Generate Token
->
-> 2. **Persistent setup** (recommended): Set `MD_API_TOKEN` in your Claude
->    settings so it's available every session automatically.
->    Open Claude settings → Add to env: `{ "MD_API_TOKEN": "your-token" }`"
+> 1. **Quick**: Paste your token here — get it from MD web app → Settings → API Access
+> 2. **Persistent**: Set `MD_API_TOKEN` in your Claude env settings"
 
-### If token is provided in chat
+If they paste a token: `md auth login --token <TOKEN> && md auth status`
 
-```bash
-md auth login --token <TOKEN>
-md auth status  # verify
-```
-
-### For enterprise deployments
-
-IT can deploy the token via managed settings so individual users never configure it:
-- macOS: `/Library/Application Support/ClaudeCode/managed-settings.json`
-- Linux: `/etc/claude-code/managed-settings.json`
-
+For enterprise: deploy via managed settings at
+`/Library/Application Support/ClaudeCode/managed-settings.json`:
 ```json
 { "env": { "MD_API_TOKEN": "org-token", "MD_BASE_URL": "https://your-instance.massdynamics.com/api" } }
 ```
 
-### Base URLs
+Base URLs: production `https://app.massdynamics.com/api`, dev `https://dev.massdynamics.com/api`
 
-- Production: `https://app.massdynamics.com/api`
-- Development: `https://dev.massdynamics.com/api` (CLI default)
+## MD Format Detection
 
-To set a custom base URL: `md auth login --token TOKEN --base-url https://app.massdynamics.com/api`
+Before uploading, check whether the user's data is MD format — the platform's
+native format. Uploading MD format data with the wrong source type causes the
+experiment to hang in processing indefinitely with no error, which is the single
+most common upload failure.
 
-## CRITICAL: Detecting and Uploading MD Format Data
+→ **Full detection rules, column specs, zero-filling, and large-file upload**:
+  Read `references/md-format-upload.md`
 
-Before uploading, ALWAYS check if the user's data is in **MD format**. This is
-the most common mistake — using `generic_format` when the data is actually MD format
-will cause the experiment to get stuck in "processing" indefinitely.
+Quick check: if the TSV headers include `ProteinGroupId`, `ProteinIntensity`,
+`Imputed`, and `SampleName` together — it's MD format. Use `--source md_format`.
+The CLI auto-detects this when `--source` is omitted and `--files-dir` is provided.
 
-### How to detect MD format
+## CLI Output
 
-Read the TSV file headers. MD format files have these specific columns:
-
-**Protein file** (e.g. `Protein_data.tsv`, `Protein_intensity.tsv`):
-`ProteinGroupId | ProteinIntensity | Imputed | SampleName | ProteinGroup | ProteinNames | GeneNames | Description`
-
-**Peptide file** (e.g. `Peptide_data.tsv`, `Peptide_intensity.tsv`):
-`PeptideIntensity | Imputed | SampleName | ProteinGroup | ProteinNames | GeneNames | Description | ModifiedSequence | StrippedSequence | Unique | ProteinGroupId | OtherProteinGroupIDs`
-
-If you see columns like `ProteinGroupId`, `ProteinIntensity`, `Imputed`, and
-`SampleName` together — **this is MD format**. Use `--source md_format`.
-
-The CLI now auto-detects MD format when `--source` is omitted and `--files-dir`
-is provided. It reads TSV headers and silently switches to `md_format`.
-
-### MD format vs generic_format
-
-| Feature | `md_format` | `generic_format` |
-|---------|-------------|------------------|
-| Source type | `md_format` or `md_format_gene` | `generic_format` |
-| Protein columns | 8 specific columns (see above) | Flexible |
-| Peptide columns | 12 specific columns (see above) | Flexible |
-| Data completeness | **Every protein/peptide must appear in every sample** | Sparse OK |
-| Missing values | Fill with `0` intensity and `0` imputed | N/A |
-| Design CSV filename | `filename` = sample_name (no raw files) | `filename` = actual file path |
-
-### MD format rules
-
-1. **Source type**: Must be `md_format` (protein accession-keyed) or `md_format_gene` (gene name-keyed)
-2. **Complete matrix required**: Every protein must have a row for every sample. If a protein was not detected in a sample, add a row with `ProteinIntensity=0` and `Imputed=0`. Same rule applies to peptides.
-3. **Column order matters**: Follow the exact column order shown above
-4. **ProteinNames and Description**: These columns should be present even if empty
-5. **OtherProteinGroupIDs** (peptide file): Include the ProteinGroupId followed by a semicolon (e.g. `1234;`)
-6. **Design CSV**: The `filename` column must contain the sample name (not a file path), since MD format data has no per-sample raw files. The CLI auto-adjusts this when `source` is `md_format`.
-7. **Files needed**: Two TSV files — one protein, one peptide. Metadata is passed via `--metadata-csv`.
-
-### Zero-filling workflow for incomplete data
-
-When data comes from search engines (DIA-NN, MaxQuant, etc.) and is converted to
-MD format, proteins/peptides are typically only present for samples where they were
-detected. You MUST zero-fill before uploading:
-
-```python
-# Zero-fill protein data
-# 1. Read all existing (protein, sample) pairs
-# 2. Get the full set of unique proteins and unique samples
-# 3. For every (protein, sample) pair not in the original data:
-#    → Add a row with ProteinIntensity=0, Imputed=0
-# 4. Write output in MD format column order
-
-# Same process for peptide data — every (peptide, sample) must exist
-```
-
-### Example MD format upload
-
-```bash
-md experiments create \
-  --name "My SCP Study" \
-  --source md_format \
-  --filenames Protein_data.tsv \
-  --filenames Peptide_data.tsv \
-  --design-csv design.csv \
-  --metadata-csv sample_metadata.csv \
-  --species human \
-  --files-dir ./data
-```
-
-### Large file uploads (>100MB)
-
-For large zero-filled peptide files, the default upload may timeout. Use the
-Python API directly with a longer timeout:
-
-```python
-import json, csv, requests
-from pathlib import Path
-
-config_path = Path.home() / ".md-cli" / "config.json"
-with open(config_path) as f:
-    config = json.load(f)
-
-token = config["token"]
-base = config.get("base_url", "https://dev.massdynamics.com/api")
-headers = {"Authorization": f"Bearer {token}",
-           "Accept": "application/vnd.md-v1+json",
-           "Content-Type": "application/json"}
-
-# Create experiment
-payload = {
-    "experiment": {
-        "name": "My Experiment",
-        "source": "md_format",
-        "labelling_method": "lfq",
-        "file_location": "local",
-        "filenames": ["Protein_data.tsv", "Peptide_data.tsv"],
-        "experiment_design": design_rows,  # array-of-arrays from CSV
-        "sample_metadata": meta_rows,      # array-of-arrays from CSV
-        "species": "human"
-    }
-}
-resp = requests.post(f"{base}/experiments", json=payload, headers=headers)
-data = resp.json()
-exp_id = data["id"]
-
-# Upload files with long timeout (1800s for large files)
-for upload in data.get("uploads", []):
-    fn, url = upload["filename"], upload["url"]
-    with open(f"./data/{fn}", "rb") as fh:
-        requests.put(url, data=fh,
-                     headers={"Content-Type": "application/octet-stream"},
-                     timeout=1800)
-
-# Start workflow
-requests.post(f"{base}/experiments/{exp_id}/start_workflow", headers=headers)
-```
-
-## CLI Output Format
-
-All commands output **JSON to stdout** by default. Status messages go to stderr
-so they don't interfere with piping.
-
-Use `--format ids-only` on key commands to get just the resource ID for piping:
+All commands output JSON to stdout; status messages go to stderr (clean for piping).
 
 ```bash
 EXP_ID=$(md experiments create ... --format ids-only)
@@ -212,197 +77,176 @@ DS_ID=$(md datasets list $EXP_ID --type INTENSITY --format ids-only)
 ANALYSIS_ID=$(md analysis pairwise ... --format ids-only)
 ```
 
-Key JSON fields in responses:
-- Experiment creation → `{"id": "exp_...", "name": "...", ...}`
-- Dataset creation → `{"id": "dset_...", "type": "PAIRWISE", ...}`
-- Analysis submission → `{"id": "dset_...", ...}` (analyses create datasets)
+## Batch — Use This for Multi-Step Workflows
 
-## CLI Reference
+`md batch` runs multiple operations in one invocation, reusing a single HTTP
+session. This is roughly 24x faster than individual commands and uses fewer
+tokens. If a request maps to 2+ commands, combine them.
 
-### Batch Command — Use This for Multi-Step Workflows
-
-The `md batch` command runs multiple operations in a single invocation. This is
-the most efficient way to interact with the platform — it reuses one authenticated
-HTTP session and avoids per-command overhead.
+→ See `instructions/request-mapping.md` for the full command mapping table.
 
 ```bash
 md batch \
-  "health" \
-  "auth status" \
-  "experiments get <EXPERIMENT_ID>" \
-  "datasets list <EXPERIMENT_ID>" \
-  "datasets get <DATASET_ID> -e <EXPERIMENT_ID>" \
+  "experiments get <ID>" \
+  "datasets list <ID>" \
+  "datasets list <ID> --type INTENSITY --format ids-only" \
   --output results.json
 ```
 
-Use `--stop-on-error` to halt on first failure. Always prefer `md batch` over
-running individual commands when you need 2+ operations.
+Use `--stop-on-error` to halt on first failure.
 
-### Experiments
+## Experiments
 
 ```bash
-# Get experiment by UUID
-md experiments get <EXPERIMENT_ID>
-
-# Get experiment by name
-md experiments get "My Experiment" --by-name
-
-# Create experiment with data files (returns JSON with experiment ID)
+md experiments get <ID>                          # by UUID
+md experiments get "Name" --by-name              # by name
 md experiments create \
-  --name "My DIA-NN Study" \
-  --source diann_tabular \
-  --filenames results.tsv \
-  --design-csv design.csv \
-  --metadata-csv metadata.csv \
-  --species human \
-  --files-dir ./data
-
-# Create and get just the ID for piping
-EXP_ID=$(md experiments create ... --format ids-only)
-
-# Wait for processing
-md experiments wait <EXPERIMENT_ID> --timeout 600
-
-# List experiments (requires session cookie auth)
-md experiments list
+  --name "My Study" --source diann_tabular \
+  --filenames results.tsv --design-csv design.csv \
+  --metadata-csv metadata.csv --species human --files-dir ./data
+md experiments wait <ID> --timeout 600           # poll until done
+md experiments query --search "kinase" --status COMPLETED  # V2 search
+md experiments metadata <ID>                     # sample metadata
+md experiments update-metadata <ID> --metadata-csv updated.csv
+md experiments delete <ID> --yes
 ```
 
-**Data sources** (all valid API values):
-`diann_tabular`, `diann_raw`, `tims_diann`, `maxquant`, `spectronaut`,
-`msfragger`, `generic_format`, `md_format`, `md_format_gene`, `simple`,
-`raw`, `unknown`
+**Sources**: `diann_tabular`, `diann_raw`, `tims_diann`, `maxquant`,
+`spectronaut`, `msfragger`, `generic_format`, `md_format`, `md_format_gene`,
+`simple`, `raw`, `unknown`
 **Species**: `human`, `mouse`, `yeast`, `chinese_hamster`
 **Labelling**: `lfq` (default), `tmt`
 
-### Design Helpers
+## Design Helpers
 
-After uploading an experiment, discover actual sample names:
+After uploading, discover actual sample names before running analysis:
 
 ```bash
-# Infer sample names from uploaded data
-md design infer <EXPERIMENT_ID>
-
-# Output as CSV template for manual editing
-md design infer <EXPERIMENT_ID> --format csv > design.csv
-
-# Get just the sample names
-md design infer <EXPERIMENT_ID> --format ids-only
+md design infer <ID>                    # JSON with sample names + template
+md design infer <ID> --format csv > design.csv   # editable CSV
+md design infer <ID> --format ids-only  # just names
 ```
 
-The `design infer` output includes a `conditions_template` field showing the
-`--conditions` string format with placeholder values you can fill in.
+The output includes a `conditions_template` showing the `--conditions` format
+with placeholders you can fill in.
 
-### Datasets
+## Datasets
 
 ```bash
-# List datasets for an experiment
-md datasets list <EXPERIMENT_ID>
-
-# Filter by type and get just IDs
-DS_ID=$(md datasets list <EXPERIMENT_ID> --type INTENSITY --format ids-only)
-
-# Get dataset details (always provide -e for reliability)
-md datasets get <DATASET_ID> -e <EXPERIMENT_ID>
-
-# Wait for analysis to complete
-md datasets wait <DATASET_ID> --timeout 300
+md datasets list <EXP_ID>
+md datasets list <EXP_ID> --type INTENSITY --format ids-only
+md datasets get <DS_ID> -e <EXP_ID>     # -e required on some deployments
+md datasets wait <DS_ID> --timeout 300
+md datasets query --search "pairwise" --state COMPLETED   # V2 search
+md datasets download-url <DS_ID> output_comparisons       # V2 presigned URL
 ```
 
-Important: `datasets get` requires the `-e <EXPERIMENT_ID>` flag because the
-direct `GET /datasets/:id` route is not available on all deployments. The CLI
-falls back to looking up the dataset from the experiment's dataset list.
+`datasets get` needs `-e <EXP_ID>` because direct `GET /datasets/:id` isn't
+available on all deployments — the CLI falls back to the experiment's dataset list.
 
-### Analyses
+## Analyses
 
-All analysis commands accept design in two ways:
-- `--design-csv design.csv` — CSV file with sample_name and condition columns
-- `--conditions "sample1:Control,sample2:Treatment"` — inline, no file needed
-
-Use `md design infer <EXP_ID>` to discover sample names first.
+All accept design as either `--design-csv design.csv` or inline
+`--conditions "s1:Control,s2:Treatment"`. Use `md design infer` to discover
+sample names first.
 
 ```bash
-# Pairwise comparison (differential expression via limma)
+# Pairwise (limma differential expression)
 md analysis pairwise \
-  --input-dataset-id <INTENSITY_DATASET_ID> \
-  --name "Treatment vs Control" \
-  --conditions "s1:Control,s2:Control,s3:Control,s4:Tx,s5:Tx,s6:Tx" \
-  --condition-column condition \
-  --comparisons "Tx:Control"
+  --input-dataset-id <INTENSITY_DS> --name "Tx vs Ctrl" \
+  --conditions "s1:Control,s2:Control,s3:Tx,s4:Tx,s5:Tx,s6:Tx" \
+  --condition-column condition --comparisons "Tx:Control"
 
-# Same thing with a CSV file
-md analysis pairwise \
-  --input-dataset-id <INTENSITY_DATASET_ID> \
-  --name "Treatment vs Control" \
-  --design-csv design.csv \
-  --condition-column condition \
-  --comparisons "Treatment:Control"
-
-# Get just the analysis dataset ID
-ANALYSIS_ID=$(md analysis pairwise ... --format ids-only)
-
-# Dose-response (curve fitting via R drc)
+# Dose-response (R drc curve fitting)
 md analysis dose-response \
-  --input-dataset-id <INTENSITY_DATASET_ID> \
-  --name "Dose Response" \
+  --input-dataset-id <INTENSITY_DS> --name "Dose Response" \
   --conditions "s1:0,s2:0,s3:10,s4:100,s5:1000" \
   --control-samples s1 --control-samples s2
 
 # ANOVA (multi-condition)
 md analysis anova \
-  --input-dataset-id <INTENSITY_DATASET_ID> \
-  --name "ANOVA Analysis" \
+  --input-dataset-id <INTENSITY_DS> --name "ANOVA" \
   --conditions "s1:A,s2:A,s3:B,s4:B,s5:C,s6:C" \
   --condition-column condition
 ```
 
-Comparison string format for pairwise: `"Treatment:Control"` means Treatment vs Control.
-Multiple comparisons: `"Treatment:Control,Drug:Vehicle"`.
+Comparison format: `"Treatment:Control"` = Treatment vs Control.
+Multiple: `"Treatment:Control,Drug:Vehicle"`.
 
-Minimum requirements: 2 distinct conditions, 3 replicates per condition.
-Before running analysis, consider handing off to md-analysis-policy for validation.
+Minimum: 2 conditions, 3 replicates each.
 
-### Tables
+**Multi-condition and time-course designs:** ANOVA is the correct method, but
+before running, always hand off to the `md-analysis-policy` skill to validate
+the design — it checks for unbalanced groups, missing replicates, and whether
+the design requires a custom R module instead. Call it with the experiment ID
+and sample-to-condition mapping before issuing `md analysis anova`.
+
+### Pairwise — Data Quality (read before submitting)
+
+**Limma always runs in log space.** The R worker applies a log transform
+regardless — this is statistically required and not configurable. Any
+protein with a zero intensity that passes the validity filter will fail with:
+`"Entity found with 0 intensities classified as valid values. Cannot convert to the log scale."`
+
+**Why this happens:** zeros in normalised proteomics intensities are usually
+artefacts of normalisation or represent proteins not detected in a sample.
+The validity filter counts them as "present" but the log step cannot handle them.
+
+**Always check before submitting pairwise:**
+
+1. **Look for an MNAR intensity dataset.** MNAR imputation fills zero/missing
+   values with statistically modelled values drawn from the lower tail of the
+   distribution, making log transform safe. Check:
+   ```bash
+   md datasets list <EXP_ID> | grep -i mnar
+   ```
+   If one exists, use it as `--input-dataset-id`. If none exists, ask the
+   user whether to create one before proceeding.
+
+2. **Default `--filter-logic` to `"all conditions"`.** The platform default
+   (`"at least one condition"`) lets proteins with zeros in one condition
+   slip through. `"all conditions"` requires valid values in every condition
+   and is much safer with real-world proteomics data.
+
+3. **If the job fails with the zero-intensity error**, the recovery path is:
+   - Find or create the MNAR dataset (`md datasets list <EXP_ID>`)
+   - Resubmit using the MNAR dataset as input with `--filter-logic "all conditions"`
+   - Do not attempt to disable log transform — it is not supported and is
+     statistically wrong for limma
+
+## Tables
 
 ```bash
-# List available tables for a dataset
-md tables list <EXPERIMENT_ID> <DATASET_ID>
-
-# Column headers
-md tables headers <EXPERIMENT_ID> <DATASET_ID> <TABLE_NAME>
-
-# Download as CSV
-md tables download <EXPERIMENT_ID> <DATASET_ID> <TABLE_NAME> -o results.csv
-
-# SQL query
-md tables query <EXPERIMENT_ID> <DATASET_ID> <TABLE_NAME> \
+md tables list <EXP_ID> <DS_ID>
+md tables headers <EXP_ID> <DS_ID> <TABLE>
+md tables download <EXP_ID> <DS_ID> <TABLE> -o results.csv
+md tables query <EXP_ID> <DS_ID> <TABLE> \
   --sql "SELECT * FROM data WHERE adj_pvalue < 0.05 ORDER BY log2fc DESC LIMIT 50"
 ```
 
-#### Result Table Names (use `md tables list` if unsure)
+### Result Table Names
 
-| Dataset Type     | Tables                                                                     |
-|------------------|----------------------------------------------------------------------------|
-| **INTENSITY**    | `Protein_Intensity`, `Protein_Metadata`, `Peptide_Intensity`, `Peptide_Metadata` |
-| **PAIRWISE**     | `output_comparisons`, `runtime_metadata`                                   |
-| **DOSE_RESPONSE**| `output_curves`, `output_volcanoes`, `input_drc`, `runtime_metadata`       |
-| **ANOVA**        | `anova_results`, `runtime_metadata`                                        |
+| Dataset Type | Tables |
+|---|---|
+| INTENSITY | `Protein_Intensity`, `Protein_Metadata`, `Peptide_Intensity`, `Peptide_Metadata` |
+| PAIRWISE | `output_comparisons`, `runtime_metadata` |
+| DOSE_RESPONSE | `output_curves`, `output_volcanoes`, `input_drc`, `runtime_metadata` |
+| ANOVA | `anova_results`, `runtime_metadata` |
 
-#### Key Column Names in `output_comparisons` (Pairwise Results)
+Key columns in `output_comparisons`: `protein_id`, `log2fc`, `pvalue`,
+`adj_pvalue`, `comparison`.
 
-| Column       | Description                               |
-|--------------|-------------------------------------------|
-| `protein_id` | Protein identifier (UniProt accession)    |
-| `log2fc`     | Log2 fold change                          |
-| `pvalue`     | Raw p-value                               |
-| `adj_pvalue` | Adjusted p-value (Benjamini-Hochberg)     |
-| `comparison` | Which comparison (e.g. "Treatment_vs_Control") |
+**`tables download` 404 in dev/staging:** `md tables download` can return a
+404 on non-production deployments due to a missing service route. If this
+happens, fall back to `md tables query` with `SELECT * FROM <TABLE>` and pipe
+the output — it uses a different code path that works in all environments.
 
-Table endpoints require session cookie auth on some deployments. If you only
-have a bearer token, the CLI will give a clear error message explaining this.
+Table endpoints require session cookie auth on some deployments — the CLI gives
+a clear error if only a bearer token is available.
 
-### Visualisations
+## Visualisations
 
-All viz commands output Plotly JSON. Save with `-o` and render with plotly.
+All output Plotly JSON. Save with `-o` and render with plotly.
 
 ```bash
 md viz volcano --workspace-id <WS> --dataset-id <DS> --comparison "A_vs_B" -o volcano.json
@@ -414,132 +258,97 @@ md viz anova-volcano --workspace-id <WS> --dataset-id <DS>
 md viz qc --workspace-id <WS> --dataset-ids <DS> --type intensity-distribution
 ```
 
-### Enrichment
+## Enrichment
+
+**Always use the `md` CLI commands below — never express enrichment as raw HTTP
+calls.** Pass a list of significant protein accessions or gene names (filtered
+from pairwise results by adj_pvalue) as individual `--proteins` flags.
 
 ```bash
-md enrichment reactome --experiment-id <EXP> --proteins P04637 --proteins BRCA1_HUMAN
+# Reactome pathway enrichment — one --proteins flag per protein
+md enrichment reactome --experiment-id <EXP> --proteins P04637 --proteins TP53
+
+# STRING network enrichment — requires a saved protein list ID and NCBI species taxon
 md enrichment string --experiment-id <EXP> --protein-list-id <LIST_ID> --species 9606
 ```
 
-### Experiment Search & Management (V2 API)
+Note: Reactome takes `--proteins` (direct list); STRING takes `--protein-list-id`
+(a saved list object) plus mandatory `--species <NCBI_TAXON>`. These are
+different input contracts — do not conflate them.
+
+## Entities — Cross-Dataset Search (V2)
+
+Find proteins, genes, and peptides across multiple datasets. This is the
+substrate search capability — useful for validating hits against historical data
+or building organisational intelligence about what's been found before.
 
 ```bash
-# Search experiments/uploads by keyword
-md experiments query --search "TPD screen"
-
-# Filter by status and source
-md experiments query --status COMPLETED --source diann_tabular
-
-# Search and get just IDs for piping
-md experiments query --search "kinase" --format ids-only
-
-# Get sample metadata for an experiment
-md experiments metadata <EXPERIMENT_ID>
-
-# Update sample metadata (correct conditions, add covariates, relabel samples)
-md experiments update-metadata <EXPERIMENT_ID> --metadata-csv updated_meta.csv
-
-# Delete an experiment
-md experiments delete <EXPERIMENT_ID> --yes
-```
-
-### Dataset Search & Downloads (V2 API)
-
-```bash
-# Search datasets across all uploads
-md datasets query --search "pairwise" --state COMPLETED
-
-# Filter by upload and type
-md datasets query --upload-id <UUID> --type PAIRWISE --format ids-only
-
-# Get a presigned download URL for a table (for large downloads)
-md datasets download-url <DATASET_ID> output_comparisons
-md datasets download-url <DATASET_ID> Protein_Intensity --format parquet
-```
-
-### Entities — Cross-Dataset Search (V2 API)
-
-The entities endpoint is the substrate search capability — find proteins, genes,
-and peptides across multiple datasets. Use this for:
-- Validating hits from a new screen against historical work
-- Comparing the same protein across multiple studies
-- Building organisational intelligence about what's been found before
-
-```bash
-# Search for a protein across datasets
+# --keyword must be a specific gene or protein name (e.g. TP53, BRCA1, BRD4)
+# Do NOT use qualitative terms like "significant" or "upregulated" as keywords
+# There is NO --intersect flag — intersection logic is done client-side on results
 md entities query --keyword TP53 --dataset-ids <DS1> --dataset-ids <DS2>
-
-# Validate hits from a new TPD screen
-md entities query --keyword BRCA1 --dataset-ids <NEW_DS> --dataset-ids <HISTORICAL_DS>
+md entities query --keyword BRD4 --dataset-ids <DS1> --dataset-ids <DS2> --dataset-ids <DS3>
 ```
 
-### Workspaces
+To discover dataset IDs across all experiments, use:
+```bash
+md datasets query --state COMPLETED   # list all completed datasets (V2)
+```
+
+**Flipper flag required:** The `:entity_mapping_search` feature flag must be
+enabled for the user's account before `md entities query` will work — without
+it you get a **403 Forbidden**. If you receive a 403, tell the user to ask a
+platform admin to enable `entity_mapping_search` for their account. Do not
+retry without flag enablement.
+
+Note: the entity-mapping-service (neptune) is a separate system for
+protein-to-protein relationship mapping and is not yet exposed via the API
+— that capability is coming in a future release.
+
+## Workspaces
 
 ```bash
 md workspaces create --name "Analysis Workspace"
-md workspaces add-experiment <WORKSPACE_ID> <EXPERIMENT_ID>
-md workspaces datasets <WORKSPACE_ID>
-md workspaces tabs <WORKSPACE_ID>
+md workspaces add-experiment <WS_ID> <EXP_ID>
+md workspaces datasets <WS_ID>
+md workspaces tabs <WS_ID>
 ```
 
-## Using the Python API Directly
+## Python API
 
-For complex workflows where CLI flags aren't sufficient, import the client:
+For complex workflows where CLI flags aren't sufficient:
 
 ```python
 from md_cli.api import MDClient
-
 client = MDClient()  # reads token from config
-
-# Example: create experiment programmatically
-result = client.create_experiment(
-    name="My Experiment",
-    source="diann_tabular",
-    filenames=["results.tsv"],
-    experiment_design=[["filename","sample_name","condition"], ["results.tsv","S1","Control"]],
-    sample_metadata=[["sample_name","condition"], ["S1","Control"]],
-    species="human",
-)
+result = client.create_experiment(name="My Experiment", source="diann_tabular", ...)
 ```
 
 ## Core Workflow
 
-The typical MD workflow:
-
-1. **Create & upload**: `md experiments create ...` (auto-uploads files + starts workflow)
+1. **Upload**: `md experiments create ...` (auto-uploads + starts workflow)
 2. **Wait**: `md experiments wait <EXP_ID>`
-3. **Discover samples**: `md design infer <EXP_ID>` → get real sample names
-4. **Find intensity dataset**: `md datasets list <EXP_ID> --type INTENSITY --format ids-only`
-5. **Run analysis**: `md analysis pairwise --conditions "..." ...` (or dose-response, anova)
-6. **Wait for analysis**: `md datasets wait <ANALYSIS_DATASET_ID>`
-7. **Download results**: `md tables query ... --sql "SELECT ... WHERE adj_pvalue < 0.05"`
-8. **Visualise**: `md viz volcano ...` (needs workspace)
-9. **Enrich**: `md enrichment reactome ...`
+3. **Discover samples**: `md design infer <EXP_ID>`
+4. **Find intensity data**: `md datasets list <EXP_ID> --type INTENSITY --format ids-only`
+5. **Check for MNAR dataset**: `md datasets list <EXP_ID> | grep -i mnar` — if one
+   exists, use it as `--input-dataset-id` for pairwise (safer for log transform)
+6. **Analyse**: `md analysis pairwise --conditions "..." --filter-logic "all conditions" ...`
+7. **Wait**: `md datasets wait <ANALYSIS_DS_ID>`
+8. **Results**: `md tables query ... --sql "SELECT ... WHERE adj_pvalue < 0.05"`
+9. **Visualise**: `md viz volcano ...` (needs workspace)
+10. **Enrich**: `md enrichment reactome ...`
 
-### Working with Experiment Design
+If the user gives sample-to-condition mapping in natural language ("3 Control,
+3 Treatment"), upload first, then use `md design infer` to get real sample names
+and map the user's intent to actual identifiers. Use `--conditions` inline — no
+need for a CSV file.
 
-If the user provides sample-to-condition mapping in natural language
-(e.g. "3 Control, 3 Treatment"):
+## API Details
 
-1. Upload the experiment first (`md experiments create`)
-2. After processing completes, run `md design infer <EXP_ID>` to get actual sample names
-3. Map the user's intent to the real sample identifiers
-4. Use `--conditions` flag inline — no need to create a CSV file:
-   `md analysis pairwise --conditions "realname1:Control,realname2:Treatment" ...`
+- The CLI handles payload wrapping (`{"experiment": {...}}`) and array-of-arrays
+  conversion for design CSVs automatically
+- V2 endpoints use Bearer token auth; some V1 routes need session cookies — the
+  CLI tries both and gives clear errors
+- Status messages (✓, ✗) go to stderr; JSON goes to stdout
 
-If the user provides a design.csv file, use `--design-csv` as before.
-
-Minimum requirements: 2 conditions, 3 replicates per condition.
-
-## Important API Details
-
-- **Payload wrapping**: The CLI handles `{"experiment": {...}}` and `{"dataset": {...}}` wrapping automatically
-- **Array-of-arrays format**: Design CSVs are converted to the required format by the CLI
-- **Accept headers**: The CLI sends the correct `application/vnd.md-v1+json` headers
-- **Web routes vs API routes**: Some endpoints (experiments list, workspaces, tables) are web routes requiring session cookies. The CLI tries both routes and gives clear error messages
-- **Status messages vs data**: Status messages (✓, ✗, progress) go to stderr. JSON data goes to stdout. This means `--format ids-only` output is clean for piping.
-
-## Reference
-
-For the complete API endpoint listing:
-→ Read `references/API_ENDPOINTS.md`
+→ Full endpoint status: `references/api-v2-mapping.md`

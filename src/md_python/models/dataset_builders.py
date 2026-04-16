@@ -255,6 +255,8 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         }
     )
     filter_valid_values_logic: str = "at least one condition"
+    log_intensities: bool = True
+    use_imputed_intensities: bool = True
     fit_separate_models: bool = True
     limma_trend: bool = True
     robust_empirical_bayes: bool = True
@@ -316,6 +318,8 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
                 "experiment_design": self.sample_metadata.to_columns(),
                 "filter_valid_values_logic": self.filter_valid_values_logic,
                 "filter_values_criteria": self.filter_values_criteria,
+                "log_intensities": self.log_intensities,
+                "use_imputed_intensities": self.use_imputed_intensities,
                 "fit_separate_models": self.fit_separate_models,
                 "limma_trend": self.limma_trend,
                 "robust_empirical_bayes": self.robust_empirical_bayes,

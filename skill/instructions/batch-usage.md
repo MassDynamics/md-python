@@ -30,7 +30,7 @@ Each command is a quoted string containing the subcommand and its arguments.
 - `"datasets list <UPLOAD_ID>"` — list datasets
 - `"datasets get <DS_ID> -e <UPLOAD_ID>"` — get dataset details
 - `"datasets find-initial <UPLOAD_ID>"` — find intensity dataset
-- `"jobs"` — list analysis types
+- `"jobs list"` — list analysis types (note: must be `"jobs list"`, not `"jobs"` alone — `"jobs"` without the subcommand returns nothing useful)
 
 ## Common Patterns
 

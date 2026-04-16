@@ -37,3 +37,14 @@ __all__ = [
     "MinimalDataset",
     "NormalisationImputationDataset",
 ]
+
+# ---------------------------------------------------------------------------
+# Fixture recording / replay — eval testing only.
+# Activates when MD_RECORD_FIXTURES or MD_REPLAY_FIXTURES env var is set.
+# Completely inert otherwise (no performance impact in production).
+# ---------------------------------------------------------------------------
+import os as _os
+
+if _os.environ.get("MD_RECORD_FIXTURES") or _os.environ.get("MD_REPLAY_FIXTURES"):
+    from . import fixtures as _fixtures
+    _fixtures.install()
