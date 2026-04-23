@@ -7,7 +7,7 @@ A Python client for the Mass Dynamics API.
 ## Installation
 
 ```bash
-pip install https://github.com/MassDynamics/md-python/archive/refs/tags/v0.2.3-31.tar.gz
+pip install https://github.com/MassDynamics/md-python/archive/refs/tags/v0.2.4-33.tar.gz
 ```
 
 ## Quick Start
@@ -147,6 +147,14 @@ ds = client.datasets.wait_until_complete(upload_id, dataset_id)
 # Query entity metadata (proteins, genes, peptides) across datasets
 result = client.entities.query(keyword="BRCA1", dataset_ids=["dataset-id-1", "dataset-id-2"])
 entities = result["results"]
+
+# Map protein groups to protein groups through their shared individual proteins
+result = client.entities.mappings.protein_to_protein(
+    dataset_ids=["dataset-id-1"],
+    entity_ids=["P12345;Q67890"],
+)
+
+nodes, edges = result["nodes"], result["edges"]
 ```
 
 ## Jobs

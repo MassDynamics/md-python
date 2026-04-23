@@ -4,6 +4,8 @@ Entities resource for the MD Python v2 client
 
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from .entities_mappings import EntitiesMappings
+
 if TYPE_CHECKING:
     from ...base_client import BaseMDClient
 
@@ -13,6 +15,7 @@ class Entities:
 
     def __init__(self, client: "BaseMDClient"):
         self._client = client
+        self.mappings = EntitiesMappings(client)
 
     def query(self, keyword: str, dataset_ids: List[str]) -> Dict[str, Any]:
         """Query entity metadata across one or more datasets.
