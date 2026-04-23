@@ -4,11 +4,7 @@ Example of mapping protein groups to protein groups using the MD Python client
 
 import os
 
-from dotenv import load_dotenv
-
 from md_python import MDClientV2
-
-load_dotenv()
 
 
 def protein_to_protein_example():
