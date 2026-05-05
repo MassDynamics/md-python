@@ -218,7 +218,15 @@ class Datasets:
         )
 
     def find_initial_dataset(self, upload_id: str) -> Optional[Dataset]:
-        """Return the initial dataset for an upload."""
+        """Return the upload-created INTENSITY dataset.
+
+        Once a normalisation/imputation/filtration job runs, an upload has
+        multiple INTENSITY datasets (the converter registers the NI flow with
+        ``run_type=DatasetType.INTENSITY``). The upload-created one is the
+        unique INTENSITY dataset with no upstream inputs
+        (``input_dataset_ids == []``); NI-produced INTENSITY datasets always
+        carry a non-empty ``input_dataset_ids`` pointing back to the original.
+        """
         datasets = self.list_by_upload(upload_id=upload_id)
 
         if not datasets:
@@ -231,4 +239,18 @@ class Datasets:
         if len(intensity) == 1:
             return intensity[0]
 
-        raise ValueError(f"Multiple intensity datasets found for upload {upload_id}")
+        originals = [d for d in intensity if not getattr(d, "input_dataset_ids", None)]
+        if len(originals) == 1:
+            return originals[0]
+        if len(originals) > 1:
+            raise ValueError(
+                f"Multiple upload-created intensity datasets found for upload "
+                f"{upload_id} (ids: {[str(d.id) for d in originals]}). "
+                "Pick one explicitly via list_by_upload / query_datasets."
+            )
+        raise ValueError(
+            f"Multiple intensity datasets found for upload {upload_id} and "
+            "none of them is the upload-created one (every INTENSITY dataset "
+            "has upstream inputs). Pick one explicitly via list_by_upload / "
+            "query_datasets."
+        )

@@ -399,3 +399,85 @@ class TestV2Datasets:
 
         with pytest.raises(ValueError, match="No intensity dataset"):
             datasets.find_initial_dataset("upload-1")
+
+    def test_find_initial_dataset_disambiguates_after_ni_run(
+        self, datasets, mock_client, mocker
+    ):
+        """After running NI, an upload has 2+ INTENSITY datasets.
+
+        The original is the unique one with empty input_dataset_ids.
+        """
+        original = Dataset(
+            input_dataset_ids=[],
+            name="upload INTENSITY",
+            job_slug="initial",
+            job_run_params={},
+            id=UUID("11111111-1111-1111-1111-111111111111"),
+        )
+        original.type = "INTENSITY"
+
+        ni_output = Dataset(
+            input_dataset_ids=[UUID("11111111-1111-1111-1111-111111111111")],
+            name="post-NI INTENSITY",
+            job_slug="normalisation_imputation",
+            job_run_params={},
+            id=UUID("22222222-2222-2222-2222-222222222222"),
+        )
+        ni_output.type = "INTENSITY"
+
+        mocker.patch.object(
+            datasets, "list_by_upload", return_value=[original, ni_output]
+        )
+
+        result = datasets.find_initial_dataset("upload-1")
+        assert result is original
+
+    def test_find_initial_dataset_raises_when_multiple_originals(
+        self, datasets, mock_client, mocker
+    ):
+        """Two upload-created INTENSITY datasets is still ambiguous."""
+        a = Dataset(
+            input_dataset_ids=[],
+            name="a",
+            job_slug="j",
+            job_run_params={},
+            id=UUID("11111111-1111-1111-1111-111111111111"),
+        )
+        a.type = "INTENSITY"
+        b = Dataset(
+            input_dataset_ids=[],
+            name="b",
+            job_slug="j",
+            job_run_params={},
+            id=UUID("22222222-2222-2222-2222-222222222222"),
+        )
+        b.type = "INTENSITY"
+        mocker.patch.object(datasets, "list_by_upload", return_value=[a, b])
+
+        with pytest.raises(ValueError, match="Multiple upload-created"):
+            datasets.find_initial_dataset("upload-1")
+
+    def test_find_initial_dataset_raises_when_no_originals(
+        self, datasets, mock_client, mocker
+    ):
+        """Every INTENSITY has upstream inputs (original was deleted, etc.)."""
+        a = Dataset(
+            input_dataset_ids=[UUID("33333333-3333-3333-3333-333333333333")],
+            name="a",
+            job_slug="j",
+            job_run_params={},
+            id=UUID("11111111-1111-1111-1111-111111111111"),
+        )
+        a.type = "INTENSITY"
+        b = Dataset(
+            input_dataset_ids=[UUID("44444444-4444-4444-4444-444444444444")],
+            name="b",
+            job_slug="j",
+            job_run_params={},
+            id=UUID("22222222-2222-2222-2222-222222222222"),
+        )
+        b.type = "INTENSITY"
+        mocker.patch.object(datasets, "list_by_upload", return_value=[a, b])
+
+        with pytest.raises(ValueError, match="none of them is the upload-created"):
+            datasets.find_initial_dataset("upload-1")
