@@ -150,11 +150,15 @@ entities = result["results"]
 
 # Map protein groups to protein groups through their shared individual proteins
 result = client.entities.mappings.protein_to_protein(
-    dataset_ids=["dataset-id-1"],
+    dataset_ids=["00000000-0000-0000-0000-000000000001"],
     entity_ids=["P12345;Q67890"],
 )
 
-nodes, edges = result["nodes"], result["edges"]
+# Map protein groups to their peptides within a single dataset
+result = client.entities.mappings.protein_to_peptide_same_dataset(
+    dataset_id="00000000-0000-0000-0000-000000000001",
+    entity_ids=["P12345;Q67890"],
+)
 ```
 
 ## Jobs

@@ -40,3 +40,30 @@ class EntitiesMappings:
             raise Exception(
                 f"Failed to map protein_to_protein: {response.status_code} - {response.text}"
             )
+
+    def protein_to_peptide_same_dataset(
+        self, dataset_id: str, entity_ids: List[str]
+    ) -> Dict[str, Any]:
+        """Map protein groups to their peptides within a single dataset.
+
+        Args:
+            dataset_id: ID of the dataset that contains protein groups and peptides.
+            entity_ids: List of protein groups to query within this dataset
+
+        Returns:
+            Response dict with 'nodes' and 'edges' keys
+        """
+        response = self._client._make_request(
+            method="POST",
+            endpoint="/entities/mappings/protein_to_peptide/same_dataset",
+            json={"dataset_id": dataset_id, "entity_ids": entity_ids},
+            headers={"Content-Type": "application/json"},
+        )
+
+        if response.status_code == 200:
+            result: Dict[str, Any] = response.json()
+            return result
+        else:
+            raise Exception(
+                f"Failed to map protein_to_peptide_same_dataset: {response.status_code} - {response.text}"
+            )

@@ -48,3 +48,47 @@ class TestV2EntitiesMappings:
 
         with pytest.raises(Exception, match="Failed to map protein_to_protein: 502"):
             mappings.protein_to_protein(dataset_ids=["abc-123"], entity_ids=["P12345"])
+
+    def test_protein_to_peptide_same_dataset_success(self, mappings, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "nodes": [
+                {"~id": "protein_group:10"},
+                {"~id": "peptide:aas"},
+            ],
+            "edges": [{"~id": "e1"}],
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = mappings.protein_to_peptide_same_dataset(
+            dataset_id="abc-123", entity_ids=["P12345;Q67890"]
+        )
+
+        assert result == {
+            "nodes": [
+                {"~id": "protein_group:10"},
+                {"~id": "peptide:aas"},
+            ],
+            "edges": [{"~id": "e1"}],
+        }
+
+        assert mock_client._make_request.call_args.kwargs == {
+            "method": "POST",
+            "endpoint": "/entities/mappings/protein_to_peptide/same_dataset",
+            "json": {"dataset_id": "abc-123", "entity_ids": ["P12345;Q67890"]},
+            "headers": {"Content-Type": "application/json"},
+        }
+
+    def test_protein_to_peptide_same_dataset_failure(self, mappings, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 502
+        mock_response.text = "upstream boom"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(
+            Exception, match="Failed to map protein_to_peptide_same_dataset: 502"
+        ):
+            mappings.protein_to_peptide_same_dataset(
+                dataset_id="abc-123", entity_ids=["P12345"]
+            )
