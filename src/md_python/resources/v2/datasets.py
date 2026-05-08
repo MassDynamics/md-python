@@ -192,12 +192,18 @@ class Datasets:
         poll_s: int = 5,
         timeout_s: int = 1800,
     ) -> Dataset:
-        """Poll the dataset until it reaches a terminal state."""
+        """Poll the dataset until it reaches a terminal state.
+
+        upload_id is retained for backwards compatibility but is no longer
+        used — lookup now goes via get_by_id(dataset_id) directly so the
+        caller does not need to know which upload owns the dataset and the
+        poll is not capped by the first page of list_by_upload.
+        """
+        del upload_id  # unused; see docstring
         end = time.monotonic() + timeout_s
         last: Optional[str] = None
         while time.monotonic() < end:
-            dds = self.list_by_upload(upload_id=upload_id)
-            ds = next((d for d in dds if str(d.id) == dataset_id), None)
+            ds = self.get_by_id(dataset_id)
             if ds:
                 state = ds.state
                 if state != last:
