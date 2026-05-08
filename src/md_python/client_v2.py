@@ -6,11 +6,18 @@ from typing import Optional
 
 from .base_client import BaseMDClient
 from .resources import Health
-from .resources.v2 import Datasets, Entities, Jobs, Uploads
+from .resources.v2 import (
+    Datasets,
+    Entities,
+    Jobs,
+    ModuleRegistry,
+    Uploads,
+    Workspaces,
+)
 
 
 class MDClientV2(BaseMDClient):
-    """V2 API client — uploads, datasets, entities, jobs, health"""
+    """V2 API client — uploads, datasets, entities, jobs, workspaces, health"""
 
     ACCEPT_HEADER = "application/vnd.md-v2+json"
 
@@ -21,3 +28,7 @@ class MDClientV2(BaseMDClient):
         self.datasets = Datasets(self)
         self.entities = Entities(self)
         self.jobs = Jobs(self)
+        self.module_registry = ModuleRegistry(self)
+        # Pass the same module_registry instance into Workspaces so
+        # create_with_defaults() reuses it instead of spinning up a duplicate.
+        self.workspaces = Workspaces(self, registry=self.module_registry)

@@ -12,7 +12,9 @@ from .dataset_builders import (
 )
 from .experiment import Experiment
 from .metadata import ExperimentDesign, SampleMetadata
+from .registered_module import RegisteredModule
 from .upload import Upload
+from .workspace import Tab, TabModule, Workspace
 
 __all__ = [
     "SampleMetadata",
@@ -25,4 +27,8 @@ __all__ = [
     "MinimalDataset",
     "PairwiseComparisonDataset",
     "NormalisationImputationDataset",
+    "Workspace",
+    "Tab",
+    "TabModule",
+    "RegisteredModule",
 ]
