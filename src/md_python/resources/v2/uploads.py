@@ -2,6 +2,8 @@
 Uploads resource for the MD Python v2 client
 """
 
+import concurrent.futures
+import threading
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -10,6 +12,26 @@ from ...uploads import Uploads as FileUploader
 
 if TYPE_CHECKING:
     from ...base_client import BaseMDClient
+
+
+# Authoritative server-side allow-list. Mirrors VALID_SOURCE_FORMATS in the
+# Rails app (workflow/app/models/experiment.rb:27-34). Any value outside this
+# set is rejected by the Rails create-time validator (experiment.rb:68-72),
+# so the client refuses them up front to give the caller a clearer error.
+#
+# Deliberately excluded (all server-rejected): raw, diann_raw, generic_format,
+# simple, unknown, diann_matrix, md_diann_maxlfq, msfragger. See the commit
+# that introduced this constant for the per-value rationale.
+ALLOWED_UPLOAD_SOURCES: frozenset[str] = frozenset(
+    {
+        "maxquant",
+        "diann_tabular",
+        "tims_diann",
+        "spectronaut",
+        "md_format",
+        "md_format_gene",
+    }
+)
 
 
 class Uploads:
@@ -21,15 +43,31 @@ class Uploads:
             client, resource_path="/uploads", complete_path="/complete"
         )
 
-    def create(self, upload: Upload) -> str:
+    def create(
+        self,
+        upload: Upload,
+        background: bool = False,
+        executor: Optional[concurrent.futures.Executor] = None,
+    ) -> str:
         """Create a new upload and optionally upload files.
 
         Args:
             upload: Upload object with upload configuration
+            background: If True and file_location is set, transfer files in a
+                background thread and return the upload ID immediately.
+                The caller can then poll get_by_id() to check upload status.
+                Default False preserves blocking behaviour for non-MCP use.
 
         Returns:
             Upload ID
         """
+        if upload.source not in ALLOWED_UPLOAD_SOURCES:
+            allowed = ", ".join(sorted(ALLOWED_UPLOAD_SOURCES))
+            raise ValueError(
+                f"source={upload.source!r} is not a supported upload format. "
+                f"Valid values: {allowed}."
+            )
+
         if not upload.file_location and not upload.s3_bucket:
             raise ValueError("Either file_location or s3_bucket must be provided")
 
@@ -75,16 +113,42 @@ class Uploads:
         upload_id = str(response_data["id"])
 
         if "uploads" in response_data and upload.file_location:
-            self._uploader.upload_files(
-                response_data["uploads"], upload.file_location, upload_id
-            )
-            self._client._make_request(
-                method="POST",
-                endpoint=f"/uploads/{upload_id}/start_workflow",
-                headers={"Content-Type": "application/json"},
-            )
+            if background:
+                if executor is not None:
+                    executor.submit(
+                        self._upload_and_start,
+                        upload_id,
+                        response_data["uploads"],
+                        upload.file_location,
+                    )
+                else:
+                    t = threading.Thread(
+                        target=self._upload_and_start,
+                        args=(
+                            upload_id,
+                            response_data["uploads"],
+                            upload.file_location,
+                        ),
+                        daemon=True,
+                    )
+                    t.start()
+            else:
+                self._upload_and_start(
+                    upload_id, response_data["uploads"], upload.file_location
+                )
 
         return upload_id
+
+    def _upload_and_start(
+        self, upload_id: str, presigned_uploads: List[Any], file_location: str
+    ) -> None:
+        """Upload files to presigned URLs then start the processing workflow."""
+        self._uploader.upload_files(presigned_uploads, file_location, upload_id)
+        self._client._make_request(
+            method="POST",
+            endpoint=f"/uploads/{upload_id}/start_workflow",
+            headers={"Content-Type": "application/json"},
+        )
 
     def get_by_id(self, upload_id: str) -> Optional[Upload]:
         """Get an upload by its ID"""

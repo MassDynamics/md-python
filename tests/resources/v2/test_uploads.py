@@ -131,6 +131,61 @@ class TestV2Uploads:
         with pytest.raises(ValueError, match="filenames must be provided"):
             uploads.create(upload)
 
+    @pytest.mark.parametrize(
+        "bad_source",
+        [
+            "raw",
+            "diann_raw",
+            "generic_format",
+            "simple",
+            "unknown",
+            "diann_matrix",
+            "md_diann_maxlfq",
+            "msfragger",
+        ],
+    )
+    def test_create_rejects_disallowed_source(self, uploads, bad_source):
+        upload = Upload(
+            name="Bad",
+            source=bad_source,
+            s3_bucket="bucket",
+            filenames=["a.txt"],
+            experiment_design=DESIGN,
+            sample_metadata=METADATA,
+        )
+
+        with pytest.raises(ValueError, match="not a supported upload format"):
+            uploads.create(upload)
+
+    @pytest.mark.parametrize(
+        "good_source",
+        [
+            "maxquant",
+            "diann_tabular",
+            "tims_diann",
+            "spectronaut",
+            "md_format",
+            "md_format_gene",
+        ],
+    )
+    def test_create_accepts_allowed_sources(self, uploads, mock_client, good_source):
+        upload = Upload(
+            name="ok",
+            source=good_source,
+            s3_bucket="bucket",
+            filenames=["a.txt"],
+            experiment_design=DESIGN,
+            sample_metadata=METADATA,
+        )
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"id": "upload-ok"}
+        mock_client._make_request.return_value = mock_response
+
+        result = uploads.create(upload)
+
+        assert result == "upload-ok"
+
     def test_create_validation_missing_sample_metadata(self, uploads):
         upload = Upload(
             name="Bad",
