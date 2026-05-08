@@ -164,6 +164,59 @@ class TabModules:
             settings=full_settings,
         )
 
+    def create_text(
+        self,
+        workspace_id: str,
+        tab_id: str,
+        text: str,
+        x: int = 0,
+        y: int = 0,
+        width: int = 12,
+        height: int = 3,
+    ) -> TabModule:
+        """Create a text module with its content in a single call.
+
+        The workflow webapp's text module accepts and returns its body via
+        the standard module endpoints under ``settings.text``: there is no
+        separate "set content" step. ``text`` is a plain string with HTML
+        allowed (including embedded base64 ``<img>`` tags).
+
+        The server validates ``settings.text`` against the registry's
+        ``parameters.maxLength``; on overflow the API returns a 4xx and
+        the client surfaces the error verbatim.
+        """
+        return self.create(
+            workspace_id=workspace_id,
+            tab_id=tab_id,
+            item_id="text",
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            settings={"text": text},
+        )
+
+    def update_text(
+        self,
+        workspace_id: str,
+        tab_id: str,
+        module_id: str,
+        text: str,
+    ) -> TabModule:
+        """Update a text module's body in place.
+
+        Sends ``{"settings": {"text": text}}``; layout keys (x/y/width/
+        height) are preserved server-side because they are not in the
+        payload. Use :meth:`update` directly if you also need to move or
+        resize the module.
+        """
+        return self.update(
+            workspace_id=workspace_id,
+            tab_id=tab_id,
+            module_id=module_id,
+            settings={"text": text},
+        )
+
     def list(self, workspace_id: str, tab_id: str) -> List[TabModule]:
         """List all modules on a tab (no pagination)."""
         response = self._client._make_request(

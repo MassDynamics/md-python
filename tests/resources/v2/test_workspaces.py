@@ -281,6 +281,47 @@ class TestTabModules:
         mock_client._make_request.return_value = _response(204)
         assert modules.delete(WS_ID, TAB_ID, MOD_ID) is True
 
+    def test_create_text_sends_settings_text(self, modules, mock_client):
+        mock_client._make_request.return_value = _response(
+            201, _module_payload(itemId="text", h=3, w=12)
+        )
+        modules.create_text(
+            workspace_id=WS_ID,
+            tab_id=TAB_ID,
+            text="<p>hello world</p>",
+        )
+        call = mock_client._make_request.call_args
+        assert call[1]["method"] == "POST"
+        assert call[1]["endpoint"] == f"/workspaces/{WS_ID}/tabs/{TAB_ID}/modules"
+        assert call[1]["json"] == {
+            "item_id": "text",
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 3,
+            "settings": {"text": "<p>hello world</p>"},
+        }
+
+    def test_create_text_passes_layout_overrides(self, modules, mock_client):
+        mock_client._make_request.return_value = _response(
+            201, _module_payload(itemId="text")
+        )
+        modules.create_text(WS_ID, TAB_ID, text="hi", x=2, y=4, width=6, height=2)
+        body = mock_client._make_request.call_args[1]["json"]
+        assert (body["x"], body["y"], body["width"], body["height"]) == (2, 4, 6, 2)
+
+    def test_update_text_only_sends_settings(self, modules, mock_client):
+        mock_client._make_request.return_value = _response(
+            200, _module_payload(itemId="text")
+        )
+        modules.update_text(WS_ID, TAB_ID, MOD_ID, text="<p>new body</p>")
+        call = mock_client._make_request.call_args
+        assert call[1]["method"] == "PUT"
+        assert call[1]["endpoint"] == (
+            f"/workspaces/{WS_ID}/tabs/{TAB_ID}/modules/{MOD_ID}"
+        )
+        assert call[1]["json"] == {"settings": {"text": "<p>new body</p>"}}
+
 
 class TestCreateWithDefaults:
     """create_with_defaults bakes in registry defaults so the persisted
