@@ -638,7 +638,9 @@ class DoseResponseDataset(BaseDatasetBuilder):
     sample_metadata: Optional[SampleMetadata] = None
     dose_column: str = "dose"
     log_intensities: bool = True
-    use_imputed_intensities: bool = True
+    # Source-of-truth: data-set-service/src/flows/utils/type_defs.py:78 (DoseResponseParams)
+    # has use_imputed_intensities default=False. Keep client default aligned.
+    use_imputed_intensities: bool = False
     normalise: str = "none"
     span_rollmean_k: int = 1
     prop_required_in_protein: float = 0.5
@@ -877,9 +879,10 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         if not isinstance(self.robust_empirical_bayes, bool):
             raise ValueError("robust_empirical_bayes must be a bool")
 
-        # entity type
-        if self.entity_type not in {"protein", "peptide"}:
-            raise ValueError("entity_type must be one of: protein, peptide")
+        # entity type — gene is supported via limma (mdFlexiComparisons R/runDiscovery.R).
+        # edgeR / DESeq2 (gene-only count engines) are intentionally NOT exposed.
+        if self.entity_type not in {"protein", "peptide", "gene"}:
+            raise ValueError("entity_type must be one of: protein, peptide, gene")
 
         if self.filter_valid_values_logic not in [
             "all conditions",
