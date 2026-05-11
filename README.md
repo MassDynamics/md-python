@@ -159,6 +159,12 @@ result = client.entities.mappings.protein_to_peptide_same_dataset(
     dataset_id="00000000-0000-0000-0000-000000000001",
     entity_ids=["P12345;Q67890"],
 )
+
+# Map peptides to their protein groups within a single dataset
+result = client.entities.mappings.peptide_to_protein_same_dataset(
+    dataset_id="00000000-0000-0000-0000-000000000001",
+    entity_ids=["AAS(UniMod:21)PEK"],
+)
 ```
 
 ## Jobs
