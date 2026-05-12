@@ -11,11 +11,13 @@ Subpackages:
     workspaces.tabs   — tab CRUD tools
     workspaces.modules — module CRUD + create_with_defaults
     workspaces.registry — list_module_types / describe_module_type
+    workspaces.entity_lists — create/get named protein/peptide/gene lists
     workspaces._introspect — per-module parameter introspection helpers
     workspaces._mandates  — visualisation behavioural mandate fragment
 """
 
 from . import crud  # noqa: F401
+from . import entity_lists  # noqa: F401
 from . import modules  # noqa: F401
 from . import registry  # noqa: F401
 from . import tabs  # noqa: F401

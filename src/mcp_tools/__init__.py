@@ -54,7 +54,8 @@ TOOL CATEGORIES — use roughly in this order:
                      create_tab, list_tabs, get_tab, update_tab, delete_tab,
                      add_module_to_tab, list_tab_modules, get_tab_module,
                      update_tab_module, remove_module_from_tab,
-                     add_text_module, update_text_module
+                     add_text_module, update_text_module,
+                     create_entity_list, get_entity_list
   6. Utility       : health_check, batch, get_workflow_guide
 
 UPLOAD SOURCE FORMAT — enum (authoritative, enforced by the server and
