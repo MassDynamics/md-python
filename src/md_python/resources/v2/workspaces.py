@@ -13,6 +13,7 @@ react-grid-layout grid (``x``, ``y``, ``width``, ``height`` in grid units).
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ...models import RegisteredModule, Tab, TabModule, Workspace
+from .entity_lists import EntityLists
 
 if TYPE_CHECKING:
     from ...base_client import BaseMDClient
@@ -411,6 +412,7 @@ class Workspaces:
         self._client = client
         self.tabs = Tabs(client)
         self.modules = TabModules(client, registry=registry)
+        self.entity_lists = EntityLists(client)
 
     def create(self, name: str, description: Optional[str] = None) -> Workspace:
         payload: Dict[str, Any] = {"name": name}

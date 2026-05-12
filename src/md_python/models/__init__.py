@@ -10,6 +10,7 @@ from .dataset_builders import (
     NormalisationImputationDataset,
     PairwiseComparisonDataset,
 )
+from .entity_list import EntityList, EntityListItem
 from .experiment import Experiment
 from .metadata import ExperimentDesign, SampleMetadata
 from .registered_module import RegisteredModule
@@ -31,4 +32,6 @@ __all__ = [
     "Tab",
     "TabModule",
     "RegisteredModule",
+    "EntityList",
+    "EntityListItem",
 ]
