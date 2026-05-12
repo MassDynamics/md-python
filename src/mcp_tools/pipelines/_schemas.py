@@ -1,0 +1,868 @@
+"""Pipeline parameter schemas — single source of truth for all pipeline types.
+
+WIRE FORMAT
+-----------
+The dataset service validates ``job_run_params`` against the converter's flat
+Pydantic models (e.g. ``NormalisationAndImputationParamsProperties`` in
+md-converter/src/flows/intensity_imputation_types.py). All keys are emitted at
+the top level of ``job_run_params`` — there is no nested
+``{"normalisation_methods": {"method": "median"}}`` form. Method literal
+strings use the converter's canonical (spaced) form: ``"batch correction"``,
+``"by missing values"``, ``"by ptm localization probability"``,
+``"by minimum abundance"``, ``"limma remove batch effect"``, ``"combat seq"``.
+Underscored aliases on input are accepted for backward compatibility (see
+NormalisationImputationDataset._METHOD_ALIAS_MAP) but are deprecated; the
+wire payload always uses the spaced form.
+
+Source-of-truth references
+--------------------------
+- NI: md-converter/src/flows/intensity_imputation_types.py
+  (NormalisationAndImputationParamsProperties).
+- Pairwise / ANOVA:
+  MDFlexiComparisons/src/md_flexi_comparisons/process_r.py.
+- Dose response:
+  data-set-service/src/flows/utils/type_defs.py (DoseResponseParams).
+- Workflow API: workflow/app/api/api/v2/datasets/create.rb.
+
+Update this file whenever the converter or data-set-service adds new methods
+or parameters; keep the citations above current.
+"""
+
+from typing import Any, Dict
+
+# All job slugs available on this account (from GET /api/v2/jobs).
+# Standard user-facing pipelines are marked with *.
+AVAILABLE_JOB_SLUGS: Dict[str, str] = {
+    "normalisation_imputation": "* Normalise and impute intensity data",
+    "pairwise_comparison": "* Pairwise differential abundance (limma)",
+    "anova": "* ANOVA differential abundance across 3+ conditions (limma)",
+    "dose_response": "* Dose-response curve fitting (4PL log-logistic)",
+    "dose_response_aggregate": "Aggregate multiple dose-response results into a summary table",
+    "camera_gsea": "Gene-set enrichment analysis (CAMERA)",
+    "knn_tn_imputation": "Custom KNN-TN (truncated normal) imputation",
+    "intensity": "Internal: raw intensity ingestion",
+    "initial_job": "Internal: initial dataset creation",
+    "md_dataset_custom_r": "Custom R script dataset",
+    "demo_flow": "Demo/test job",
+    "md_hello_world": "Demo/test job",
+    "basic_r_to_say_hi": "Demo/test job",
+    "jnj_dose_response": "Custom dose-response variant",
+}
+
+_SHARED_FILTER_BLOCK: Dict[str, Any] = {
+    "filter_valid_values_criteria": {
+        "type": "str",
+        "required": True,
+        "valid_values": ["percentage", "count"],
+        "default": "percentage",
+        "description": (
+            "Whether the threshold is expressed as a fraction or an absolute count "
+            "of valid (non-NA, non-imputed) values per entity."
+        ),
+    },
+    "filter_threshold_proportion": {
+        "type": "float",
+        "required": False,
+        "default": 0.5,
+        "range": "0.0–1.0",
+        "description": "Minimum proportion of valid values per entity (when criteria='percentage').",
+    },
+    "filter_threshold_count": {
+        "type": "int",
+        "required": False,
+        "default": 3,
+        "range": "≥1",
+        "description": "Minimum count of valid values per entity (when criteria='count').",
+    },
+    "filter_valid_values_logic": {
+        "type": "str",
+        "required": False,
+        "default": "at least one condition",
+        "valid_values": [
+            "all conditions",
+            "at least one condition",
+            "full experiment",
+        ],
+        "description": (
+            "How the threshold is applied across conditions. The first two values "
+            "require filter_based_on_condition."
+        ),
+    },
+    "filter_based_on_condition": {
+        "type": "str",
+        "required": False,
+        "description": (
+            "Column name (from experiment_design) that defines conditions. "
+            "REQUIRED when filter_valid_values_logic ∈ "
+            "{'all conditions', 'at least one condition'}."
+        ),
+    },
+    "experiment_design": {
+        "type": "Dict[str, List]  (SampleMetadata.to_columns())",
+        "required": True,
+        "description": (
+            "Sample metadata as column dict. Pass SampleMetadata(...).to_columns() "
+            "from load_metadata_from_csv output."
+        ),
+    },
+}
+
+
+_PIPELINE_SCHEMAS: Dict[str, Any] = {
+    "normalisation_imputation": {
+        "description": (
+            "Filter, normalise, and impute an intensity dataset. The job runs "
+            "filtration → normalisation → imputation (in that order); each step "
+            "can be skipped independently. Output is an INTENSITY dataset. "
+            "Filter-only is a valid pattern: pass normalisation_method='skip' + "
+            "imputation_method='skip' + a filtration_method."
+        ),
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "entity_type",
+            "normalisation_method",
+            "imputation_method",
+        ],
+        "guidance": (
+            "Always present ALL method parameters to the user and ask whether to "
+            "keep defaults or change them. For standard DDA proteomics, 'mnar' "
+            "imputation is preferred. Wire-format method strings use the converter "
+            "canonical (spaced) form (e.g. 'batch correction', 'by missing values'); "
+            "underscored aliases are accepted for backward compatibility but are "
+            "deprecated. Pairwise additions (HR, edgeR, DESeq2) are NOT exposed by "
+            "this MCP — pairwise ships as limma-only."
+        ),
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Non-empty list of input dataset UUIDs.",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output dataset.",
+            },
+            "entity_type": {
+                "type": "str",
+                "required": True,
+                "valid_values": ["protein", "peptide", "gene"],
+                "description": (
+                    "Entity level of the input dataset. Must match the upstream INTENSITY "
+                    "dataset (e.g. md_format_gene uploads → 'gene'). Drives which "
+                    "normalisation / filtration methods are valid."
+                ),
+            },
+            "normalisation_method": {
+                "type": "str",
+                "valid_values": [
+                    "skip",
+                    "median",
+                    "quantile",
+                    "sum",
+                    "batch correction",
+                    "cpm",
+                ],
+                "valid_values_per_entity_type": {
+                    "protein": [
+                        "skip",
+                        "median",
+                        "quantile",
+                        "sum",
+                        "batch correction",
+                    ],
+                    "peptide": [
+                        "skip",
+                        "median",
+                        "quantile",
+                        "sum",
+                        "batch correction",
+                    ],
+                    "gene": [
+                        "skip",
+                        "median",
+                        "quantile",
+                        "sum",
+                        "batch correction",
+                        "cpm",
+                    ],
+                },
+                "method_params": {
+                    "skip": "No extra parameters. Skips normalisation entirely.",
+                    "median": {
+                        "median_normalisation_centre_at_zero": {
+                            "type": "bool",
+                            "required": False,
+                            "default": True,
+                            "description": (
+                                "When True (default): centres each sample's median at zero "
+                                "in log2 space. When False: preserves the overall intensity "
+                                "level after normalisation."
+                            ),
+                        },
+                        "include_imputed_values": {
+                            "type": "bool",
+                            "required": False,
+                            "default": False,
+                            "description": (
+                                "Include previously-imputed values in the per-sample median "
+                                "calculation. Default False (use only observed values)."
+                            ),
+                        },
+                    },
+                    "quantile": {
+                        "include_imputed_values": {
+                            "type": "bool",
+                            "required": False,
+                            "default": False,
+                            "description": (
+                                "Include previously-imputed values in the quantile mapping."
+                            ),
+                        },
+                    },
+                    "sum": {
+                        "include_imputed_values": {
+                            "type": "bool",
+                            "required": False,
+                            "default": False,
+                            "description": (
+                                "Include previously-imputed values in the per-sample sum."
+                            ),
+                        },
+                    },
+                    "batch correction": {
+                        "batch_correction_technique": {
+                            "type": "str",
+                            "required": True,
+                            "valid_values": [
+                                "limma remove batch effect",
+                                "combat",
+                                "combat seq",
+                            ],
+                            "valid_values_per_entity_type": {
+                                "protein": ["limma remove batch effect", "combat"],
+                                "peptide": ["limma remove batch effect", "combat"],
+                                "gene": [
+                                    "limma remove batch effect",
+                                    "combat",
+                                    "combat seq",
+                                ],
+                            },
+                            "description": (
+                                "Engine for batch correction. Decision rules: "
+                                "'combat' — empirical-Bayes, single batch column, "
+                                "use when batches are confounded but each batch has ≥3 samples. "
+                                "'limma remove batch effect' — linear-model adjustment, "
+                                "supports multiple batch columns; use when batches are "
+                                "well-separated and a fast adjustment suffices. "
+                                "'combat seq' — count-data ComBat, gene/RNA-seq only."
+                            ),
+                        },
+                        "batch_variables": {
+                            "type": "List[Dict]",
+                            "required": "limma only",
+                            "description": (
+                                "Required for limma remove batch effect. List of "
+                                "{column: str, type: 'categorical'} entries — one per batch column."
+                            ),
+                        },
+                        "batch_variable_combat": {
+                            "type": "str",
+                            "required": "combat / combat seq only",
+                            "description": (
+                                "Single batch column name. Required for combat and combat seq."
+                            ),
+                        },
+                        "mean_only": {
+                            "type": "bool",
+                            "required": False,
+                            "default": False,
+                            "description": (
+                                "ComBat only. When True corrects only the mean, not variance. "
+                                "Use for low-feature datasets where empirical-Bayes variance "
+                                "estimation is unreliable."
+                            ),
+                        },
+                        "reference_batch_combat": {
+                            "type": "str",
+                            "required": False,
+                            "description": (
+                                "ComBat only. Optional reference batch value (must appear in "
+                                "the batch column). Other batches are corrected toward this one."
+                            ),
+                        },
+                        "design_variables": {
+                            "type": "List[Dict]",
+                            "required": False,
+                            "description": (
+                                "Optional biological covariates to preserve (e.g. condition). "
+                                "Each entry: {column: str, type: 'categorical'|'numerical'}."
+                            ),
+                        },
+                        "include_imputed_values": {
+                            "type": "bool",
+                            "required": False,
+                            "default": False,
+                            "description": "Use previously-imputed values during correction.",
+                        },
+                        "experiment_design": {
+                            "type": "Dict[str, List]  (SampleMetadata.to_columns())",
+                            "required": True,
+                            "description": (
+                                "Sample metadata as column dict. Pass "
+                                "SampleMetadata(...).to_columns() from load_metadata_from_csv."
+                            ),
+                        },
+                    },
+                    "cpm": {
+                        "prior_count": {
+                            "type": "float",
+                            "required": False,
+                            "default": 0,
+                            "range": "0–10",
+                            "description": (
+                                "Prior count added before CPM (edgeR convention). "
+                                "Use 0 for plain CPM. Gene entity_type only."
+                            ),
+                        },
+                    },
+                },
+                "description": (
+                    "Normalisation algorithm. 'median': subtract per-sample median in log2 "
+                    "space — robust, recommended. 'quantile': force samples to the same "
+                    "quantile distribution. 'sum': scale by per-sample sum. 'batch correction': "
+                    "remove batch effects (requires batch_correction_technique sub-selection). "
+                    "'cpm': Counts Per Million — gene data only. 'skip': no normalisation."
+                ),
+            },
+            "imputation_method": {
+                "type": "str",
+                "valid_values": [
+                    "skip",
+                    "mnar",
+                    "knn",
+                    "knn_tn",
+                    "global_median",
+                    "median_by_entity",
+                    "mindet",
+                    "set to constant",
+                    "set to missing",
+                ],
+                "method_params": {
+                    "mnar": {
+                        "std_position": {
+                            "type": "float",
+                            "required": False,
+                            "default": 1.8,
+                            "range": "0.0–3.0",
+                            "description": (
+                                "Mean shift in standard deviations below the observed mean. "
+                                "Higher = more aggressive left-shift."
+                            ),
+                        },
+                        "std_width": {
+                            "type": "float",
+                            "required": False,
+                            "default": 0.3,
+                            "range": "0.0–1.0",
+                            "description": (
+                                "Width of the imputed Gaussian as a fraction of the observed std."
+                            ),
+                        },
+                    },
+                    "knn": {
+                        "n_neighbors": {
+                            "type": "int",
+                            "required": False,
+                            "default": 3,
+                            "range": "1–10",
+                            "description": "Number of nearest neighbours.",
+                        },
+                        "weights": {
+                            "type": "str",
+                            "required": False,
+                            "default": "uniform",
+                            "valid_values": ["uniform", "distance"],
+                            "description": (
+                                "'uniform' (default): equal-weighted neighbours. "
+                                "'distance': closer neighbours contribute more."
+                            ),
+                        },
+                    },
+                    "knn_tn": {
+                        "knn_tn_k": {
+                            "type": "int",
+                            "required": False,
+                            "default": 5,
+                            "range": "1–10",
+                            "description": "Adaptive k for truncated-normal KNN imputation.",
+                        },
+                        "knn_tn_distance": {
+                            "type": "str",
+                            "required": False,
+                            "default": "truncation",
+                            "valid_values": ["truncation", "correlation"],
+                            "description": (
+                                "Distance metric used by KNN-TN. 'truncation' (default) is "
+                                "the truncated-normal MLE distance; 'correlation' is the "
+                                "Pearson-based variant."
+                            ),
+                        },
+                    },
+                    "global_median": (
+                        "No extra parameters. Replaces all missing values with the global "
+                        "median intensity."
+                    ),
+                    "median_by_entity": (
+                        "No extra parameters. Replaces each missing value with that entity's "
+                        "own median intensity."
+                    ),
+                    "mindet": {
+                        "q": {
+                            "type": "float",
+                            "required": False,
+                            "default": 0.01,
+                            "range": "0.0–0.5",
+                            "description": (
+                                "Quantile used to estimate the minimum detectable value per "
+                                "sample (Perseus-style)."
+                            ),
+                        },
+                    },
+                    "set to constant": {
+                        "constant_value": {
+                            "type": "int",
+                            "required": False,
+                            "default": 0,
+                            "range": "0–100",
+                            "description": "Fixed value substituted for every missing entry.",
+                        },
+                    },
+                    "set to missing": (
+                        "No extra parameters. Output NaN for every imputed position."
+                    ),
+                    "skip": "No extra parameters. Leaves data unchanged.",
+                },
+                "description": (
+                    "Imputation algorithm. 'mnar' (PREFERRED for standard DDA): Perseus-style "
+                    "left-tail Gaussian. 'knn' / 'knn_tn': K-nearest-neighbour imputation; "
+                    "knn_tn uses a truncated-normal MLE and an adaptive k (recommended for "
+                    "small experiments). 'mindet': impute at a low per-sample quantile. "
+                    "'global_median' / 'median_by_entity': simple median fills. "
+                    "'set to constant': replace with a fixed value. 'set to missing': output NaN. "
+                    "'skip': leave unchanged."
+                ),
+            },
+            "filtration_method": {
+                "type": "str",
+                "required": False,
+                "default": "skip",
+                "valid_values": [
+                    "skip",
+                    "by missing values",
+                    "by ptm localization probability",
+                    "by minimum abundance",
+                ],
+                "valid_values_per_entity_type": {
+                    "protein": ["skip", "by missing values"],
+                    "peptide": [
+                        "skip",
+                        "by missing values",
+                        "by ptm localization probability",
+                    ],
+                    "gene": ["skip", "by minimum abundance"],
+                },
+                "method_params": {
+                    "skip": "No extra parameters. Filtration is skipped.",
+                    "by missing values": _SHARED_FILTER_BLOCK,
+                    "by ptm localization probability": {
+                        "threshold": {
+                            "type": "float",
+                            "required": False,
+                            "default": 0.5,
+                            "range": "0.0–1.0",
+                            "description": (
+                                "PTM sites with PTMProbMax ≥ threshold are retained. "
+                                "Peptide entity_type only."
+                            ),
+                        },
+                    },
+                    "by minimum abundance": {
+                        "minimum_abundance_threshold": {
+                            "type": "float",
+                            "required": False,
+                            "default": 0,
+                            "range": "0–100",
+                            "description": (
+                                "Values strictly above this threshold are valid. Gene only — "
+                                "typically used after CPM."
+                            ),
+                        },
+                        **_SHARED_FILTER_BLOCK,
+                    },
+                },
+                "description": (
+                    "Optional filtration applied BEFORE normalisation. The output is still an "
+                    "INTENSITY dataset. 'by missing values' (protein/peptide): drop entities "
+                    "that fail a completeness criterion. 'by ptm localization probability' "
+                    "(peptide): drop low-confidence PTM sites. 'by minimum abundance' (gene): "
+                    "drop low-count genes after CPM."
+                ),
+            },
+            "normalisation_extra_params": {
+                "type": "Dict[str, Any]",
+                "default": None,
+                "description": (
+                    "Forward-compat escape hatch for normalisation params. Typed kwargs "
+                    "(median_normalisation_centre_at_zero, include_imputed_values, "
+                    "batch_correction_technique, batch_variables, batch_variable_combat, "
+                    "mean_only, reference_batch_combat, design_variables, experiment_design, "
+                    "prior_count) are preferred. Anything passed here is merged LAST and "
+                    "overrides typed values."
+                ),
+            },
+            "imputation_extra_params": {
+                "type": "Dict[str, Any]",
+                "default": None,
+                "description": (
+                    "Forward-compat escape hatch for imputation params. See method_params for "
+                    "per-method keys. Merged LAST and overrides typed values."
+                ),
+            },
+            "filtration_extra_params": {
+                "type": "Dict[str, Any]",
+                "default": None,
+                "description": (
+                    "Forward-compat escape hatch for filtration params. See method_params for "
+                    "per-method keys. Merged LAST and overrides typed values."
+                ),
+            },
+        },
+    },
+    "anova": {
+        "description": (
+            "Run ANOVA-based differential abundance analysis across multiple conditions "
+            "using limma linear models. Use when comparing 3+ groups simultaneously. "
+            "Supports both 'all comparisons' and custom comparison subsets."
+        ),
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "sample_metadata",
+            "condition_column",
+            "filter_values_criteria",
+        ],
+        "guidance": "Always ask the user which parameters to use before calling this tool.",
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Non-empty list of input dataset UUIDs (normalised/imputed).",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output dataset.",
+            },
+            "sample_metadata": {
+                "type": "List[List[str]]",
+                "description": "2D array with header row. Must include sample_name and condition_column.",
+            },
+            "condition_column": {
+                "type": "str",
+                "description": "Column in sample_metadata defining groups to compare.",
+            },
+            "comparisons_type": {
+                "type": "str",
+                "default": "all",
+                "valid_values": ["all", "custom"],
+                "description": (
+                    "'all': test all pairwise comparisons between condition levels. "
+                    "'custom': specify a subset via condition_comparisons."
+                ),
+            },
+            "condition_comparisons": {
+                "type": "List[List[str]]",
+                "required": False,
+                "default": [],
+                "description": (
+                    "Custom [case, control] pairs to test. Only used when comparisons_type='custom'."
+                ),
+            },
+            "filter_values_criteria": {
+                "type": "Dict[str, Any]",
+                "required": True,
+                "default": {"method": "percentage", "filter_threshold_percentage": 0.5},
+                "description": (
+                    "Valid-value completeness filter. "
+                    "{'method': 'percentage', 'filter_threshold_percentage': 0.0–1.0} "
+                    "or {'method': 'count', 'filter_threshold_count': int ≥ 1}."
+                ),
+            },
+            "filter_valid_values_logic": {
+                "type": "str",
+                "default": "at least one condition",
+                "valid_values": [
+                    "all conditions",
+                    "at least one condition",
+                    "full experiment",
+                ],
+                "description": (
+                    "Logic for applying the valid-value filter. "
+                    "'at least one condition' (default): keep rows that pass the threshold "
+                    "in at least one condition. "
+                    "'all conditions': must pass in every condition. "
+                    "'full experiment': must pass across the whole dataset."
+                ),
+            },
+            "limma_trend": {
+                "type": "bool",
+                "default": True,
+                "description": (
+                    "Allow intensity-dependent trend for prior variances (limma-trend, "
+                    "Law et al. 2014). Recommended: True."
+                ),
+            },
+            "robust_empirical_bayes": {
+                "type": "bool",
+                "default": True,
+                "description": (
+                    "Use robust empirical Bayes moderation (Phipson et al. 2016). "
+                    "Protects against hyper/hypo-variable proteins. Recommended: True."
+                ),
+            },
+            "filter_method": {
+                "type": "str",
+                "default": "percentage",
+                "valid_values": ["percentage", "count"],
+                "description": (
+                    "Completeness criterion: 'percentage' uses "
+                    "filter_threshold_percentage in [0,1]; 'count' uses "
+                    "filter_threshold_count (int >= 1)."
+                ),
+            },
+            "filter_threshold_count": {
+                "type": "Optional[int]",
+                "required": "when filter_method='count'",
+                "default": None,
+                "range": ">= 1",
+                "description": (
+                    "Minimum count of valid samples per condition. Required when "
+                    "filter_method='count'. Source-of-truth: "
+                    "ANOVAParamsProperties.filter_threshold_count "
+                    "(process_r.py:518-529)."
+                ),
+            },
+            "entity_type": {
+                "type": "str",
+                "default": "protein",
+                "valid_values": ["protein", "peptide", "gene"],
+                "description": (
+                    "Entity level to analyse. Gene ANOVA runs through limma "
+                    "(mdFlexiComparisons runANOVA, de_method='limma'). The count-data "
+                    "engines edgeR / DESeq2 are NOT exposed by this MCP."
+                ),
+            },
+            "control_variables": {
+                "type": "Optional[List[Dict[str, str]]]",
+                "default": None,
+                "description": (
+                    "Covariates to add to the limma design matrix (e.g. batch, sex). "
+                    "Each entry: {'column': str, 'type': 'categorical'|'numerical'}. "
+                    "Wrapped on the wire as {'control_variables': [...]}. "
+                    "Source-of-truth: process_r.py:69-71 (entry shape) and "
+                    "process_r.py:380-386 (ANOVAParamsProperties.control_variables)."
+                ),
+            },
+        },
+    },
+    "dose_response": {
+        "description": (
+            "Fit dose-response curves to intensity data using a four-parameter "
+            "log-logistic (4PL) model. "
+            "MINIMUM DATA REQUIREMENTS: at least 3 distinct dose levels and at "
+            "least 5 total replicates across all doses (3+ replicates per dose "
+            "recommended). The pipeline will fail if these minimums are not met."
+        ),
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "sample_names",
+            "control_samples",
+            "sample_metadata",
+            "dose_column",
+        ],
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Non-empty list of input dataset UUIDs.",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output dataset.",
+            },
+            "sample_names": {
+                "type": "List[str]",
+                "description": "All sample names included in the analysis. Must match sample_name values in sample_metadata exactly.",
+            },
+            "control_samples": {
+                "type": "List[str]",
+                "default": [],
+                "description": (
+                    "Samples nominated as controls (dose = 0). Used to anchor the baseline. "
+                    "Ask the user which samples are controls — never guess."
+                ),
+            },
+            "sample_metadata": {
+                "type": "List[List[str]]",
+                "description": "2D array with header row. Must include sample_name and dose_column. Dose values are converted to numbers.",
+            },
+            "dose_column": {
+                "type": "str",
+                "default": "dose",
+                "description": "Column in sample_metadata containing dose values. All values must be numeric.",
+            },
+            "log_intensities": {
+                "type": "bool",
+                "default": True,
+                "description": "Apply log2 transformation to intensities before fitting. Recommended: True.",
+            },
+            "use_imputed_intensities": {
+                "type": "bool",
+                "default": False,
+                "description": (
+                    "Use imputed intensity values from a prior normalisation_imputation step. "
+                    "Platform default False (data-set-service DoseResponseParams.use_imputed_intensities). "
+                    "Set True to include NI-imputed values; False uses only observed values."
+                ),
+            },
+            "normalise": {
+                "type": "str",
+                "default": "none",
+                "valid_values": ["none", "sum", "median"],
+                "description": (
+                    "Within-sample normalisation applied before curve fitting. "
+                    "'none' (default): recommended when data has already been normalised upstream. "
+                    "'median': normalizeMedianAbsValues() from limma (Ritchie et al. 2015). "
+                    "'sum': scale by ratio of median sum to per-sample sum (Zecha et al. 2018)."
+                ),
+            },
+            "span_rollmean_k": {
+                "type": "int",
+                "default": 1,
+                "range": "1 to N distinct dose values",
+                "description": (
+                    "Rolling mean window for computing observed span. "
+                    "k=1 (default): no smoothing — fine detail. "
+                    "k=3: typically adequate smoothing. "
+                    "Max k is capped at the number of distinct dose values."
+                ),
+            },
+            "prop_required_in_protein": {
+                "type": "float",
+                "default": 0.5,
+                "range": "0.0–1.0",
+                "description": (
+                    "Minimum proportion of replicates with non-missing values required per protein. "
+                    "Use 0 to include all proteins regardless of missing data."
+                ),
+            },
+        },
+    },
+    "pairwise_comparison": {
+        "description": "Run limma-based pairwise differential expression analysis.",
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "sample_metadata",
+            "condition_column",
+            "condition_comparisons",
+        ],
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Non-empty list of input dataset UUIDs.",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output dataset.",
+            },
+            "sample_metadata": {
+                "type": "List[List[str]]",
+                "description": "2D array with header row. Must include sample_name and condition_column.",
+            },
+            "condition_column": {
+                "type": "str",
+                "description": "Column in sample_metadata defining groups to compare (e.g. 'condition').",
+            },
+            "condition_comparisons": {
+                "type": "List[List[str]]",
+                "description": "List of [case, control] pairs. Use generate_pairwise_comparisons to build these.",
+            },
+            "filter_valid_values_logic": {
+                "type": "str",
+                "default": "at least one condition",
+                "valid_values": [
+                    "all conditions",
+                    "at least one condition",
+                    "full experiment",
+                ],
+                "description": (
+                    "Logic for the valid-value completeness filter. "
+                    "'at least one condition' (default): keep rows that pass in at least one compared condition. "
+                    "'all conditions': must pass in every condition — more stringent. "
+                    "'full experiment': must pass across the entire experiment — most stringent."
+                ),
+            },
+            "filter_method": {
+                "type": "str",
+                "default": "percentage",
+                "valid_values": ["percentage", "count"],
+                "description": "Completeness filter method: fraction of valid values ('percentage') or absolute count ('count').",
+            },
+            "filter_threshold_percentage": {
+                "type": "float",
+                "default": 0.5,
+                "range": "0.0–1.0",
+                "description": "Minimum fraction of valid values required (used when filter_method='percentage').",
+            },
+            "fit_separate_models": {
+                "type": "bool",
+                "default": True,
+                "description": (
+                    "Fit a separate limma model per comparison. "
+                    "True (default): each comparison filters entities independently — "
+                    "reduces impact of conditions with many missing values."
+                ),
+            },
+            "limma_trend": {
+                "type": "bool",
+                "default": True,
+                "description": "Allow intensity-dependent trend for prior variances (Law et al. 2014). Recommended: True.",
+            },
+            "robust_empirical_bayes": {
+                "type": "bool",
+                "default": True,
+                "description": "Robust empirical Bayes moderation (Phipson et al. 2016). Recommended: True.",
+            },
+            "entity_type": {
+                "type": "str",
+                "default": "protein",
+                "valid_values": ["protein", "peptide", "gene"],
+                "description": (
+                    "Entity level to analyse. Gene pairwise runs through limma "
+                    "(mdFlexiComparisons runDiscovery, de_method='limma'). The count-data "
+                    "engines edgeR / DESeq2 are NOT exposed by this MCP."
+                ),
+            },
+            "control_variables": {
+                "type": "Optional[List[Dict[str, str]]]",
+                "default": None,
+                "description": (
+                    "Covariates to include in the limma model (e.g. batch, age). "
+                    "Each item: {'column': str, 'type': 'numerical'|'categorical'}. "
+                    "Source-of-truth: MDFlexiComparisons ControlValue (process_r.py:69-71). "
+                    "Pass only the list; the MCP wraps it as "
+                    "{'control_variables': [...]} on the wire."
+                ),
+            },
+        },
+    },
+}
