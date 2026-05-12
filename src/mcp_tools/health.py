@@ -464,6 +464,8 @@ _WORKFLOW_GUIDE = {
             "remove_module_from_tab": "DESTRUCTIVE — remove a module from a tab.",
             "add_text_module": "Add a text/narrative module (HTML body in settings.text). Bypasses the visualisation Q&A mandate — there is only one user-supplied value (the body). Default size 12x3.",
             "update_text_module": "Replace the body of an existing text module. Sends only settings.text so layout (x/y/width/height) is preserved server-side. Use update_tab_module if you also need to move/resize.",
+            "create_entity_list": "Create a named entity list (proteins/peptides/genes) scoped to a workspace. Items are (entity_id, group_id, dataset_id) triples. There is NO list/index endpoint — save the returned id, it cannot be re-discovered.",
+            "get_entity_list": "Fetch a single entity list by id, scoped to its workspace. Returns the list + items.",
         },
         "utility_tools": {
             "health_check": "Check API connectivity.",

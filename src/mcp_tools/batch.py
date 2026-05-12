@@ -55,6 +55,7 @@ from .workspaces.crud import (
     list_workspaces,
     update_workspace,
 )
+from .workspaces.entity_lists import create_entity_list, get_entity_list
 from .workspaces.modules import (
     add_module_to_tab,
     add_text_module,
@@ -134,6 +135,8 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "remove_module_from_tab": remove_module_from_tab,
     "add_text_module": add_text_module,
     "update_text_module": update_text_module,
+    "create_entity_list": create_entity_list,
+    "get_entity_list": get_entity_list,
 }
 
 
