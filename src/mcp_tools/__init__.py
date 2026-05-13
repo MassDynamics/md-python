@@ -6,12 +6,32 @@ mcp = FastMCP(
 Mass Dynamics is a cloud proteomics analysis platform. This MCP uploads
 proteomics data and runs downstream statistical pipelines against it.
 
+DATA vs WORKSPACE BOUNDARY — read before doing anything
+Uploads, datasets, and pipeline runs are owned by the USER, not by a
+workspace. They live at the account level and are discoverable from any
+session via query_uploads / list_datasets / find_initial_dataset.
+A workspace is purely a visual container of tabs and modules; it does
+NOT own, contain, or store data. Workspace modules REFERENCE existing
+uploads/datasets by id.
+
+Practical consequences:
+  * NEVER ask the user "which workspace should I upload into" — uploads
+    have no workspace association.
+  * NEVER create a workspace as a prerequisite for create_upload_from_csv,
+    run_normalisation_imputation, run_pairwise_comparison, run_anova, or
+    run_dose_response. Pipelines run against dataset_ids, not workspaces.
+  * Only create or pick a workspace when the user explicitly wants to
+    VIEW results (Workflow M_visualise) — at that point the workspace
+    references existing dataset_ids the user already has.
+
 RETURN-SHAPE CONTRACT
 Every tool returns ONE of:
   - JSON string (parse with json.loads). Used by: health_check,
     get_workflow_guide, read_csv_preview, load_metadata_from_csv,
     get_md_format_spec, plan_wide_to_md_format, describe_pipeline,
     query_uploads, query_datasets, query_entities, map_protein_to_protein,
+    map_gene_to_protein, map_protein_to_gene, map_protein_to_peptide,
+    map_peptide_to_protein,
     get_upload_sample_metadata,
     list_uploads_status, find_initial_datasets, wait_for_datasets_bulk,
     download_dataset_table, run_normalisation_imputation_bulk,
@@ -41,7 +61,9 @@ TOOL CATEGORIES — use roughly in this order:
                      list_datasets, list_jobs, wait_for_dataset,
                      wait_for_datasets_bulk, retry_dataset, delete_dataset,
                      cancel_dataset, query_datasets, download_dataset_table,
-                     query_entities, map_protein_to_protein
+                     query_entities, map_protein_to_protein,
+                     map_gene_to_protein, map_protein_to_gene,
+                     map_protein_to_peptide, map_peptide_to_protein
   4. Pipeline tools: describe_pipeline, run_normalisation_imputation,
                      run_normalisation_imputation_bulk,
                      generate_pairwise_comparisons, run_pairwise_comparison,
@@ -55,7 +77,8 @@ TOOL CATEGORIES — use roughly in this order:
                      add_module_to_tab, list_tab_modules, get_tab_module,
                      update_tab_module, remove_module_from_tab,
                      add_text_module, update_text_module,
-                     create_entity_list, get_entity_list
+                     create_entity_list, get_entity_list,
+                     update_entity_list, delete_entity_list
   6. Utility       : health_check, batch, get_workflow_guide
 
 UPLOAD SOURCE FORMAT — enum (authoritative, enforced by the server and

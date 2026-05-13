@@ -29,9 +29,17 @@ def create_workspace(name: str, description: Optional[str] = None) -> str:
     """Create a new workspace.
 
     A workspace is the top-level container for tabs in the visual
-    environment. After creating a workspace, place modules with
-    add_module_to_tab — but FIRST call list_tabs and REUSE the existing
-    tab if one is there (see "auto-tab" note below).
+    environment. It is a PURELY VISUAL container — it does NOT own,
+    contain, or store uploads, datasets, or pipeline runs. Uploads and
+    datasets are owned by the user at the account level and live
+    independently of any workspace. Modules placed on a workspace tab
+    REFERENCE existing dataset_ids by id. Do NOT create a workspace as
+    a prerequisite for uploading data or running a pipeline; only call
+    this tool when the user explicitly wants to VIEW results.
+
+    After creating a workspace, place modules with add_module_to_tab —
+    but FIRST call list_tabs and REUSE the existing tab if one is there
+    (see "auto-tab" note below).
 
     AUTO-TAB BEHAVIOUR (lazy, frontend-driven). The Mass Dynamics app
     auto-creates a single default tab named "new tab" with tab_index 0

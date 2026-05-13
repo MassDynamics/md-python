@@ -121,3 +121,64 @@ class EntitiesMappings:
             raise Exception(
                 f"Failed to map peptide_to_protein_same_dataset: {response.status_code} - {response.text}"
             )
+
+    def gene_to_protein(
+        self, dataset_ids: List[str], entity_ids: List[str]
+    ) -> Dict[str, Any]:
+        """Map gene entities to protein groups across one or more datasets.
+
+        Returns nodes and edges reachable from the given gene IDs through
+        their associated proteins to protein groups via the cross-reference.
+
+        Args:
+            dataset_ids: 1–500 dataset UUIDs to scope the graph to.
+            entity_ids: Gene IDs to query (≥1).
+
+        Returns:
+            Response dict with 'nodes' and 'edges' keys.
+        """
+        response = self._client._make_request(
+            method="POST",
+            endpoint="/entities/mappings/gene_to_protein",
+            json={"dataset_ids": dataset_ids, "entity_ids": entity_ids},
+            headers={"Content-Type": "application/json"},
+        )
+
+        if response.status_code == 200:
+            result: Dict[str, Any] = response.json()
+            return result
+        else:
+            raise Exception(
+                f"Failed to map gene_to_protein: {response.status_code} - {response.text}"
+            )
+
+    def protein_to_gene(
+        self, dataset_ids: List[str], entity_ids: List[str]
+    ) -> Dict[str, Any]:
+        """Map protein groups to gene entities across one or more datasets.
+
+        Returns nodes and edges reachable from the given protein-group IDs
+        through their individual proteins to gene entities via the
+        cross-reference.
+
+        Args:
+            dataset_ids: 1–500 dataset UUIDs to scope the graph to.
+            entity_ids: Protein-group IDs to query (≥1).
+
+        Returns:
+            Response dict with 'nodes' and 'edges' keys.
+        """
+        response = self._client._make_request(
+            method="POST",
+            endpoint="/entities/mappings/protein_to_gene",
+            json={"dataset_ids": dataset_ids, "entity_ids": entity_ids},
+            headers={"Content-Type": "application/json"},
+        )
+
+        if response.status_code == 200:
+            result: Dict[str, Any] = response.json()
+            return result
+        else:
+            raise Exception(
+                f"Failed to map protein_to_gene: {response.status_code} - {response.text}"
+            )

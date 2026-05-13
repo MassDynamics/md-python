@@ -102,3 +102,25 @@ class TestWorkflowGuide:
         desc = _WORKFLOW_GUIDE["tool_index"]["dataset_tools"]["find_initial_dataset"]
         assert "upload-created" in desc
         assert "no upstream input" in desc
+
+    def test_overview_states_data_vs_workspace_boundary(self):
+        overview = _WORKFLOW_GUIDE["overview"]
+        assert "DATA vs WORKSPACE BOUNDARY" in overview
+        assert "NO workspace association" in overview
+        assert "REFERENCE existing datasets" in overview
+
+    def test_visualise_workflow_states_workspace_is_not_a_data_container(self):
+        desc = _WORKFLOW_GUIDE["workflows"]["M_visualise"]["description"]
+        assert "does NOT own" in desc
+        assert "REFERENCE existing" in desc
+        assert "never create a workspace as a prerequisite" in desc
+
+    def test_top_level_mcp_instructions_carry_boundary(self):
+        from mcp_tools import mcp
+
+        instructions = mcp.instructions or ""
+        assert "DATA vs WORKSPACE BOUNDARY" in instructions
+        assert (
+            'NEVER ask the user "which workspace should I upload into"' in instructions
+        )
+        assert "NEVER create a workspace as a prerequisite" in instructions

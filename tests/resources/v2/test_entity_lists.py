@@ -172,3 +172,104 @@ class TestGet:
     def test_returns_none_on_404(self, lists, mock_client):
         mock_client._make_request.return_value = _response(404)
         assert lists.get(WS_ID, LIST_ID) is None
+
+
+class TestUpdate:
+    @pytest.fixture
+    def mock_client(self):
+        return Mock(spec=MDClientV2)
+
+    @pytest.fixture
+    def lists(self, mock_client):
+        return EntityLists(mock_client)
+
+    def test_update_replaces_all_fields(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(200, _list_payload())
+        result = lists.update(
+            workspace_id=WS_ID,
+            list_id=LIST_ID,
+            name="Top hits",
+            entity_type="protein",
+            items=[
+                {"entity_id": "P12345", "group_id": 1, "dataset_id": DATASET_ID},
+            ],
+        )
+        call = mock_client._make_request.call_args
+        assert call[1]["method"] == "PUT"
+        assert call[1]["endpoint"] == f"/workspaces/{WS_ID}/entity_lists/{LIST_ID}"
+        assert call[1]["json"] == {
+            "name": "Top hits",
+            "entity_type": "protein",
+            "items": [{"entity_id": "P12345", "group_id": 1, "dataset_id": DATASET_ID}],
+        }
+        assert isinstance(result, EntityList)
+
+    def test_update_accepts_model_items(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(200, _list_payload())
+        lists.update(
+            workspace_id=WS_ID,
+            list_id=LIST_ID,
+            name="x",
+            entity_type="protein",
+            items=[
+                EntityListItem(entity_id="P12345", group_id=1, dataset_id=DATASET_ID)
+            ],
+        )
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload["items"] == [
+            {"entity_id": "P12345", "group_id": 1, "dataset_id": DATASET_ID}
+        ]
+
+    def test_update_rejects_invalid_entity_type(self, lists):
+        with pytest.raises(ValueError, match="entity_type must be one of"):
+            lists.update(
+                workspace_id=WS_ID,
+                list_id=LIST_ID,
+                name="x",
+                entity_type="metabolite",
+                items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
+            )
+
+    def test_update_rejects_empty_items(self, lists):
+        with pytest.raises(ValueError, match="at least one"):
+            lists.update(
+                workspace_id=WS_ID,
+                list_id=LIST_ID,
+                name="x",
+                entity_type="protein",
+                items=[],
+            )
+
+    def test_update_propagates_server_error(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(400, text="bad payload")
+        with pytest.raises(Exception, match="400"):
+            lists.update(
+                workspace_id=WS_ID,
+                list_id=LIST_ID,
+                name="x",
+                entity_type="protein",
+                items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
+            )
+
+
+class TestDelete:
+    @pytest.fixture
+    def mock_client(self):
+        return Mock(spec=MDClientV2)
+
+    @pytest.fixture
+    def lists(self, mock_client):
+        return EntityLists(mock_client)
+
+    def test_delete_returns_none_on_204(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(204)
+        result = lists.delete(WS_ID, LIST_ID)
+        assert result is None
+        call = mock_client._make_request.call_args
+        assert call[1]["method"] == "DELETE"
+        assert call[1]["endpoint"] == f"/workspaces/{WS_ID}/entity_lists/{LIST_ID}"
+
+    def test_delete_propagates_server_error(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(404, text="missing")
+        with pytest.raises(Exception, match="404"):
+            lists.delete(WS_ID, LIST_ID)

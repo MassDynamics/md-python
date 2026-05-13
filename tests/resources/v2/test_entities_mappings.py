@@ -182,3 +182,72 @@ class TestV2EntitiesMappings:
             mappings.peptide_to_protein_same_dataset(
                 dataset_id="abc-123", entity_ids=["AAS(UniMod:21)PEK"]
             )
+
+    def test_gene_to_protein_success(self, mappings, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "nodes": [{"~id": "gene:ENSG1"}, {"~id": "protein_group:10"}],
+            "edges": [{"~id": "e1"}],
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = mappings.gene_to_protein(
+            dataset_ids=["abc-123"], entity_ids=["ENSG00000139618"]
+        )
+
+        assert result == {
+            "nodes": [{"~id": "gene:ENSG1"}, {"~id": "protein_group:10"}],
+            "edges": [{"~id": "e1"}],
+        }
+        assert mock_client._make_request.call_args.kwargs == {
+            "method": "POST",
+            "endpoint": "/entities/mappings/gene_to_protein",
+            "json": {
+                "dataset_ids": ["abc-123"],
+                "entity_ids": ["ENSG00000139618"],
+            },
+            "headers": {"Content-Type": "application/json"},
+        }
+
+    def test_gene_to_protein_failure(self, mappings, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 502
+        mock_response.text = "upstream boom"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to map gene_to_protein: 502"):
+            mappings.gene_to_protein(dataset_ids=["abc"], entity_ids=["ENSG1"])
+
+    def test_protein_to_gene_success(self, mappings, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "nodes": [{"~id": "protein_group:10"}, {"~id": "gene:ENSG1"}],
+            "edges": [{"~id": "e1"}],
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = mappings.protein_to_gene(
+            dataset_ids=["abc-123"], entity_ids=["P12345"]
+        )
+
+        assert result == {
+            "nodes": [{"~id": "protein_group:10"}, {"~id": "gene:ENSG1"}],
+            "edges": [{"~id": "e1"}],
+        }
+        assert mock_client._make_request.call_args.kwargs == {
+            "method": "POST",
+            "endpoint": "/entities/mappings/protein_to_gene",
+            "json": {"dataset_ids": ["abc-123"], "entity_ids": ["P12345"]},
+            "headers": {"Content-Type": "application/json"},
+        }
+
+    def test_protein_to_gene_failure(self, mappings, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 502
+        mock_response.text = "upstream boom"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to map protein_to_gene: 502"):
+            mappings.protein_to_gene(dataset_ids=["abc"], entity_ids=["P12345"])

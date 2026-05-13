@@ -231,6 +231,196 @@ _FIELD_TYPE_PROFILES: Dict[str, Dict[str, Any]] = {
         "data_dependencies": [],
         "fillable_by_llm": True,
     },
+    "PlotSize": {
+        "value_kind": "plot_size",
+        "value_description": (
+            "Plot dimensions. Shape is {fixed: bool} when "
+            "auto-sizing to the grid cell, or {fixed: true, width: <px>, "
+            "height: <px>} for an explicit size. Width/height are pixels."
+        ),
+        "data_dependencies": [],
+        "fillable_by_llm": True,
+    },
+    "NumberRange": {
+        "value_kind": "number-in-range",
+        "value_description": (
+            "Numeric value bounded by parameters.min and parameters.max "
+            "(inclusive). parameters.integer=true means integers only; "
+            "otherwise floats are allowed."
+        ),
+        "data_dependencies": [],
+        "fillable_by_llm": True,
+    },
+    "FoldChangeThreshold": {
+        "value_kind": "fold_change_threshold",
+        "value_description": (
+            "Fold-change cut-off. Interpretation depends on the sibling "
+            "axis-selection field: linear ratio when axis='fc' (typical "
+            "values 1.5 / 2), log2 fold-change when axis='log2fc' "
+            "(typical values 0.585 / 1)."
+        ),
+        "data_dependencies": [],
+        "fillable_by_llm": True,
+    },
+    "NComponents": {
+        "value_kind": "component_axes",
+        "value_description": (
+            "Principal-component axes to plot, shaped as "
+            "{xAxis: 'PC1', yAxis: 'PC2', ...}. Valid component names "
+            "depend on the chosen dataset and the entity/protein-list "
+            "used to compute PCA — resolve via parameters.datasetsSearch."
+            "ref and (when present) parameters.proteinListId.ref. The "
+            "default {xAxis: 'PC1', yAxis: 'PC2'} is almost always fine; "
+            "propose changes but confirm with the user."
+        ),
+        "data_dependencies": [
+            "the chosen dataset (referenced in parameters.datasetsSearch.ref)",
+            "the principal components available for that dataset",
+        ],
+        "fillable_by_llm": False,
+    },
+    "PairwiseConditionPairs": {
+        "value_kind": "condition_pairs",
+        "value_description": (
+            "Set of [case, control] condition pairs to compare, shaped as "
+            "{values: [[case, control], ...]}. Values must be condition "
+            "names present in the chosen dataset's sample metadata. "
+            "parameters.filterable controls UI search; "
+            "parameters.conditionsOrderable controls drag-to-reorder."
+        ),
+        "data_dependencies": [
+            "the chosen dataset (referenced in parameters.datasetsSearch.ref)",
+            "the condition column values in that dataset's sample metadata "
+            "(call get_upload_sample_metadata)",
+        ],
+        "fillable_by_llm": False,
+    },
+    "EntityTitle": {
+        "value_kind": "entity_label_column",
+        "value_description": (
+            "Column to use as the display label for each entity (e.g. "
+            "'gene_name', 'protein_accession'). parameters.entityType "
+            "constrains valid labels — gene-level labels for "
+            "entityType='gene', protein-level for 'protein', etc."
+        ),
+        "data_dependencies": [],
+        "fillable_by_llm": True,
+    },
+    "Experiment": {
+        "value_kind": "experiment_id",
+        "value_description": (
+            "An experiment / upload UUID owned by the current user. Get "
+            "it from the user or via query_uploads / get_upload."
+        ),
+        "data_dependencies": [
+            "an experiment / upload id — the LLM must ask the user, or "
+            "discover one via query_uploads",
+        ],
+        "fillable_by_llm": False,
+    },
+    "Multiple": {
+        "value_kind": "multi-select",
+        "value_description": (
+            "List of selected option values; each value must be one of "
+            "parameters.options[].value. Order does not matter; "
+            "duplicates are ignored."
+        ),
+        "data_dependencies": [],
+        "fillable_by_llm": True,
+    },
+    "Properties": {
+        "value_kind": "properties",
+        "value_description": (
+            "Module-specific nested object. Treat as opaque — its shape "
+            "is documented only in the module's prose description. Do "
+            "not invent keys; if no value is supplied, the registry "
+            "default is sent verbatim."
+        ),
+        "data_dependencies": [],
+        "fillable_by_llm": False,
+    },
+    "Species": {
+        "value_kind": "species_id",
+        "value_description": (
+            "Species identifier (NCBI taxonomy id). Common values: "
+            "9606 (Human), 10090 (Mouse), 559292 (Yeast), 10029 "
+            "(Chinese hamster). The allowed set is server-controlled — "
+            "the value is validated when the module is rendered."
+        ),
+        "data_dependencies": [],
+        "fillable_by_llm": True,
+    },
+    "DatasetTable": {
+        "value_kind": "dataset_table_name",
+        "value_description": (
+            "Name of a table inside the chosen dataset (e.g. 'protein', "
+            "'peptide', 'gene'). Allowed names depend on the dataset's "
+            "schema — resolve via parameters.datasetsSearch.ref."
+        ),
+        "data_dependencies": [
+            "the chosen dataset (referenced in parameters.datasetsSearch.ref)",
+            "the table names available in that dataset",
+        ],
+        "fillable_by_llm": False,
+    },
+    "DatasetTableValues": {
+        "value_kind": "dataset_table_column_values",
+        "value_description": (
+            "Column / value selection from the chosen dataset's named "
+            "table. Depends on parameters.datasetsSearch.ref and "
+            "parameters.tableName.ref. parameters.initiallySelectAll="
+            "true means the default is 'all columns selected'."
+        ),
+        "data_dependencies": [
+            "the chosen dataset (referenced in parameters.datasetsSearch.ref)",
+            "the chosen table inside that dataset "
+            "(referenced in parameters.tableName.ref)",
+            "the columns available in that table",
+        ],
+        "fillable_by_llm": False,
+    },
+    "DatasetSampleMetadataColumns": {
+        "value_kind": "sample_metadata_columns",
+        "value_description": (
+            "List of sample-metadata column names from the chosen "
+            "dataset (e.g. ['condition', 'treatment']). Resolve via "
+            "parameters.datasetsSearch.ref → get_upload_sample_metadata."
+        ),
+        "data_dependencies": [
+            "the chosen dataset (referenced in parameters.datasetsSearch.ref)",
+            "the dataset's sample_metadata column names "
+            "(call get_upload_sample_metadata)",
+        ],
+        "fillable_by_llm": False,
+    },
+    "DatasetSampleMetadataValue": {
+        "value_kind": "sample_metadata_value",
+        "value_description": (
+            "A single value from a chosen sample-metadata column (e.g. "
+            "one condition name). parameters.columnName.ref points to "
+            "the field that selects the column."
+        ),
+        "data_dependencies": [
+            "the chosen dataset (referenced in parameters.datasetsSearch.ref)",
+            "the chosen column (referenced in parameters.columnName.ref)",
+            "the distinct values in that column " "(call get_upload_sample_metadata)",
+        ],
+        "fillable_by_llm": False,
+    },
+    "DatasetSampleMetadataValuesOrder": {
+        "value_kind": "ordered_sample_metadata_values",
+        "value_description": (
+            "Explicit ordering (list) of sample-metadata values for a "
+            "chosen column — used when the renderer needs a manual "
+            "axis order. parameters.columnName.ref points to the column."
+        ),
+        "data_dependencies": [
+            "the chosen dataset (referenced in parameters.datasetsSearch.ref)",
+            "the chosen column (referenced in parameters.columnName.ref)",
+            "the distinct values in that column " "(call get_upload_sample_metadata)",
+        ],
+        "fillable_by_llm": False,
+    },
 }
 
 
