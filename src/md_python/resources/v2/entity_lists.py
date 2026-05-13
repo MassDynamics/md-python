@@ -1,14 +1,15 @@
 """
 EntityLists resource for the MD Python v2 client.
 
-Maps the two endpoints exposed under a workspace:
+Maps the workspace-scoped endpoints:
 
-  POST /api/workspaces/:workspace_id/entity_lists      → create
-  GET  /api/workspaces/:workspace_id/entity_lists/:id  → show
+  POST   /api/workspaces/:workspace_id/entity_lists      → create
+  GET    /api/workspaces/:workspace_id/entity_lists/:id  → show
+  PUT    /api/workspaces/:workspace_id/entity_lists/:id  → update
+  DELETE /api/workspaces/:workspace_id/entity_lists/:id  → delete
 
-There is no list/index endpoint yet (the server-side controller exposes
-only Create and Show), so this resource intentionally does not implement
-``list``. Looking up an entity list requires its id.
+There is no list/index endpoint — the server-side controller does not
+expose Query. Looking up an entity list requires its id.
 """
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
@@ -111,3 +112,76 @@ class EntityLists:
             return None
         _check(response, 200, "get entity list")
         return EntityList.from_json(response.json())
+
+    def update(
+        self,
+        workspace_id: str,
+        list_id: str,
+        name: str,
+        entity_type: str,
+        items: Sequence[EntityListItemInput],
+    ) -> EntityList:
+        """Replace an entity list's name, entity_type, and items.
+
+        The server performs a full replace — every field is required.
+        Use ``get`` first to read the current state if you only want to
+        change one field.
+
+        Args:
+            workspace_id: Parent workspace UUID.
+            list_id: Entity list UUID.
+            name: New display name.
+            entity_type: One of ``protein``, ``peptide``, or ``gene``.
+            items: At least one item — each either an
+                :class:`EntityListItem` or a dict with ``entity_id``,
+                ``group_id`` and ``dataset_id``.
+
+        Returns:
+            The updated :class:`EntityList`.
+        """
+        if entity_type not in {"protein", "peptide", "gene"}:
+            raise ValueError(
+                "entity_type must be one of: protein, peptide, gene "
+                f"(got {entity_type!r})"
+            )
+        if not items:
+            raise ValueError("items must include at least one entry")
+
+        payload_items: List[Dict[str, Any]] = []
+        for item in items:
+            if isinstance(item, EntityListItem):
+                payload_items.append(item.to_create_payload())
+            elif isinstance(item, dict):
+                if "entity_id" not in item:
+                    raise ValueError("every item must have an 'entity_id' field")
+                payload_items.append(dict(item))
+            else:
+                raise TypeError(
+                    "items entries must be EntityListItem or dict, "
+                    f"got {type(item).__name__}"
+                )
+
+        response = self._client._make_request(
+            method="PUT",
+            endpoint=f"{self._base(workspace_id)}/{list_id}",
+            json={
+                "name": name,
+                "entity_type": entity_type,
+                "items": payload_items,
+            },
+            headers=_JSON_HEADERS,
+        )
+        _check(response, 200, "update entity list")
+        return EntityList.from_json(response.json())
+
+    def delete(self, workspace_id: str, list_id: str) -> None:
+        """Permanently delete an entity list.
+
+        Returns ``None`` on success (HTTP 204). Raises if the list does
+        not exist or the caller lacks permission.
+        """
+        response = self._client._make_request(
+            method="DELETE",
+            endpoint=f"{self._base(workspace_id)}/{list_id}",
+        )
+        _check(response, 204, "delete entity list")

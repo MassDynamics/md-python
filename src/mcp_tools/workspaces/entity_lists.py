@@ -5,12 +5,14 @@ or more datasets so a visualisation module can refer to that selection
 by id (``proteinListId`` / ``entityListId``) instead of re-specifying
 the set every time.
 
-Two endpoints are exposed by the v2 API:
+Endpoints exposed by the v2 API:
 
-  POST /api/workspaces/:workspace_id/entity_lists      → create
-  GET  /api/workspaces/:workspace_id/entity_lists/:id  → show
+  POST   /api/workspaces/:workspace_id/entity_lists      → create
+  GET    /api/workspaces/:workspace_id/entity_lists/:id  → show
+  PUT    /api/workspaces/:workspace_id/entity_lists/:id  → update
+  DELETE /api/workspaces/:workspace_id/entity_lists/:id  → delete
 
-There is no list/index endpoint yet, so callers must remember the id
+There is no list/index endpoint, so callers must remember the id
 returned by create_entity_list (it is included in the tool's response).
 """
 
@@ -21,6 +23,7 @@ from md_python.models import EntityList
 
 from .. import mcp
 from .._client import get_client
+from .._destructive import _attach_destructive
 
 
 def _entity_list_to_dict(ell: EntityList) -> Dict[str, Any]:
@@ -100,3 +103,64 @@ def get_entity_list(workspace_id: str, list_id: str) -> str:
     if ell is None:
         return json.dumps({"error": f"Entity list {list_id!r} not found"}, indent=2)
     return json.dumps(_entity_list_to_dict(ell), indent=2)
+
+
+@mcp.tool()
+def update_entity_list(
+    workspace_id: str,
+    list_id: str,
+    name: str,
+    entity_type: str,
+    items: List[Dict[str, Any]],
+) -> str:
+    """Replace an entity list's name, entity_type, and items.
+
+    The server performs a full replace — every field is required on
+    every call. If you only want to change one field, call
+    ``get_entity_list`` first to read the current state, then pass the
+    unchanged fields back unchanged.
+
+    Args:
+      workspace_id: Parent workspace UUID.
+      list_id: Entity list UUID to update.
+      name: New display name (non-empty).
+      entity_type: One of ``protein``, ``peptide``, or ``gene``.
+      items: At least one membership row, same shape as
+        create_entity_list.
+
+    Returns the updated list as JSON. On validation / HTTP failure
+    returns a prose error string starting with ``Error:``.
+    """
+    try:
+        ell = get_client().workspaces.entity_lists.update(
+            workspace_id=workspace_id,
+            list_id=list_id,
+            name=name,
+            entity_type=entity_type,
+            items=items,
+        )
+    except (ValueError, TypeError, Exception) as e:
+        return f"Error: {e}"
+    return json.dumps(_entity_list_to_dict(ell), indent=2)
+
+
+@mcp.tool()
+def delete_entity_list(workspace_id: str, list_id: str) -> str:
+    """Permanently delete an entity list.
+
+    DESTRUCTIVE: removes the list and breaks any saved module that
+    references its ``proteinListId`` / ``entityListId``. Echo the list_id
+    back to the user and wait for explicit ``yes, delete <id>``
+    confirmation before calling — see the destructive-action mandate.
+
+    Returns: prose ``"Entity list deleted successfully. ID: <id>"`` on
+    success, or ``"Error: ..."`` on failure.
+    """
+    try:
+        get_client().workspaces.entity_lists.delete(workspace_id, list_id)
+    except Exception as e:
+        return f"Error: {e}"
+    return f"Entity list deleted successfully. ID: {list_id}"
+
+
+_attach_destructive(delete_entity_list)

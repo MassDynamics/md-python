@@ -15,7 +15,14 @@ from .datasets import (
     wait_for_dataset,
     wait_for_datasets_bulk,
 )
-from .entities import map_protein_to_protein, query_entities
+from .entities import (
+    map_gene_to_protein,
+    map_peptide_to_protein,
+    map_protein_to_gene,
+    map_protein_to_peptide,
+    map_protein_to_protein,
+    query_entities,
+)
 from .files import (
     get_md_format_spec,
     load_metadata_from_csv,
@@ -55,7 +62,12 @@ from .workspaces.crud import (
     list_workspaces,
     update_workspace,
 )
-from .workspaces.entity_lists import create_entity_list, get_entity_list
+from .workspaces.entity_lists import (
+    create_entity_list,
+    delete_entity_list,
+    get_entity_list,
+    update_entity_list,
+)
 from .workspaces.modules import (
     add_module_to_tab,
     add_text_module,
@@ -81,6 +93,10 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "get_md_format_spec": get_md_format_spec,
     "query_entities": query_entities,
     "map_protein_to_protein": map_protein_to_protein,
+    "map_gene_to_protein": map_gene_to_protein,
+    "map_protein_to_gene": map_protein_to_gene,
+    "map_protein_to_peptide": map_protein_to_peptide,
+    "map_peptide_to_protein": map_peptide_to_protein,
     "health_check": health_check,
     "get_workflow_guide": get_workflow_guide,
     "get_upload": get_upload,
@@ -137,6 +153,8 @@ _TOOL_REGISTRY: Dict[str, Any] = {
     "update_text_module": update_text_module,
     "create_entity_list": create_entity_list,
     "get_entity_list": get_entity_list,
+    "update_entity_list": update_entity_list,
+    "delete_entity_list": delete_entity_list,
 }
 
 

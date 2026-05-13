@@ -20,7 +20,14 @@ _WORKFLOW_GUIDE = {
     "overview": (
         "Mass Dynamics is a cloud proteomics analysis platform. "
         "The general flow is: (1) prepare metadata CSV, (2) upload data files, "
-        "(3) wait for ingestion, (4) run analysis pipelines, (5) view results in the app."
+        "(3) wait for ingestion, (4) run analysis pipelines, (5) view results in the app. "
+        "DATA vs WORKSPACE BOUNDARY: uploads, datasets, and pipeline runs are owned by "
+        "the user at the account level — they have NO workspace association and are "
+        "discoverable from any session. A workspace is purely a visual container of tabs "
+        "and modules; it does NOT own or store data. Workspace modules REFERENCE existing "
+        "datasets by id. Do NOT ask 'which workspace should I upload into', do NOT create "
+        "a workspace as a prerequisite for any upload or pipeline tool, and only involve "
+        "a workspace when the user explicitly wants to VIEW results (Workflow M)."
     ),
     "analysis_mandates": [
         "MANDATORY Q&A: Before calling any analysis pipeline tool the LLM MUST present "
@@ -281,13 +288,20 @@ _WORKFLOW_GUIDE = {
             "description": (
                 "Place dashboard modules on a workspace tab — the visual "
                 "layer of the app. Workspace → Tab → Module on a "
-                "react-grid-layout grid. Every module (volcano, heatmap, "
-                "PCA, dose-response curves, …) declares its parameters via "
-                "the registry; the LLM MUST walk the user through every "
-                "one before placing the module. Server does NOT merge "
-                "registry defaults at create time, so add_module_to_tab "
-                "always sends the full settings hash via the client's "
-                "create_with_defaults helper."
+                "react-grid-layout grid. A workspace is purely a visual "
+                "container; it does NOT own or contain data. Modules "
+                "REFERENCE existing uploads/datasets by id — the user's "
+                "uploads exist independently and are visible from any "
+                "workspace (and from no workspace at all). Only enter this "
+                "workflow when the user explicitly asks to VIEW results; "
+                "never create a workspace as a prerequisite for uploading "
+                "data or running a pipeline. Every module (volcano, "
+                "heatmap, PCA, dose-response curves, …) declares its "
+                "parameters via the registry; the LLM MUST walk the user "
+                "through every one before placing the module. Server does "
+                "NOT merge registry defaults at create time, so "
+                "add_module_to_tab always sends the full settings hash via "
+                "the client's create_with_defaults helper."
             ),
             "steps": [
                 "── Phase 1: Discover ──",
@@ -431,6 +445,10 @@ _WORKFLOW_GUIDE = {
             "download_dataset_table": "Get a presigned download URL for a dataset table (csv/parquet). Pass output_path to stream to disk instead.",
             "query_entities": "Search proteins, genes, or peptides by keyword (e.g. gene symbol or UniProt ID) across one or more datasets.",
             "map_protein_to_protein": "Graph nodes + edges connecting protein groups through their shared individual proteins, scoped to one or more datasets. Use after query_entities to inspect shared-peptide ambiguity, isoform families, or cross-dataset protein-group provenance. Returns {nodes, edges} JSON.",
+            "map_gene_to_protein": "Graph nodes + edges linking gene entities to protein groups via the protein cross-reference, across one or more datasets. Use to translate a gene-symbol hit into the actual protein groups quantified in the user's data. Returns {nodes, edges} JSON.",
+            "map_protein_to_gene": "Graph nodes + edges linking protein groups to gene entities via the protein cross-reference, across one or more datasets. Use to roll a set of protein-group hits up to their underlying genes for enrichment, pathway lookup, or annotation cross-reference. Returns {nodes, edges} JSON.",
+            "map_protein_to_peptide": "Graph nodes + edges linking protein groups to their peptides within ONE dataset. Use when the user wants the peptide composition of specific protein groups (peptide-level QC, evidence inspection). Returns {nodes, edges} JSON.",
+            "map_peptide_to_protein": "Graph nodes + edges linking peptides to their protein groups within ONE dataset. Use when peptide-level hits need rolling up to protein groups. Returns {nodes, edges} JSON.",
         },
         "pipeline_tools": {
             "describe_pipeline": "Return the full parameter schema for a pipeline (valid_values, defaults). Call when you need to verify parameter values.",
@@ -466,6 +484,8 @@ _WORKFLOW_GUIDE = {
             "update_text_module": "Replace the body of an existing text module. Sends only settings.text so layout (x/y/width/height) is preserved server-side. Use update_tab_module if you also need to move/resize.",
             "create_entity_list": "Create a named entity list (proteins/peptides/genes) scoped to a workspace. Items are (entity_id, group_id, dataset_id) triples. There is NO list/index endpoint — save the returned id, it cannot be re-discovered.",
             "get_entity_list": "Fetch a single entity list by id, scoped to its workspace. Returns the list + items.",
+            "update_entity_list": "Replace an entity list's name, entity_type, and items wholesale (server does a full replace). Call get_entity_list first to read the current state if you only want to change one field.",
+            "delete_entity_list": "DESTRUCTIVE — permanently delete an entity list. Modules referencing its proteinListId / entityListId will surface 'Please provide ...' prompts afterwards. Echo the list_id back and require explicit 'yes, delete <id>' confirmation.",
         },
         "utility_tools": {
             "health_check": "Check API connectivity.",

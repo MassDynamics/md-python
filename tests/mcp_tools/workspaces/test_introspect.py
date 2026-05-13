@@ -176,6 +176,146 @@ class TestDataDependencies:
         assert "BrandNewType" in doc["value_description"]
 
 
+class TestExtendedFieldTypeProfiles:
+    """Every fieldType used in the workflow manifest must be mapped — the
+    LLM otherwise sees ``unmapped:<name>`` and treats the parameter as
+    opaque. Regression: 15 fieldTypes were unmapped and these tests pin
+    the contract."""
+
+    def test_plot_size_is_fillable(self):
+        doc = parameter_doc("plotSize", {"fieldType": "PlotSize"})
+        assert doc["value_kind"] == "plot_size"
+        assert doc["fillable_by_llm"] is True
+        assert "unmapped" not in doc["value_kind"]
+
+    def test_number_range_is_fillable(self):
+        doc = parameter_doc(
+            "perplexity",
+            {"fieldType": "NumberRange", "parameters": {"min": 5, "max": 50}},
+        )
+        assert doc["value_kind"] == "number-in-range"
+        assert doc["fillable_by_llm"] is True
+
+    def test_fold_change_threshold_is_fillable(self):
+        doc = parameter_doc("foldChangeThreshold", {"fieldType": "FoldChangeThreshold"})
+        assert doc["fillable_by_llm"] is True
+        assert "log2" in doc["value_description"]
+
+    def test_n_components_depends_on_dataset(self):
+        doc = parameter_doc(
+            "nComponents",
+            {
+                "fieldType": "NComponents",
+                "parameters": {"datasetsSearch": {"ref": "datasetsSearch"}},
+            },
+        )
+        assert doc["fillable_by_llm"] is False
+        assert any("dataset" in d for d in doc["data_dependencies"])
+
+    def test_pairwise_condition_pairs_depends_on_dataset(self):
+        doc = parameter_doc("conditionPairs", {"fieldType": "PairwiseConditionPairs"})
+        assert doc["fillable_by_llm"] is False
+        assert any("sample metadata" in d for d in doc["data_dependencies"])
+
+    def test_entity_title_is_fillable(self):
+        doc = parameter_doc("entityLabel", {"fieldType": "EntityTitle"})
+        assert doc["fillable_by_llm"] is True
+
+    def test_experiment_demands_id(self):
+        doc = parameter_doc("experimentId", {"fieldType": "Experiment"})
+        assert doc["fillable_by_llm"] is False
+        assert "experiment" in doc["value_kind"]
+
+    def test_multiple_is_fillable(self):
+        doc = parameter_doc("evidenceChannels", {"fieldType": "Multiple"})
+        assert doc["fillable_by_llm"] is True
+        assert "multi" in doc["value_kind"]
+
+    def test_properties_is_opaque(self):
+        doc = parameter_doc("sort", {"fieldType": "Properties"})
+        assert doc["fillable_by_llm"] is False
+        assert "opaque" in doc["value_description"].lower()
+
+    def test_species_is_fillable(self):
+        doc = parameter_doc("speciesId", {"fieldType": "Species"})
+        assert doc["fillable_by_llm"] is True
+        assert "9606" in doc["value_description"]
+
+    def test_dataset_table_depends_on_dataset(self):
+        doc = parameter_doc("tableName", {"fieldType": "DatasetTable"})
+        assert doc["fillable_by_llm"] is False
+        assert any("dataset" in d for d in doc["data_dependencies"])
+
+    def test_dataset_table_values_depends_on_table(self):
+        doc = parameter_doc("datasetTableValues", {"fieldType": "DatasetTableValues"})
+        assert doc["fillable_by_llm"] is False
+        deps = " ".join(doc["data_dependencies"])
+        assert "table" in deps
+
+    def test_sample_metadata_columns_demands_metadata_fetch(self):
+        doc = parameter_doc(
+            "sampleMetadataInfo", {"fieldType": "DatasetSampleMetadataColumns"}
+        )
+        assert doc["fillable_by_llm"] is False
+        assert any("get_upload_sample_metadata" in d for d in doc["data_dependencies"])
+
+    def test_sample_metadata_value_demands_column(self):
+        doc = parameter_doc(
+            "controlCondition", {"fieldType": "DatasetSampleMetadataValue"}
+        )
+        assert doc["fillable_by_llm"] is False
+        assert any("column" in d for d in doc["data_dependencies"])
+
+    def test_sample_metadata_values_order_demands_column(self):
+        doc = parameter_doc(
+            "orderedGroupByValues",
+            {"fieldType": "DatasetSampleMetadataValuesOrder"},
+        )
+        assert doc["fillable_by_llm"] is False
+        assert any("column" in d for d in doc["data_dependencies"])
+
+    def test_no_manifest_field_type_is_unmapped(self):
+        """Lock the contract: every fieldType present in the built manifest
+        must have a profile. New manifest types should fail this test until
+        a profile is added."""
+        from mcp_tools.workspaces._introspect import _FIELD_TYPE_PROFILES
+
+        manifest_types = {
+            "Boolean",
+            "ColourPalette",
+            "ConditionComparison",
+            "DatasetSampleMetadata",
+            "DatasetSampleMetadataColumns",
+            "DatasetSampleMetadataValue",
+            "DatasetSampleMetadataValues",
+            "DatasetSampleMetadataValuesOrder",
+            "DatasetTable",
+            "DatasetTableValues",
+            "Datasets",
+            "EntityTitle",
+            "EntityType",
+            "Experiment",
+            "FoldChangeThreshold",
+            "Multiple",
+            "NComponents",
+            "Number",
+            "NumberRange",
+            "OrderableSampleMetadataColumns",
+            "PairwiseConditionPairs",
+            "PlotSize",
+            "Properties",
+            "ProteinList",
+            "ProteinLists",
+            "ProteinSelection",
+            "RadioSelectionField",
+            "SampleMetadataValuesFilter",
+            "Species",
+            "String",
+        }
+        missing = manifest_types - set(_FIELD_TYPE_PROFILES.keys())
+        assert not missing, f"unmapped manifest fieldTypes: {sorted(missing)}"
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Conditional visibility (`when` clauses)
 # ──────────────────────────────────────────────────────────────────────────────

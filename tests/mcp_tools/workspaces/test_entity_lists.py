@@ -7,7 +7,9 @@ from uuid import UUID
 
 from mcp_tools.workspaces.entity_lists import (
     create_entity_list,
+    delete_entity_list,
     get_entity_list,
+    update_entity_list,
 )
 from md_python.models import EntityList, EntityListItem
 
@@ -109,3 +111,76 @@ class TestGetEntityList:
         body = json.loads(result)
         assert "error" in body
         assert LIST_ID in body["error"]
+
+
+class TestUpdateEntityList:
+    def test_passes_through_to_resource(self, mock_client):
+        mock_client.workspaces.entity_lists.update.return_value = _entity_list()
+        items = [{"entity_id": "P12345", "group_id": 1, "dataset_id": DATASET_ID}]
+        with patch(
+            "mcp_tools.workspaces.entity_lists.get_client",
+            return_value=mock_client,
+        ):
+            result = update_entity_list(
+                workspace_id=WS_ID,
+                list_id=LIST_ID,
+                name="Top hits",
+                entity_type="protein",
+                items=items,
+            )
+        body = json.loads(result)
+        assert body["id"] == LIST_ID
+        assert body["name"] == "Top hits"
+
+        kwargs = mock_client.workspaces.entity_lists.update.call_args.kwargs
+        assert kwargs == {
+            "workspace_id": WS_ID,
+            "list_id": LIST_ID,
+            "name": "Top hits",
+            "entity_type": "protein",
+            "items": items,
+        }
+
+    def test_resource_error_returns_error_prose(self, mock_client):
+        mock_client.workspaces.entity_lists.update.side_effect = ValueError(
+            "entity_type must be one of: protein, peptide, gene"
+        )
+        with patch(
+            "mcp_tools.workspaces.entity_lists.get_client",
+            return_value=mock_client,
+        ):
+            result = update_entity_list(
+                workspace_id=WS_ID,
+                list_id=LIST_ID,
+                name="x",
+                entity_type="metabolite",
+                items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
+            )
+        assert result.startswith("Error: ")
+        assert "entity_type must be one of" in result
+
+
+class TestDeleteEntityList:
+    def test_success_returns_prose(self, mock_client):
+        mock_client.workspaces.entity_lists.delete.return_value = None
+        with patch(
+            "mcp_tools.workspaces.entity_lists.get_client",
+            return_value=mock_client,
+        ):
+            result = delete_entity_list(WS_ID, LIST_ID)
+        assert result == f"Entity list deleted successfully. ID: {LIST_ID}"
+        mock_client.workspaces.entity_lists.delete.assert_called_once_with(
+            WS_ID, LIST_ID
+        )
+
+    def test_resource_error_returns_error_prose(self, mock_client):
+        mock_client.workspaces.entity_lists.delete.side_effect = Exception(
+            "Failed to delete entity list: 404 - missing"
+        )
+        with patch(
+            "mcp_tools.workspaces.entity_lists.get_client",
+            return_value=mock_client,
+        ):
+            result = delete_entity_list(WS_ID, LIST_ID)
+        assert result.startswith("Error: ")
+        assert "404" in result

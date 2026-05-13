@@ -55,6 +55,134 @@ def map_protein_to_protein(dataset_ids: List[str], entity_ids: List[str]) -> str
 
 
 @mcp.tool()
+def map_gene_to_protein(dataset_ids: List[str], entity_ids: List[str]) -> str:
+    """Return a graph linking gene entities to protein groups across datasets.
+
+    Returns: JSON with shape ``{"nodes": [...], "edges": [...]}`` (server-defined
+    field names — parse defensively). An empty graph is a valid negative
+    answer. On transport / HTTP failure returns ``{"error": "<message>"}``.
+
+    Use this when: the user wants to know which protein groups are reachable
+    from a given gene (via the gene → protein cross-reference) in one or
+    more datasets — e.g. translating a gene-symbol hit into the actual
+    protein groups quantified in their proteomics data.
+
+    Do NOT use this when: the user wants the reverse direction (use
+    map_protein_to_gene); when the gene IDs are not yet known (use
+    query_entities to resolve a keyword first).
+
+    Args:
+      dataset_ids: 1–500 dataset UUIDs to scope the graph to. Use
+        find_initial_dataset / list_datasets / query_datasets to obtain them.
+      entity_ids: Gene IDs to query (≥1 entry). The service returns nodes
+        and edges reachable from these genes through their associated
+        proteins to protein groups via the cross-reference.
+
+    Guardrails: non-destructive. Safe to batch with other read-only tools.
+
+    See also: map_protein_to_gene, map_protein_to_protein, query_entities.
+    """
+    try:
+        result = get_client().entities.mappings.gene_to_protein(
+            dataset_ids=dataset_ids, entity_ids=entity_ids
+        )
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def map_protein_to_gene(dataset_ids: List[str], entity_ids: List[str]) -> str:
+    """Return a graph linking protein groups to gene entities across datasets.
+
+    Returns: JSON with shape ``{"nodes": [...], "edges": [...]}`` (server-defined
+    field names — parse defensively). An empty graph is a valid negative
+    answer. On transport / HTTP failure returns ``{"error": "<message>"}``.
+
+    Use this when: the user wants to know which gene(s) underlie a set of
+    protein groups across one or more datasets — useful for downstream
+    gene-set enrichment, pathway lookup, or cross-referencing pairwise
+    hits against genomic annotations.
+
+    Do NOT use this when: the user wants the reverse direction (use
+    map_gene_to_protein); when the protein-group IDs are not yet known
+    (use query_entities first).
+
+    Args:
+      dataset_ids: 1–500 dataset UUIDs to scope the graph to.
+      entity_ids: Protein-group IDs to query (≥1 entry).
+
+    Guardrails: non-destructive. Safe to batch with other read-only tools.
+
+    See also: map_gene_to_protein, map_protein_to_protein, query_entities.
+    """
+    try:
+        result = get_client().entities.mappings.protein_to_gene(
+            dataset_ids=dataset_ids, entity_ids=entity_ids
+        )
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def map_protein_to_peptide(dataset_id: str, entity_ids: List[str]) -> str:
+    """Return a graph linking protein groups to their peptides in one dataset.
+
+    Returns: JSON with shape ``{"nodes": [...], "edges": [...]}`` (server-defined
+    field names — parse defensively). An empty graph is a valid negative
+    answer. On transport / HTTP failure returns ``{"error": "<message>"}``.
+
+    Use this when: the user wants the peptides that compose a given protein
+    group within a specific dataset (e.g. before inspecting peptide-level
+    intensities or QC).
+
+    Args:
+      dataset_id: Single dataset UUID containing both proteins and peptides.
+      entity_ids: Protein-group IDs to query (≥1).
+
+    Guardrails: non-destructive.
+
+    See also: map_peptide_to_protein, map_protein_to_protein.
+    """
+    try:
+        result = get_client().entities.mappings.protein_to_peptide_same_dataset(
+            dataset_id=dataset_id, entity_ids=entity_ids
+        )
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def map_peptide_to_protein(dataset_id: str, entity_ids: List[str]) -> str:
+    """Return a graph linking peptides to their protein groups in one dataset.
+
+    Returns: JSON with shape ``{"nodes": [...], "edges": [...]}`` (server-defined
+    field names — parse defensively). An empty graph is a valid negative
+    answer. On transport / HTTP failure returns ``{"error": "<message>"}``.
+
+    Use this when: the user has peptide-level hits and wants to see which
+    protein groups they roll up to within a specific dataset.
+
+    Args:
+      dataset_id: Single dataset UUID containing both peptides and proteins.
+      entity_ids: Peptide IDs to query (≥1).
+
+    Guardrails: non-destructive.
+
+    See also: map_protein_to_peptide, map_protein_to_protein.
+    """
+    try:
+        result = get_client().entities.mappings.peptide_to_protein_same_dataset(
+            dataset_id=dataset_id, entity_ids=entity_ids
+        )
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
 def query_entities(keyword: str, dataset_ids: List[str]) -> str:
     """Search proteins / genes / peptides by keyword across one or more datasets.
 

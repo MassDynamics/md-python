@@ -4,7 +4,14 @@ import json
 from unittest.mock import MagicMock, patch
 
 from mcp_tools.batch import _TOOL_REGISTRY
-from mcp_tools.entities import map_protein_to_protein, query_entities
+from mcp_tools.entities import (
+    map_gene_to_protein,
+    map_peptide_to_protein,
+    map_protein_to_gene,
+    map_protein_to_peptide,
+    map_protein_to_protein,
+    query_entities,
+)
 from mcp_tools.health import _WORKFLOW_GUIDE
 
 
@@ -105,3 +112,82 @@ class TestMapProteinToProteinRegistration:
     def test_is_referenced_in_j_entity_lookup_workflow(self):
         steps = " ".join(_WORKFLOW_GUIDE["workflows"]["J_entity_lookup"]["steps"])
         assert "map_protein_to_protein" in steps
+
+
+class TestNewEntityMappingTools:
+    """Cross-direction (gene↔protein) and same-dataset (peptide↔protein) tools.
+
+    Source-of-truth:
+      * workflow/app/api/api/v2/entities/map/gene_to_protein.rb
+      * workflow/app/api/api/v2/entities/map/protein_to_gene.rb
+      * workflow/app/api/api/v2/entities/map/protein_to_peptide_same_dataset.rb
+      * workflow/app/api/api/v2/entities/map/peptide_to_protein_same_dataset.rb
+    """
+
+    def test_gene_to_protein_passes_through(self):
+        result = {"nodes": [{"id": "PG1"}], "edges": []}
+        mock_client = MagicMock()
+        mock_client.entities.mappings.gene_to_protein.return_value = result
+        with patch("mcp_tools.entities.get_client", return_value=mock_client):
+            output = json.loads(map_gene_to_protein(["d1"], ["ENSG1"]))
+        assert output == result
+        mock_client.entities.mappings.gene_to_protein.assert_called_once_with(
+            dataset_ids=["d1"], entity_ids=["ENSG1"]
+        )
+
+    def test_gene_to_protein_returns_error_on_exception(self):
+        mock_client = MagicMock()
+        mock_client.entities.mappings.gene_to_protein.side_effect = Exception(
+            "Failed to map gene_to_protein: 403"
+        )
+        with patch("mcp_tools.entities.get_client", return_value=mock_client):
+            output = json.loads(map_gene_to_protein(["d1"], ["ENSG1"]))
+        assert "error" in output
+        assert "403" in output["error"]
+
+    def test_protein_to_gene_passes_through(self):
+        result = {"nodes": [{"id": "ENSG1"}], "edges": []}
+        mock_client = MagicMock()
+        mock_client.entities.mappings.protein_to_gene.return_value = result
+        with patch("mcp_tools.entities.get_client", return_value=mock_client):
+            output = json.loads(map_protein_to_gene(["d1"], ["PG1"]))
+        assert output == result
+        mock_client.entities.mappings.protein_to_gene.assert_called_once_with(
+            dataset_ids=["d1"], entity_ids=["PG1"]
+        )
+
+    def test_protein_to_peptide_uses_single_dataset_id(self):
+        result = {"nodes": [], "edges": []}
+        mock_client = MagicMock()
+        mock_client.entities.mappings.protein_to_peptide_same_dataset.return_value = (
+            result
+        )
+        with patch("mcp_tools.entities.get_client", return_value=mock_client):
+            output = json.loads(map_protein_to_peptide("d1", ["PG1"]))
+        assert output == result
+        mock_client.entities.mappings.protein_to_peptide_same_dataset.assert_called_once_with(
+            dataset_id="d1", entity_ids=["PG1"]
+        )
+
+    def test_peptide_to_protein_uses_single_dataset_id(self):
+        result = {"nodes": [], "edges": []}
+        mock_client = MagicMock()
+        mock_client.entities.mappings.peptide_to_protein_same_dataset.return_value = (
+            result
+        )
+        with patch("mcp_tools.entities.get_client", return_value=mock_client):
+            output = json.loads(map_peptide_to_protein("d1", ["AAAPEK"]))
+        assert output == result
+        mock_client.entities.mappings.peptide_to_protein_same_dataset.assert_called_once_with(
+            dataset_id="d1", entity_ids=["AAAPEK"]
+        )
+
+    def test_all_new_tools_are_in_tool_registry(self):
+        for name, fn in [
+            ("map_gene_to_protein", map_gene_to_protein),
+            ("map_protein_to_gene", map_protein_to_gene),
+            ("map_protein_to_peptide", map_protein_to_peptide),
+            ("map_peptide_to_protein", map_peptide_to_protein),
+        ]:
+            assert name in _TOOL_REGISTRY
+            assert _TOOL_REGISTRY[name] is fn
