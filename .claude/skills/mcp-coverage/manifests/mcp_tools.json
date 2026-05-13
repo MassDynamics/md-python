@@ -1,0 +1,795 @@
+{
+  "source": "mcp_tools",
+  "repo_path": "/Users/giuseppeinfusini/wd/md-repos/md-python",
+  "unit_of_work": "mcp_tool",
+  "pinned_sha": "e4c5bad9773e3532742440e764cdb1cadf041b16",
+  "scope_paths": [
+    "src/mcp_tools"
+  ],
+  "coverage": [
+    {
+      "id": "add_module_to_tab",
+      "name": "add_module_to_tab",
+      "file": "src/mcp_tools/workspaces/modules.py",
+      "line": 261,
+      "summary": "Place a dashboard module on a tab's grid.",
+      "resource_calls": [
+        "get_client.module_registry.get",
+        "get_client.workspaces.modules.create_with_defaults"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "add_text_module",
+      "name": "add_text_module",
+      "file": "src/mcp_tools/workspaces/modules.py",
+      "line": 539,
+      "summary": "Add a text module to a tab in a single call.",
+      "resource_calls": [
+        "get_client.workspaces.modules.create_text"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "batch",
+      "name": "batch",
+      "file": "src/mcp_tools/batch.py",
+      "line": 144,
+      "summary": "Execute multiple MCP tool calls in a single request.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "cancel_dataset",
+      "name": "cancel_dataset",
+      "file": "src/mcp_tools/datasets/crud.py",
+      "line": 73,
+      "summary": "Cancel a pipeline job that is currently running.",
+      "resource_calls": [
+        "get_client.datasets.cancel"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "cancel_upload_queue",
+      "name": "cancel_upload_queue",
+      "file": "src/mcp_tools/uploads/queue.py",
+      "line": 12,
+      "summary": "Cancel queued large-file uploads and reset the upload queue.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "create_entity_list",
+      "name": "create_entity_list",
+      "file": "src/mcp_tools/workspaces/entity_lists.py",
+      "line": 52,
+      "summary": "Create a named entity list (proteins / peptides / genes) in a workspace.",
+      "resource_calls": [
+        "get_client.workspaces.entity_lists.create"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "create_tab",
+      "name": "create_tab",
+      "file": "src/mcp_tools/workspaces/tabs.py",
+      "line": 32,
+      "summary": "Create a new tab inside a workspace.",
+      "resource_calls": [
+        "get_client.workspaces.tabs.create"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "create_upload",
+      "name": "create_upload",
+      "file": "src/mcp_tools/uploads/create.py",
+      "line": 18,
+      "summary": "Create a Mass Dynamics upload record and trigger processing.",
+      "resource_calls": [
+        "get_client.uploads.create"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "create_upload_from_csv",
+      "name": "create_upload_from_csv",
+      "file": "src/mcp_tools/uploads/create.py",
+      "line": 141,
+      "summary": "Create a new upload from a metadata CSV file, with background file transfer.",
+      "resource_calls": [
+        "get_client.uploads.create"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "create_workspace",
+      "name": "create_workspace",
+      "file": "src/mcp_tools/workspaces/crud.py",
+      "line": 28,
+      "summary": "Create a new workspace.",
+      "resource_calls": [
+        "get_client.workspaces.create"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "delete_dataset",
+      "name": "delete_dataset",
+      "file": "src/mcp_tools/datasets/crud.py",
+      "line": 40,
+      "summary": "Permanently delete a pipeline result dataset. DESTRUCTIVE, IRREVERSIBLE.",
+      "resource_calls": [
+        "get_client.datasets.delete"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "delete_entity_list",
+      "name": "delete_entity_list",
+      "file": "src/mcp_tools/workspaces/entity_lists.py",
+      "line": 148,
+      "summary": "Permanently delete an entity list.",
+      "resource_calls": [
+        "get_client.workspaces.entity_lists.delete"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "delete_tab",
+      "name": "delete_tab",
+      "file": "src/mcp_tools/workspaces/tabs.py",
+      "line": 139,
+      "summary": "Permanently delete a tab and every module inside its layout.",
+      "resource_calls": [
+        "get_client.workspaces.tabs.delete"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "delete_upload",
+      "name": "delete_upload",
+      "file": "src/mcp_tools/uploads/delete.py",
+      "line": 8,
+      "summary": "Permanently delete an upload and its uploaded files.",
+      "resource_calls": [
+        "get_client.uploads.delete"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "delete_workspace",
+      "name": "delete_workspace",
+      "file": "src/mcp_tools/workspaces/crud.py",
+      "line": 127,
+      "summary": "Permanently delete a workspace and every tab + module inside it.",
+      "resource_calls": [
+        "get_client.workspaces.delete"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "describe_module_type",
+      "name": "describe_module_type",
+      "file": "src/mcp_tools/workspaces/registry.py",
+      "line": 84,
+      "summary": "Full parameter documentation for one dashboard module type.",
+      "resource_calls": [
+        "get_client.module_registry.get"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "describe_pipeline",
+      "name": "describe_pipeline",
+      "file": "src/mcp_tools/pipelines/describe.py",
+      "line": 10,
+      "summary": "Return the full parameter schema for a pipeline, including valid_values and defaults.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "download_dataset_table",
+      "name": "download_dataset_table",
+      "file": "src/mcp_tools/datasets/download.py",
+      "line": 16,
+      "summary": "Get a dataset table as a presigned URL, or download it to disk.",
+      "resource_calls": [
+        "get_client.datasets.download_table_url"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "find_initial_dataset",
+      "name": "find_initial_dataset",
+      "file": "src/mcp_tools/datasets/find.py",
+      "line": 48,
+      "summary": "Find the upload-created INTENSITY dataset for an upload.",
+      "resource_calls": [
+        "get_client.datasets.find_initial_dataset"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "find_initial_datasets",
+      "name": "find_initial_datasets",
+      "file": "src/mcp_tools/datasets/find.py",
+      "line": 11,
+      "summary": "Find the upload-created INTENSITY dataset for many uploads in one call.",
+      "resource_calls": [
+        "c.datasets.find_initial_dataset"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "generate_pairwise_comparisons",
+      "name": "generate_pairwise_comparisons",
+      "file": "src/mcp_tools/pipelines/pairwise.py",
+      "line": 16,
+      "summary": "Generate pairwise comparison pairs from sample metadata.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "get_entity_list",
+      "name": "get_entity_list",
+      "file": "src/mcp_tools/workspaces/entity_lists.py",
+      "line": 96,
+      "summary": "Fetch a single entity list by id (scoped to its workspace).",
+      "resource_calls": [
+        "get_client.workspaces.entity_lists.get"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "get_md_format_spec",
+      "name": "get_md_format_spec",
+      "file": "src/mcp_tools/files/md_format.py",
+      "line": 339,
+      "summary": "Return the MD format column specification and a generic pandas conversion template.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "get_tab",
+      "name": "get_tab",
+      "file": "src/mcp_tools/workspaces/tabs.py",
+      "line": 97,
+      "summary": "Fetch a single tab by id (scoped to its workspace).",
+      "resource_calls": [
+        "get_client.workspaces.tabs.get"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "get_tab_module",
+      "name": "get_tab_module",
+      "file": "src/mcp_tools/workspaces/modules.py",
+      "line": 457,
+      "summary": "Fetch a single module by id (scoped to its tab).",
+      "resource_calls": [
+        "get_client.workspaces.modules.get"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "get_upload",
+      "name": "get_upload",
+      "file": "src/mcp_tools/uploads/get.py",
+      "line": 23,
+      "summary": "Fetch a single upload record by ID or by exact name.",
+      "resource_calls": [
+        "get_client.uploads.get_by_id"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "get_upload_sample_metadata",
+      "name": "get_upload_sample_metadata",
+      "file": "src/mcp_tools/uploads/get.py",
+      "line": 71,
+      "summary": "Fetch the sample metadata currently stored on an upload.",
+      "resource_calls": [
+        "get_client.uploads.get_sample_metadata"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "get_workflow_guide",
+      "name": "get_workflow_guide",
+      "file": "src/mcp_tools/health.py",
+      "line": 571,
+      "summary": "Return step-by-step guidance for every common Mass Dynamics workflow.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "get_workspace",
+      "name": "get_workspace",
+      "file": "src/mcp_tools/workspaces/crud.py",
+      "line": 93,
+      "summary": "Fetch a single workspace by id.",
+      "resource_calls": [
+        "get_client.workspaces.get"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "health_check",
+      "name": "health_check",
+      "file": "src/mcp_tools/health.py",
+      "line": 8,
+      "summary": "Check the Mass Dynamics API health status.",
+      "resource_calls": [
+        "get_client.health.check"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "list_datasets",
+      "name": "list_datasets",
+      "file": "src/mcp_tools/datasets/list.py",
+      "line": 62,
+      "summary": "List datasets for an upload, optionally filtered by type.",
+      "resource_calls": [
+        "get_client.datasets.list_by_upload"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "list_jobs",
+      "name": "list_jobs",
+      "file": "src/mcp_tools/datasets/list.py",
+      "line": 11,
+      "summary": "Dual-mode: global pipeline catalog OR executed runs for one upload.",
+      "resource_calls": [
+        "get_client.jobs.list",
+        "get_client.datasets.list_by_upload"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "list_module_types",
+      "name": "list_module_types",
+      "file": "src/mcp_tools/workspaces/registry.py",
+      "line": 25,
+      "summary": "List every dashboard module type available to the current user.",
+      "resource_calls": [
+        "get_client.module_registry.list"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "list_tab_modules",
+      "name": "list_tab_modules",
+      "file": "src/mcp_tools/workspaces/modules.py",
+      "line": 446,
+      "summary": "List every module currently placed on a tab.",
+      "resource_calls": [
+        "get_client.workspaces.modules.list"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "list_tabs",
+      "name": "list_tabs",
+      "file": "src/mcp_tools/workspaces/tabs.py",
+      "line": 81,
+      "summary": "List tabs in a workspace, ordered by ``tab_index`` ascending.",
+      "resource_calls": [
+        "get_client.workspaces.tabs.list"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "list_uploads_status",
+      "name": "list_uploads_status",
+      "file": "src/mcp_tools/uploads/queue.py",
+      "line": 35,
+      "summary": "Check the status of multiple uploads in a single call.",
+      "resource_calls": [
+        "c.uploads.get_by_id"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "list_workspaces",
+      "name": "list_workspaces",
+      "file": "src/mcp_tools/workspaces/crud.py",
+      "line": 74,
+      "summary": "List workspaces accessible to the current user.",
+      "resource_calls": [
+        "get_client.workspaces.list"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "load_metadata_from_csv",
+      "name": "load_metadata_from_csv",
+      "file": "src/mcp_tools/files/metadata.py",
+      "line": 361,
+      "summary": "Load experiment_design and/or sample_metadata from a CSV or TSV file.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "map_gene_to_protein",
+      "name": "map_gene_to_protein",
+      "file": "src/mcp_tools/entities.py",
+      "line": 58,
+      "summary": "Return a graph linking gene entities to protein groups across datasets.",
+      "resource_calls": [
+        "get_client.entities.mappings.gene_to_protein"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "map_peptide_to_protein",
+      "name": "map_peptide_to_protein",
+      "file": "src/mcp_tools/entities.py",
+      "line": 158,
+      "summary": "Return a graph linking peptides to their protein groups in one dataset.",
+      "resource_calls": [
+        "get_client.entities.mappings.peptide_to_protein_same_dataset"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "map_protein_to_gene",
+      "name": "map_protein_to_gene",
+      "file": "src/mcp_tools/entities.py",
+      "line": 95,
+      "summary": "Return a graph linking protein groups to gene entities across datasets.",
+      "resource_calls": [
+        "get_client.entities.mappings.protein_to_gene"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "map_protein_to_peptide",
+      "name": "map_protein_to_peptide",
+      "file": "src/mcp_tools/entities.py",
+      "line": 129,
+      "summary": "Return a graph linking protein groups to their peptides in one dataset.",
+      "resource_calls": [
+        "get_client.entities.mappings.protein_to_peptide_same_dataset"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "map_protein_to_protein",
+      "name": "map_protein_to_protein",
+      "file": "src/mcp_tools/entities.py",
+      "line": 9,
+      "summary": "Return a graph of protein groups linked through shared individual proteins.",
+      "resource_calls": [
+        "get_client.entities.mappings.protein_to_protein"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "plan_wide_to_md_format",
+      "name": "plan_wide_to_md_format",
+      "file": "src/mcp_tools/files/md_format.py",
+      "line": 422,
+      "summary": "Generate a Python/pandas conversion script for a wide-format file \u2192 md_format or md_format_gene.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "query_datasets",
+      "name": "query_datasets",
+      "file": "src/mcp_tools/datasets/query.py",
+      "line": 14,
+      "summary": "Paginated, filtered search over pipeline result datasets.",
+      "resource_calls": [
+        "get_client.datasets.query"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "query_entities",
+      "name": "query_entities",
+      "file": "src/mcp_tools/entities.py",
+      "line": 186,
+      "summary": "Search proteins / genes / peptides by keyword across one or more datasets.",
+      "resource_calls": [
+        "get_client.entities.query"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "query_uploads",
+      "name": "query_uploads",
+      "file": "src/mcp_tools/uploads/query.py",
+      "line": 14,
+      "summary": "Paginated, filtered search over uploads in the current organisation.",
+      "resource_calls": [
+        "get_client.uploads.query"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "read_csv_preview",
+      "name": "read_csv_preview",
+      "file": "src/mcp_tools/files/metadata.py",
+      "line": 304,
+      "summary": "Show the column names and first few rows of a CSV or TSV file.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "remove_module_from_tab",
+      "name": "remove_module_from_tab",
+      "file": "src/mcp_tools/workspaces/modules.py",
+      "line": 525,
+      "summary": "Remove a module from a tab's layout.",
+      "resource_calls": [
+        "get_client.workspaces.modules.delete"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "retry_dataset",
+      "name": "retry_dataset",
+      "file": "src/mcp_tools/datasets/crud.py",
+      "line": 8,
+      "summary": "Retry a FAILED, ERROR, or CANCELLED pipeline dataset in place.",
+      "resource_calls": [
+        "get_client.datasets.retry"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "run_anova",
+      "name": "run_anova",
+      "file": "src/mcp_tools/pipelines/anova.py",
+      "line": 13,
+      "summary": "Run an ANOVA-based differential abundance analysis across multiple conditions.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "run_dose_response",
+      "name": "run_dose_response",
+      "file": "src/mcp_tools/pipelines/dose_response.py",
+      "line": 32,
+      "summary": "Run a dose-response curve fitting pipeline (4-parameter log-logistic model).",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "run_dose_response_bulk",
+      "name": "run_dose_response_bulk",
+      "file": "src/mcp_tools/pipelines/dose_response.py",
+      "line": 278,
+      "summary": "Submit multiple dose-response jobs in a single call (max 500 per call).",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "run_dose_response_from_upload",
+      "name": "run_dose_response_from_upload",
+      "file": "src/mcp_tools/pipelines/dose_response.py",
+      "line": 115,
+      "summary": "Run a dose-response pipeline directly from an upload ID.",
+      "resource_calls": [
+        "get_client.datasets.find_initial_dataset"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "run_normalisation_imputation",
+      "name": "run_normalisation_imputation",
+      "file": "src/mcp_tools/pipelines/normalisation.py",
+      "line": 95,
+      "summary": "Run normalisation + imputation (with optional pre-filtration) on an INTENSITY dataset.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "run_normalisation_imputation_bulk",
+      "name": "run_normalisation_imputation_bulk",
+      "file": "src/mcp_tools/pipelines/normalisation.py",
+      "line": 298,
+      "summary": "Submit multiple normalisation + imputation jobs in a single call (max 500).",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "run_pairwise_comparison",
+      "name": "run_pairwise_comparison",
+      "file": "src/mcp_tools/pipelines/pairwise.py",
+      "line": 47,
+      "summary": "Run a pairwise differential abundance analysis using limma.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "run_pairwise_comparison_bulk",
+      "name": "run_pairwise_comparison_bulk",
+      "file": "src/mcp_tools/pipelines/pairwise.py",
+      "line": 273,
+      "summary": "Submit multiple pairwise comparison jobs in a single call (max 500).",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "update_entity_list",
+      "name": "update_entity_list",
+      "file": "src/mcp_tools/workspaces/entity_lists.py",
+      "line": 109,
+      "summary": "Replace an entity list's name, entity_type, and items.",
+      "resource_calls": [
+        "get_client.workspaces.entity_lists.update"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "update_sample_metadata",
+      "name": "update_sample_metadata",
+      "file": "src/mcp_tools/uploads/get.py",
+      "line": 99,
+      "summary": "Overwrite the sample_metadata stored on an existing upload.",
+      "resource_calls": [
+        "get_client.uploads.update_sample_metadata"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "update_tab",
+      "name": "update_tab",
+      "file": "src/mcp_tools/workspaces/tabs.py",
+      "line": 106,
+      "summary": "Partial update of a tab \u2014 only the fields you pass are sent.",
+      "resource_calls": [
+        "get_client.workspaces.tabs.update"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "update_tab_module",
+      "name": "update_tab_module",
+      "file": "src/mcp_tools/workspaces/modules.py",
+      "line": 466,
+      "summary": "Move / resize / re-configure an already-placed module.",
+      "resource_calls": [
+        "get_client.workspaces.modules.update"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "update_text_module",
+      "name": "update_text_module",
+      "file": "src/mcp_tools/workspaces/modules.py",
+      "line": 588,
+      "summary": "Replace the body of an existing text module.",
+      "resource_calls": [
+        "get_client.workspaces.modules.update_text"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "update_workspace",
+      "name": "update_workspace",
+      "file": "src/mcp_tools/workspaces/crud.py",
+      "line": 105,
+      "summary": "Update a workspace's name and/or description (partial \u2014 only",
+      "resource_calls": [
+        "get_client.workspaces.update"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "validate_upload_inputs",
+      "name": "validate_upload_inputs",
+      "file": "src/mcp_tools/uploads/validate.py",
+      "line": 10,
+      "summary": "Validate experiment_design and sample_metadata before calling create_upload.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "wait_for_dataset",
+      "name": "wait_for_dataset",
+      "file": "src/mcp_tools/datasets/wait.py",
+      "line": 55,
+      "summary": "Check pipeline dataset status, polling until a terminal state or timeout.",
+      "resource_calls": [
+        "get_client.datasets.wait_until_complete",
+        "get_client.datasets.list_by_upload"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "wait_for_datasets_bulk",
+      "name": "wait_for_datasets_bulk",
+      "file": "src/mcp_tools/datasets/wait_bulk.py",
+      "line": 29,
+      "summary": "Check the status of multiple pipeline datasets, polling until all are terminal.",
+      "resource_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "wait_for_upload",
+      "name": "wait_for_upload",
+      "file": "src/mcp_tools/uploads/wait.py",
+      "line": 11,
+      "summary": "Check upload status, polling until a terminal state or the timeout is reached.",
+      "resource_calls": [
+        "get_client.uploads.wait_until_complete",
+        "get_client.uploads.get_by_id"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    }
+  ]
+}

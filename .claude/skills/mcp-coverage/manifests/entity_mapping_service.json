@@ -1,0 +1,83 @@
+{
+  "source": "entity_mapping_service",
+  "repo_path": "/Users/giuseppeinfusini/wd/md-repos/entity-mapping-service",
+  "unit_of_work": "api_endpoint",
+  "pinned_sha": "eed31ef600aac3dc6dc53faee97c41630b4f2ec9",
+  "scope_paths": [
+    "src",
+    "app"
+  ],
+  "coverage": [
+    {
+      "id": "GET /test-error",
+      "verb": "GET",
+      "path": "/test-error",
+      "file": "src/routes/raise_error.py",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /get-matching-entities",
+      "verb": "POST",
+      "path": "/get-matching-entities",
+      "file": "src/routes/matching.py",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /peptide_to_protein/same_dataset",
+      "verb": "POST",
+      "path": "/peptide_to_protein/same_dataset",
+      "file": "src/routes/graph.py",
+      "seen_in": [
+        "src/routes/map.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /protein_to_peptide/same_dataset",
+      "verb": "POST",
+      "path": "/protein_to_peptide/same_dataset",
+      "file": "src/routes/graph.py",
+      "seen_in": [
+        "src/routes/map.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /protein_to_protein",
+      "verb": "POST",
+      "path": "/protein_to_protein",
+      "file": "src/routes/graph.py",
+      "seen_in": [
+        "src/routes/map.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /xref/gene_to_protein",
+      "verb": "POST",
+      "path": "/xref/gene_to_protein",
+      "file": "src/routes/graph.py",
+      "seen_in": [
+        "src/routes/map.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /xref/protein_to_gene",
+      "verb": "POST",
+      "path": "/xref/protein_to_gene",
+      "file": "src/routes/graph.py",
+      "seen_in": [
+        "src/routes/map.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    }
+  ]
+}

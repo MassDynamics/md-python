@@ -1,0 +1,968 @@
+{
+  "source": "md_python_resources",
+  "repo_path": "/Users/giuseppeinfusini/wd/md-repos/md-python",
+  "unit_of_work": "resource_method",
+  "pinned_sha": "e4c5bad9773e3532742440e764cdb1cadf041b16",
+  "scope_paths": [
+    "src/md_python/resources"
+  ],
+  "coverage": [
+    {
+      "id": "Datasets.create",
+      "class": "Datasets",
+      "method": "create",
+      "file": "src/md_python/resources/datasets.py",
+      "line": 20,
+      "signature": "create(self, dataset: Dataset) -> str",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/datasets"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Datasets.delete",
+      "class": "Datasets",
+      "method": "delete",
+      "file": "src/md_python/resources/datasets.py",
+      "line": 97,
+      "signature": "delete(self, dataset_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "DELETE",
+          "url": "f'/datasets/{dataset_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Datasets.find_initial_dataset",
+      "class": "Datasets",
+      "method": "find_initial_dataset",
+      "file": "src/md_python/resources/datasets.py",
+      "line": 205,
+      "signature": "find_initial_dataset(self, experiment_id: str) -> Optional[Dataset]",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Datasets.get_by_id",
+      "class": "Datasets",
+      "method": "get_by_id",
+      "file": "src/md_python/resources/datasets.py",
+      "line": 78,
+      "signature": "get_by_id(self, dataset_id: str) -> Optional[Dataset]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/datasets/{dataset_id_str}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Datasets.list_by_experiment",
+      "class": "Datasets",
+      "method": "list_by_experiment",
+      "file": "src/md_python/resources/datasets.py",
+      "line": 55,
+      "signature": "list_by_experiment(self, experiment_id: str) -> List[Dataset]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/datasets?experiment_id={experiment_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Datasets.retry",
+      "class": "Datasets",
+      "method": "retry",
+      "file": "src/md_python/resources/datasets.py",
+      "line": 122,
+      "signature": "retry(self, dataset_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "f'/datasets/{dataset_id}/retry'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Datasets.wait_until_complete",
+      "class": "Datasets",
+      "method": "wait_until_complete",
+      "file": "src/md_python/resources/datasets.py",
+      "line": 147,
+      "signature": "wait_until_complete(self, experiment_id: str, dataset_id: str, poll_s: int, timeout_s: int) -> Dataset",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Experiments.create",
+      "class": "Experiments",
+      "method": "create",
+      "file": "src/md_python/resources/experiments.py",
+      "line": 39,
+      "signature": "create(self, experiment: Experiment) -> str",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/experiments"
+        },
+        {
+          "verb": "POST",
+          "url": "f'/experiments/{experiment_id}/start_workflow'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Experiments.get_by_id",
+      "class": "Experiments",
+      "method": "get_by_id",
+      "file": "src/md_python/resources/experiments.py",
+      "line": 118,
+      "signature": "get_by_id(self, experiment_id: str) -> Optional[Experiment]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/experiments/{experiment_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Experiments.get_by_name",
+      "class": "Experiments",
+      "method": "get_by_name",
+      "file": "src/md_python/resources/experiments.py",
+      "line": 102,
+      "signature": "get_by_name(self, name: str) -> Optional[Experiment]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/experiments?name={name}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Experiments.update_sample_metadata",
+      "class": "Experiments",
+      "method": "update_sample_metadata",
+      "file": "src/md_python/resources/experiments.py",
+      "line": 134,
+      "signature": "update_sample_metadata(self, experiment_id: str, sample_metadata: SampleMetadata) -> bool",
+      "http_calls": [
+        {
+          "verb": "PUT",
+          "url": "f'/experiments/{experiment_id}/sample_metadata'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Experiments.wait_until_complete",
+      "class": "Experiments",
+      "method": "wait_until_complete",
+      "file": "src/md_python/resources/experiments.py",
+      "line": 158,
+      "signature": "wait_until_complete(self, experiment_id: str, poll_s: int, timeout_s: int) -> Experiment",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "Health.check",
+      "class": "Health",
+      "method": "check",
+      "file": "src/md_python/resources/health.py",
+      "line": 17,
+      "signature": "check(self) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "?",
+          "url": "GET"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.cancel",
+      "class": "Datasets",
+      "method": "cancel",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 174,
+      "signature": "cancel(self, dataset_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "f'/datasets/{dataset_id}/cancel'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.create",
+      "class": "Datasets",
+      "method": "create",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 20,
+      "signature": "create(self, dataset: Dataset) -> str",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/datasets"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.delete",
+      "class": "Datasets",
+      "method": "delete",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 146,
+      "signature": "delete(self, dataset_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "DELETE",
+          "url": "f'/datasets/{dataset_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.download_table_url",
+      "class": "Datasets",
+      "method": "download_table_url",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 85,
+      "signature": "download_table_url(self, dataset_id: str, table_name: str, format: str) -> str",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/datasets/{dataset_id}/tables/{table_name}.{format}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.find_initial_dataset",
+      "class": "Datasets",
+      "method": "find_initial_dataset",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 226,
+      "signature": "find_initial_dataset(self, upload_id: str) -> Optional[Dataset]",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.get_by_id",
+      "class": "Datasets",
+      "method": "get_by_id",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 70,
+      "signature": "get_by_id(self, dataset_id: str) -> Optional[Dataset]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/datasets/{dataset_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.list_by_upload",
+      "class": "Datasets",
+      "method": "list_by_upload",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 54,
+      "signature": "list_by_upload(self, upload_id: str) -> List[Dataset]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/datasets/query"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.query",
+      "class": "Datasets",
+      "method": "query",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 111,
+      "signature": "query(self, upload_id: Optional[str], state: Optional[List[str]], type: Optional[List[str]], search: Optional[str], page: int) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/datasets/query"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.retry",
+      "class": "Datasets",
+      "method": "retry",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 160,
+      "signature": "retry(self, dataset_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "f'/datasets/{dataset_id}/retry'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Datasets.wait_until_complete",
+      "class": "Datasets",
+      "method": "wait_until_complete",
+      "file": "src/md_python/resources/v2/datasets.py",
+      "line": 188,
+      "signature": "wait_until_complete(self, upload_id: str, dataset_id: str, poll_s: int, timeout_s: int) -> Dataset",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Entities.query",
+      "class": "Entities",
+      "method": "query",
+      "file": "src/md_python/resources/v2/entities.py",
+      "line": 20,
+      "signature": "query(self, keyword: str, dataset_ids: List[str]) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/entities/query"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntitiesMappings.gene_to_protein",
+      "class": "EntitiesMappings",
+      "method": "gene_to_protein",
+      "file": "src/md_python/resources/v2/entities_mappings.py",
+      "line": 98,
+      "signature": "gene_to_protein(self, dataset_ids: List[str], entity_ids: List[str]) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/entities/mappings/gene_to_protein"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntitiesMappings.peptide_to_protein_same_dataset",
+      "class": "EntitiesMappings",
+      "method": "peptide_to_protein_same_dataset",
+      "file": "src/md_python/resources/v2/entities_mappings.py",
+      "line": 71,
+      "signature": "peptide_to_protein_same_dataset(self, dataset_id: str, entity_ids: List[str]) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/entities/mappings/peptide_to_protein/same_dataset"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntitiesMappings.protein_to_gene",
+      "class": "EntitiesMappings",
+      "method": "protein_to_gene",
+      "file": "src/md_python/resources/v2/entities_mappings.py",
+      "line": 128,
+      "signature": "protein_to_gene(self, dataset_ids: List[str], entity_ids: List[str]) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/entities/mappings/protein_to_gene"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntitiesMappings.protein_to_peptide_same_dataset",
+      "class": "EntitiesMappings",
+      "method": "protein_to_peptide_same_dataset",
+      "file": "src/md_python/resources/v2/entities_mappings.py",
+      "line": 44,
+      "signature": "protein_to_peptide_same_dataset(self, dataset_id: str, entity_ids: List[str]) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/entities/mappings/protein_to_peptide/same_dataset"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntitiesMappings.protein_to_protein",
+      "class": "EntitiesMappings",
+      "method": "protein_to_protein",
+      "file": "src/md_python/resources/v2/entities_mappings.py",
+      "line": 17,
+      "signature": "protein_to_protein(self, dataset_ids: List[str], entity_ids: List[str]) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/entities/mappings/protein_to_protein"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntityLists.create",
+      "class": "EntityLists",
+      "method": "create",
+      "file": "src/md_python/resources/v2/entity_lists.py",
+      "line": 50,
+      "signature": "create(self, workspace_id: str, name: str, entity_type: str, items: Sequence[EntityListItemInput]) -> EntityList",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "self._base(workspace_id)"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntityLists.delete",
+      "class": "EntityLists",
+      "method": "delete",
+      "file": "src/md_python/resources/v2/entity_lists.py",
+      "line": 177,
+      "signature": "delete(self, workspace_id: str, list_id: str) -> None",
+      "http_calls": [
+        {
+          "verb": "DELETE",
+          "url": "f'{self._base(workspace_id)}/{list_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntityLists.get",
+      "class": "EntityLists",
+      "method": "get",
+      "file": "src/md_python/resources/v2/entity_lists.py",
+      "line": 105,
+      "signature": "get(self, workspace_id: str, list_id: str) -> Optional[EntityList]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'{self._base(workspace_id)}/{list_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/EntityLists.update",
+      "class": "EntityLists",
+      "method": "update",
+      "file": "src/md_python/resources/v2/entity_lists.py",
+      "line": 116,
+      "signature": "update(self, workspace_id: str, list_id: str, name: str, entity_type: str, items: Sequence[EntityListItemInput]) -> EntityList",
+      "http_calls": [
+        {
+          "verb": "PUT",
+          "url": "f'{self._base(workspace_id)}/{list_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Jobs.list",
+      "class": "Jobs",
+      "method": "list",
+      "file": "src/md_python/resources/v2/jobs.py",
+      "line": 17,
+      "signature": "list(self) -> List[Dict[str, Any]]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "/jobs"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/ModuleRegistry.get",
+      "class": "ModuleRegistry",
+      "method": "get",
+      "file": "src/md_python/resources/v2/module_registry.py",
+      "line": 45,
+      "signature": "get(self, item_id: str) -> Optional[RegisteredModule]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/module_registry/modules/{item_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/ModuleRegistry.list",
+      "class": "ModuleRegistry",
+      "method": "list",
+      "file": "src/md_python/resources/v2/module_registry.py",
+      "line": 24,
+      "signature": "list(self) -> List[RegisteredModule]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "/module_registry/modules"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/TabModules.create",
+      "class": "TabModules",
+      "method": "create",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 60,
+      "signature": "create(self, workspace_id: str, tab_id: str, item_id: str, x: int, y: int, width: int, height: int, settings: Optional[Dict[str, Any]]) -> TabModule",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "self._base(workspace_id, tab_id)"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/TabModules.create_text",
+      "class": "TabModules",
+      "method": "create_text",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 168,
+      "signature": "create_text(self, workspace_id: str, tab_id: str, text: str, x: int, y: int, width: int, height: int) -> TabModule",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/TabModules.create_with_defaults",
+      "class": "TabModules",
+      "method": "create_with_defaults",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 95,
+      "signature": "create_with_defaults(self, workspace_id: str, tab_id: str, item_id: str, x: int, y: int, width: int, height: int, settings: Optional[Dict[str, Any]], registered_module: Optional[RegisteredModule]) -> TabModule",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/TabModules.delete",
+      "class": "TabModules",
+      "method": "delete",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 280,
+      "signature": "delete(self, workspace_id: str, tab_id: str, module_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "DELETE",
+          "url": "f'{self._base(workspace_id, tab_id)}/{module_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/TabModules.get",
+      "class": "TabModules",
+      "method": "get",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 231,
+      "signature": "get(self, workspace_id: str, tab_id: str, module_id: str) -> Optional[TabModule]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'{self._base(workspace_id, tab_id)}/{module_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/TabModules.list",
+      "class": "TabModules",
+      "method": "list",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 221,
+      "signature": "list(self, workspace_id: str, tab_id: str) -> List[TabModule]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "self._base(workspace_id, tab_id)"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/TabModules.update",
+      "class": "TabModules",
+      "method": "update",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 244,
+      "signature": "update(self, workspace_id: str, tab_id: str, module_id: str, item_id: Optional[str], x: Optional[int], y: Optional[int], width: Optional[int], height: Optional[int], settings: Optional[Dict[str, Any]]) -> TabModule",
+      "http_calls": [
+        {
+          "verb": "PUT",
+          "url": "f'{self._base(workspace_id, tab_id)}/{module_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/TabModules.update_text",
+      "class": "TabModules",
+      "method": "update_text",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 200,
+      "signature": "update_text(self, workspace_id: str, tab_id: str, module_id: str, text: str) -> TabModule",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Tabs.create",
+      "class": "Tabs",
+      "method": "create",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 298,
+      "signature": "create(self, workspace_id: str, name: str, settings: Optional[Dict[str, Any]]) -> Tab",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "self._base(workspace_id)"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Tabs.delete",
+      "class": "Tabs",
+      "method": "delete",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 388,
+      "signature": "delete(self, workspace_id: str, tab_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "DELETE",
+          "url": "f'{self._base(workspace_id)}/{tab_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Tabs.get",
+      "class": "Tabs",
+      "method": "get",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 352,
+      "signature": "get(self, workspace_id: str, tab_id: str) -> Optional[Tab]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'{self._base(workspace_id)}/{tab_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Tabs.list",
+      "class": "Tabs",
+      "method": "list",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 318,
+      "signature": "list(self, workspace_id: str, page: int) -> _PAGE_RESPONSE",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "self._base(workspace_id)"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Tabs.list_all",
+      "class": "Tabs",
+      "method": "list_all",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 339,
+      "signature": "list_all(self, workspace_id: str) -> List[Tab]",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Tabs.update",
+      "class": "Tabs",
+      "method": "update",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 362,
+      "signature": "update(self, workspace_id: str, tab_id: str, name: Optional[str], layout: Optional[Dict[str, Any]], settings: Optional[Dict[str, Any]]) -> Tab",
+      "http_calls": [
+        {
+          "verb": "PUT",
+          "url": "f'{self._base(workspace_id)}/{tab_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Uploads.create",
+      "class": "Uploads",
+      "method": "create",
+      "file": "src/md_python/resources/v2/uploads.py",
+      "line": 46,
+      "signature": "create(self, upload: Upload, background: bool, executor: Optional[concurrent.futures.Executor]) -> str",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/uploads"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Uploads.delete",
+      "class": "Uploads",
+      "method": "delete",
+      "file": "src/md_python/resources/v2/uploads.py",
+      "line": 166,
+      "signature": "delete(self, upload_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "DELETE",
+          "url": "f'/uploads/{upload_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Uploads.get_by_id",
+      "class": "Uploads",
+      "method": "get_by_id",
+      "file": "src/md_python/resources/v2/uploads.py",
+      "line": 153,
+      "signature": "get_by_id(self, upload_id: str) -> Optional[Upload]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/uploads/{upload_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Uploads.get_sample_metadata",
+      "class": "Uploads",
+      "method": "get_sample_metadata",
+      "file": "src/md_python/resources/v2/uploads.py",
+      "line": 180,
+      "signature": "get_sample_metadata(self, upload_id: str) -> Optional[SampleMetadata]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/uploads/{upload_id}/sample_metadata'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Uploads.query",
+      "class": "Uploads",
+      "method": "query",
+      "file": "src/md_python/resources/v2/uploads.py",
+      "line": 198,
+      "signature": "query(self, status: Optional[List[str]], source: Optional[List[str]], search: Optional[str], sample_metadata: Optional[List[Dict[str, str]]], page: int) -> Dict[str, Any]",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/uploads/query"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Uploads.update_sample_metadata",
+      "class": "Uploads",
+      "method": "update_sample_metadata",
+      "file": "src/md_python/resources/v2/uploads.py",
+      "line": 233,
+      "signature": "update_sample_metadata(self, upload_id: str, sample_metadata: SampleMetadata) -> bool",
+      "http_calls": [
+        {
+          "verb": "PUT",
+          "url": "f'/uploads/{upload_id}/sample_metadata'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Uploads.wait_until_complete",
+      "class": "Uploads",
+      "method": "wait_until_complete",
+      "file": "src/md_python/resources/v2/uploads.py",
+      "line": 251,
+      "signature": "wait_until_complete(self, upload_id: str, poll_s: int, timeout_s: int) -> Upload",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Workspaces.create",
+      "class": "Workspaces",
+      "method": "create",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 417,
+      "signature": "create(self, name: str, description: Optional[str]) -> Workspace",
+      "http_calls": [
+        {
+          "verb": "POST",
+          "url": "/workspaces"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Workspaces.delete",
+      "class": "Workspaces",
+      "method": "delete",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 489,
+      "signature": "delete(self, workspace_id: str) -> bool",
+      "http_calls": [
+        {
+          "verb": "DELETE",
+          "url": "f'/workspaces/{workspace_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Workspaces.get",
+      "class": "Workspaces",
+      "method": "get",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 458,
+      "signature": "get(self, workspace_id: str) -> Optional[Workspace]",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "f'/workspaces/{workspace_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Workspaces.list",
+      "class": "Workspaces",
+      "method": "list",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 431,
+      "signature": "list(self, page: int) -> _PAGE_RESPONSE",
+      "http_calls": [
+        {
+          "verb": "GET",
+          "url": "/workspaces"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Workspaces.list_all",
+      "class": "Workspaces",
+      "method": "list_all",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 445,
+      "signature": "list_all(self) -> List[Workspace]",
+      "http_calls": [],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "v2/Workspaces.update",
+      "class": "Workspaces",
+      "method": "update",
+      "file": "src/md_python/resources/v2/workspaces.py",
+      "line": 468,
+      "signature": "update(self, workspace_id: str, name: Optional[str], description: Optional[str]) -> Workspace",
+      "http_calls": [
+        {
+          "verb": "PUT",
+          "url": "f'/workspaces/{workspace_id}'"
+        }
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    }
+  ]
+}

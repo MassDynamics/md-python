@@ -1,0 +1,214 @@
+{
+  "source": "visualisations_service",
+  "repo_path": "/Users/giuseppeinfusini/wd/md-repos/visualisations-service",
+  "unit_of_work": "module_type",
+  "pinned_sha": "f656553f8b157f438431d4c61e4616cf169bf5fc",
+  "scope_paths": [
+    "src"
+  ],
+  "coverage": [
+    {
+      "id": "summarised_dataset_table_request",
+      "file": "src/models/summarised_dataset_table_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "cv_distribution_violin_request",
+      "file": "src/requests/cv_distribution_violin_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "pairwise_heatmap_request",
+      "file": "src/requests/pairwise_heatmap_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "heatmap_request",
+      "file": "src/requests/heatmap_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "dot_plot_request",
+      "file": "src/requests/dot_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "dose_response_multiple_volcanoes_workspace_request",
+      "file": "src/requests/dose_response_multiple_volcanoes_workspace_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "roc_curve_request",
+      "file": "src/requests/roc_curve_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "missing_values_sample_plot_request",
+      "file": "src/requests/missing_values_sample_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "dendrogram_plot_request",
+      "file": "src/requests/dendrogram_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "missing_values_feature_plot_request",
+      "file": "src/requests/missing_values_feature_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "string_network_plot_request",
+      "file": "src/requests/string_network_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "entity_rank_plot_request",
+      "file": "src/requests/entity_rank_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "qc_summary_table_request",
+      "file": "src/requests/qc_summary_table_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "pairwise_dataset_table_request",
+      "file": "src/requests/pairwise_dataset_table_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "intensity_distribution_plot_request",
+      "file": "src/requests/intensity_distribution_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "log_log_plot_request",
+      "file": "src/requests/log_log_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "upset_plot_request",
+      "file": "src/requests/upset_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "line_plot_request",
+      "file": "src/requests/line_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "violin_plot_request",
+      "file": "src/requests/violin_plot_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "dose_response_curve_workspace_request",
+      "file": "src/requests/dose_response_curve_workspace_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "peptides_ratios_request",
+      "file": "src/requests/peptides_ratios_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "dataset_request",
+      "file": "src/requests/dataset_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "ptm_intensity_scatter_request",
+      "file": "src/requests/ptm_intensity_scatter_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "entity_detection_coverage_request",
+      "file": "src/requests/entity_detection_coverage_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "dimensionality_reduction_request",
+      "file": "src/requests/dimensionality_reduction_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "tornado_plot_workspace_request",
+      "file": "src/requests/tornado_plot_workspace_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "summarised_dataset_table_request",
+      "file": "src/requests/summarised_dataset_table_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "cv_distribution_request",
+      "file": "src/requests/cv_distribution_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "missing_values_heatmap_request",
+      "file": "src/requests/missing_values_heatmap_request.py",
+      "source": "fallback",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    }
+  ]
+}
