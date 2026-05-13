@@ -1,0 +1,1585 @@
+{
+  "source": "workflow",
+  "repo_path": "/Users/giuseppeinfusini/wd/md-repos/workflow",
+  "unit_of_work": "api_endpoint",
+  "pinned_sha": "0ab067767ba04bf6dd313145a152e900d64b1556",
+  "scope_paths": [
+    "config/routes.rb",
+    "app/controllers/api"
+  ],
+  "coverage": [
+    {
+      "id": "GET /health",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/health",
+      "controller": "health#index",
+      "line": 17,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /assets_health",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/assets_health",
+      "controller": "assets_health#show",
+      "line": 18,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /raise",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/raise",
+      "controller": "raise#index",
+      "line": 19,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /csp-violation",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/csp-violation",
+      "controller": "csp_violations#create",
+      "line": 21,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /account",
+      "kind": "resources",
+      "name": "account",
+      "path": "/account",
+      "line": 23,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /version",
+      "kind": "resource",
+      "name": "version",
+      "path": "/version",
+      "line": 25,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /notifications",
+      "kind": "resources",
+      "name": "notifications",
+      "path": "/notifications",
+      "line": 27,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /feature_flags",
+      "kind": "resources",
+      "name": "feature_flags",
+      "path": "/feature_flags",
+      "line": 29,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tags",
+      "kind": "resources",
+      "name": "tags",
+      "path": "/tags",
+      "line": 31,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /admins",
+      "kind": "namespace",
+      "name": "admins",
+      "prefix": "/admins",
+      "line": 33,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /admins/entity_mapping",
+      "kind": "namespace",
+      "name": "entity_mapping",
+      "prefix": "/admins/entity_mapping",
+      "line": 77,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /admins/entity_mapping/import",
+      "kind": "namespace",
+      "name": "import",
+      "prefix": "/admins/entity_mapping/import",
+      "line": 78,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /organisations",
+      "kind": "namespace",
+      "name": "organisations",
+      "prefix": "/organisations",
+      "line": 87,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisations/share_groups",
+      "kind": "resources",
+      "name": "share_groups",
+      "path": "/organisations/share_groups",
+      "line": 88,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisations/people",
+      "kind": "resources",
+      "name": "people",
+      "path": "/organisations/people",
+      "line": 90,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisations/data_repositories",
+      "kind": "resources",
+      "name": "data_repositories",
+      "path": "/organisations/data_repositories",
+      "line": 104,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisations/uploads",
+      "kind": "resources",
+      "name": "uploads",
+      "path": "/organisations/uploads",
+      "line": 105,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisations/datasets",
+      "kind": "resources",
+      "name": "datasets",
+      "path": "/organisations/datasets",
+      "line": 106,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisations/entity_lists",
+      "kind": "resources",
+      "name": "entity_lists",
+      "path": "/organisations/entity_lists",
+      "line": 107,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisations",
+      "kind": "resources",
+      "name": "organisations",
+      "path": "/organisations",
+      "line": 111,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /datasets",
+      "kind": "resources",
+      "name": "datasets",
+      "path": "/datasets",
+      "line": 117,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tables",
+      "kind": "resources",
+      "name": "tables",
+      "path": "/tables",
+      "line": 122,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisation",
+      "kind": "resources",
+      "name": "organisation",
+      "path": "/organisation",
+      "line": 126,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /tags/bulk",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/tags/bulk",
+      "controller": "datasets/tags#bulk",
+      "line": 127,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "DELETE /tags/bulk",
+      "kind": "verb",
+      "verb": "DELETE",
+      "path": "/tags/bulk",
+      "controller": "datasets/tags#bulk",
+      "line": 128,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tags",
+      "kind": "resources",
+      "name": "tags",
+      "path": "/tags",
+      "line": 131,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "DELETE /",
+      "kind": "verb",
+      "verb": "DELETE",
+      "path": "/",
+      "controller": "",
+      "line": 133,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /lists",
+      "kind": "resources",
+      "name": "lists",
+      "path": "/lists",
+      "line": 138,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisation",
+      "kind": "resources",
+      "name": "organisation",
+      "path": "/organisation",
+      "line": 140,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /items",
+      "kind": "resources",
+      "name": "items",
+      "path": "/items",
+      "line": 143,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tags",
+      "kind": "resources",
+      "name": "tags",
+      "path": "/tags",
+      "line": 145,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "DELETE /",
+      "kind": "verb",
+      "verb": "DELETE",
+      "path": "/",
+      "controller": "",
+      "line": 147,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /colour_palettes",
+      "kind": "resources",
+      "name": "colour_palettes",
+      "path": "/colour_palettes",
+      "line": 152,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /fields",
+      "kind": "resources",
+      "name": "fields",
+      "path": "/fields",
+      "line": 153,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /users",
+      "kind": "resources",
+      "name": "users",
+      "path": "/users",
+      "line": 156,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /activities",
+      "kind": "resources",
+      "name": "activities",
+      "path": "/activities",
+      "line": 172,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /personal_access_tokens",
+      "kind": "resource",
+      "name": "personal_access_tokens",
+      "path": "/personal_access_tokens",
+      "line": 173,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /sign_in_tokens",
+      "kind": "resource",
+      "name": "sign_in_tokens",
+      "path": "/sign_in_tokens",
+      "line": 174,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /shares",
+      "kind": "resources",
+      "name": "shares",
+      "path": "/shares",
+      "line": 178,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /feedbacks",
+      "kind": "resources",
+      "name": "feedbacks",
+      "path": "/feedbacks",
+      "line": 181,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /files",
+      "kind": "resources",
+      "name": "files",
+      "path": "/files",
+      "line": 182,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /content",
+      "kind": "namespace",
+      "name": "content",
+      "prefix": "/content",
+      "line": 184,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/normalization",
+      "kind": "resources",
+      "name": "normalization",
+      "path": "/content/normalization",
+      "line": 185,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/tmt_experiment_design",
+      "kind": "resources",
+      "name": "tmt_experiment_design",
+      "path": "/content/tmt_experiment_design",
+      "line": 186,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/enrichment",
+      "kind": "resources",
+      "name": "enrichment",
+      "path": "/content/enrichment",
+      "line": 187,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/generic_format",
+      "kind": "resources",
+      "name": "generic_format",
+      "path": "/content/generic_format",
+      "line": 188,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/reactome",
+      "kind": "resources",
+      "name": "reactome",
+      "path": "/content/reactome",
+      "line": 189,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/replicates",
+      "kind": "resources",
+      "name": "replicates",
+      "path": "/content/replicates",
+      "line": 190,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /content/results_files",
+      "kind": "namespace",
+      "name": "results_files",
+      "prefix": "/content/results_files",
+      "line": 191,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/results_files/max_quant",
+      "kind": "resources",
+      "name": "max_quant",
+      "path": "/content/results_files/max_quant",
+      "line": 192,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/results_files/generic_format",
+      "kind": "resources",
+      "name": "generic_format",
+      "path": "/content/results_files/generic_format",
+      "line": 193,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /content/workflow",
+      "kind": "namespace",
+      "name": "workflow",
+      "prefix": "/content/workflow",
+      "line": 195,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/workflow/max_quant",
+      "kind": "resources",
+      "name": "max_quant",
+      "path": "/content/workflow/max_quant",
+      "line": 196,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /content/workflow/reports",
+      "kind": "resources",
+      "name": "reports",
+      "path": "/content/workflow/reports",
+      "line": 197,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /styles",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/styles",
+      "controller": "",
+      "line": 201,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /404",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/404",
+      "controller": "errors#not_found",
+      "line": 202,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /500",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/500",
+      "controller": "errors#internal_server_error",
+      "line": 203,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /422",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/422",
+      "controller": "errors#unprocessable_content",
+      "line": 204,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /workspaces",
+      "kind": "namespace",
+      "name": "workspaces",
+      "prefix": "/workspaces",
+      "line": 206,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /workspaces/shares",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/workspaces/shares",
+      "controller": "shares#index",
+      "line": 207,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /workspaces",
+      "kind": "resources",
+      "name": "workspaces",
+      "path": "/workspaces",
+      "line": 210,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tabs",
+      "kind": "resources",
+      "name": "tabs",
+      "path": "/tabs",
+      "line": 215,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /duplicate",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/duplicate",
+      "controller": "",
+      "line": 217,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /duplicate_to_workspace",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/duplicate_to_workspace",
+      "controller": "",
+      "line": 218,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /lock",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/lock",
+      "controller": "",
+      "line": 219,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /unlock",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/unlock",
+      "controller": "",
+      "line": 220,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /report_mode",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/report_mode",
+      "controller": "",
+      "line": 221,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "PUT /update_order",
+      "kind": "verb",
+      "verb": "PUT",
+      "path": "/update_order",
+      "controller": "",
+      "line": 224,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /stars",
+      "kind": "resource",
+      "name": "stars",
+      "path": "/stars",
+      "line": 228,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /lists",
+      "kind": "resources",
+      "name": "lists",
+      "path": "/lists",
+      "line": 230,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /list_items",
+      "kind": "resources",
+      "name": "list_items",
+      "path": "/list_items",
+      "line": 240,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /datasets",
+      "kind": "resources",
+      "name": "datasets",
+      "path": "/datasets",
+      "line": 243,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /job_run_input_data_sets",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/job_run_input_data_sets",
+      "controller": "",
+      "line": 245,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tables",
+      "kind": "resources",
+      "name": "tables",
+      "path": "/tables",
+      "line": 247,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /headers",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/headers",
+      "controller": "workspaces/datasets/tables#table_headers",
+      "line": 249,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /execute_query",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/execute_query",
+      "controller": "",
+      "line": 250,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /table_urls",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/table_urls",
+      "controller": "",
+      "line": 256,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /experiments",
+      "kind": "resources",
+      "name": "experiments",
+      "path": "/experiments",
+      "line": 260,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /colour_palettes",
+      "kind": "resources",
+      "name": "colour_palettes",
+      "path": "/colour_palettes",
+      "line": 262,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /fields",
+      "kind": "resources",
+      "name": "fields",
+      "path": "/fields",
+      "line": 263,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /permissions",
+      "kind": "resources",
+      "name": "permissions",
+      "path": "/permissions",
+      "line": 270,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /audit_logs",
+      "kind": "resources",
+      "name": "audit_logs",
+      "path": "/audit_logs",
+      "line": 272,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /search",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/search",
+      "controller": "",
+      "line": 275,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /search_entity_metadata",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/search_entity_metadata",
+      "controller": "",
+      "line": 276,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /entity_mapping",
+      "kind": "namespace",
+      "name": "entity_mapping",
+      "prefix": "/entity_mapping",
+      "line": 280,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/map/protein_to_protein",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/map/protein_to_protein",
+      "controller": "map#protein_to_protein",
+      "line": 281,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/map/protein_to_protein/via_peptides",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/map/protein_to_protein/via_peptides",
+      "controller": "map#protein_to_protein_via_peptides",
+      "line": 282,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/map/xref/protein_to_gene",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/map/xref/protein_to_gene",
+      "controller": "map#protein_to_gene",
+      "line": 283,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/map/xref/gene_to_protein",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/map/xref/gene_to_protein",
+      "controller": "map#gene_to_protein",
+      "line": 284,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/map/protein_to_peptide/same_dataset",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/map/protein_to_peptide/same_dataset",
+      "controller": "map#protein_to_peptide_same_dataset",
+      "line": 285,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/map/peptide_to_protein/same_dataset",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/map/peptide_to_protein/same_dataset",
+      "controller": "map#peptide_to_protein_same_dataset",
+      "line": 286,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/graph/protein_to_protein",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/graph/protein_to_protein",
+      "controller": "graph#protein_to_protein",
+      "line": 287,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/graph/xref/protein_to_gene",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/graph/xref/protein_to_gene",
+      "controller": "graph#protein_to_gene",
+      "line": 288,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/graph/xref/gene_to_protein",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/graph/xref/gene_to_protein",
+      "controller": "graph#gene_to_protein",
+      "line": 289,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/graph/protein_to_peptide/same_dataset",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/graph/protein_to_peptide/same_dataset",
+      "controller": "graph#protein_to_peptide_same_dataset",
+      "line": 290,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_mapping/graph/peptide_to_protein/same_dataset",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_mapping/graph/peptide_to_protein/same_dataset",
+      "controller": "graph#peptide_to_protein_same_dataset",
+      "line": 291,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /workspaces/:workspace_id/experiments/:experiment_id/protein_metadata/query",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/workspaces/:workspace_id/experiments/:experiment_id/protein_metadata/query",
+      "controller": "workspaces/experiments/protein_metadata#query",
+      "line": 294,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /workspaces/:workspace_id/experiments/:experiment_id/downloads/*filename",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/workspaces/:workspace_id/experiments/:experiment_id/downloads/*filename",
+      "controller": "workspaces/experiments/downloads#show",
+      "line": 295,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /workspaces/:workspace_id/experiments/:experiment_id/qc_report",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/workspaces/:workspace_id/experiments/:experiment_id/qc_report",
+      "controller": "workspaces/experiments/qc_report#show",
+      "line": 296,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /workspaces/:workspace_id/experiments/:experiment_id/QC_Report_files/figure-html/:filename",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/workspaces/:workspace_id/experiments/:experiment_id/QC_Report_files/figure-html/:filename",
+      "controller": "workspaces/experiments/qc_report#figure_html",
+      "line": 297,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /workspaces/:workspace_id/experiments/:experiment_id/figure_html/*path",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/workspaces/:workspace_id/experiments/:experiment_id/figure_html/*path",
+      "controller": "",
+      "line": 298,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /workspaces/:workspace_id/experiments/:experiment_id/qc_report_files/*path",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/workspaces/:workspace_id/experiments/:experiment_id/qc_report_files/*path",
+      "controller": "",
+      "line": 299,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /w",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/w",
+      "controller": "w#index",
+      "line": 301,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /w/p/:shortcode",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/w/p/:shortcode",
+      "controller": "workspaces/permalinks#show",
+      "line": 302,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /w/*path",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/w/*path",
+      "controller": "w#index",
+      "line": 303,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /p",
+      "kind": "resources",
+      "name": "p",
+      "path": "/p",
+      "line": 305,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /experiments/mti_experiments",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/experiments/mti_experiments",
+      "controller": "p#experiments_mti_experiments",
+      "line": 308,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /experiments",
+      "kind": "resources",
+      "name": "experiments",
+      "path": "/experiments",
+      "line": 312,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /export",
+      "kind": "resource",
+      "name": "export",
+      "path": "/export",
+      "line": 313,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /entity_lists/:entity_type",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/entity_lists/:entity_type",
+      "controller": "experiments/entity_lists#create",
+      "line": 314,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tags",
+      "kind": "resources",
+      "name": "tags",
+      "path": "/tags",
+      "line": 316,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "DELETE /",
+      "kind": "verb",
+      "verb": "DELETE",
+      "path": "/",
+      "controller": "",
+      "line": 318,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /protein_metadata",
+      "kind": "resource",
+      "name": "protein_metadata",
+      "path": "/protein_metadata",
+      "line": 322,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /cancel",
+      "kind": "resource",
+      "name": "cancel",
+      "path": "/cancel",
+      "line": 327,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /v2",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/v2",
+      "controller": "",
+      "line": 330,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tabs",
+      "kind": "resources",
+      "name": "tabs",
+      "path": "/tabs",
+      "line": 332,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "PUT /update_order",
+      "kind": "verb",
+      "verb": "PUT",
+      "path": "/update_order",
+      "controller": "",
+      "line": 334,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /comments",
+      "kind": "resources",
+      "name": "comments",
+      "path": "/comments",
+      "line": 337,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /sample_metadata",
+      "kind": "resource",
+      "name": "sample_metadata",
+      "path": "/sample_metadata",
+      "line": 341,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /gene_set_lists",
+      "kind": "resources",
+      "name": "gene_set_lists",
+      "path": "/gene_set_lists",
+      "line": 343,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /quality_control_report_items",
+      "kind": "resources",
+      "name": "quality_control_report_items",
+      "path": "/quality_control_report_items",
+      "line": 344,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /qc_report_files/*path",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/qc_report_files/*path",
+      "controller": "",
+      "line": 346,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /databases",
+      "kind": "resources",
+      "name": "databases",
+      "path": "/databases",
+      "line": 350,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /gene_set_statistics",
+      "kind": "resources",
+      "name": "gene_set_statistics",
+      "path": "/gene_set_statistics",
+      "line": 351,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /downloads/*filename",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/downloads/*filename",
+      "controller": "experiments/downloads#show",
+      "line": 358,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /mine",
+      "kind": "resources",
+      "name": "mine",
+      "path": "/mine",
+      "line": 365,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /shared",
+      "kind": "resources",
+      "name": "shared",
+      "path": "/shared",
+      "line": 366,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /papers",
+      "kind": "resources",
+      "name": "papers",
+      "path": "/papers",
+      "line": 367,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /mti",
+      "kind": "resources",
+      "name": "mti",
+      "path": "/mti",
+      "line": 368,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /organisation",
+      "kind": "resources",
+      "name": "organisation",
+      "path": "/organisation",
+      "line": 369,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /tags/bulk",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/tags/bulk",
+      "controller": "experiments/tags#bulk",
+      "line": 370,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "DELETE /tags/bulk",
+      "kind": "verb",
+      "verb": "DELETE",
+      "path": "/tags/bulk",
+      "controller": "experiments/tags#bulk",
+      "line": 371,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /datasets",
+      "kind": "resources",
+      "name": "datasets",
+      "path": "/datasets",
+      "line": 374,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /job_run_input_data_sets",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/job_run_input_data_sets",
+      "controller": "",
+      "line": 376,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /tables",
+      "kind": "resources",
+      "name": "tables",
+      "path": "/tables",
+      "line": 377,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /headers",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/headers",
+      "controller": "experiments/datasets/tables#table_headers",
+      "line": 379,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /execute_query",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/execute_query",
+      "controller": "",
+      "line": 380,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /shares",
+      "kind": "resources",
+      "name": "shares",
+      "path": "/shares",
+      "line": 386,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /anova",
+      "kind": "resources",
+      "name": "anova",
+      "path": "/anova",
+      "line": 388,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /analyses",
+      "kind": "resources",
+      "name": "analyses",
+      "path": "/analyses",
+      "line": 394,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /protein_measurements",
+      "kind": "resources",
+      "name": "protein_measurements",
+      "path": "/protein_measurements",
+      "line": 400,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /has_data",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/has_data",
+      "controller": "",
+      "line": 402,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /replicates",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/replicates",
+      "controller": "",
+      "line": 403,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /warm",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/warm",
+      "controller": "",
+      "line": 404,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "POST /index",
+      "kind": "verb",
+      "verb": "POST",
+      "path": "/index",
+      "controller": "",
+      "line": 405,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /public_links",
+      "kind": "resources",
+      "name": "public_links",
+      "path": "/public_links",
+      "line": 408,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /protein_statistics",
+      "kind": "resources",
+      "name": "protein_statistics",
+      "path": "/protein_statistics",
+      "line": 410,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /search_datas",
+      "kind": "resources",
+      "name": "search_datas",
+      "path": "/search_datas",
+      "line": 416,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /condition_comparisons",
+      "kind": "resources",
+      "name": "condition_comparisons",
+      "path": "/condition_comparisons",
+      "line": 422,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /condition_comparison",
+      "kind": "resource",
+      "name": "condition_comparison",
+      "path": "/condition_comparison",
+      "line": 428,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /analysis/information",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/analysis/information",
+      "controller": "experiments/analysis#information",
+      "line": 431,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /analysis/report",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/analysis/report",
+      "controller": "experiments/analysis#report",
+      "line": 435,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /analysis/QC_Report_files/figure-html/:filename",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/analysis/QC_Report_files/figure-html/:filename",
+      "controller": "experiments/analysis/qc_report_files#figure_html",
+      "line": 436,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /analysis/qc_report_files/*path",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/analysis/qc_report_files/*path",
+      "controller": "",
+      "line": 437,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /analysis/figure_html/*path",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/analysis/figure_html/*path",
+      "controller": "",
+      "line": 438,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /deprecated/experiments/organisation",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/deprecated/experiments/organisation",
+      "controller": "deprecated/experiments/organisation#index",
+      "line": 441,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /dataset_jobs",
+      "kind": "resources",
+      "name": "dataset_jobs",
+      "path": "/dataset_jobs",
+      "line": 442,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /manual_enrichments",
+      "kind": "resources",
+      "name": "manual_enrichments",
+      "path": "/manual_enrichments",
+      "line": 444,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /manual_enrichment_jobs",
+      "kind": "resources",
+      "name": "manual_enrichment_jobs",
+      "path": "/manual_enrichment_jobs",
+      "line": 450,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /upload_urls",
+      "kind": "resources",
+      "name": "upload_urls",
+      "path": "/upload_urls",
+      "line": 452,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resource /multipart_upload_urls",
+      "kind": "resource",
+      "name": "multipart_upload_urls",
+      "path": "/multipart_upload_urls",
+      "line": 453,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "namespace /discovery",
+      "kind": "namespace",
+      "name": "discovery",
+      "prefix": "/discovery",
+      "line": 456,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /discovery/experiments",
+      "kind": "resources",
+      "name": "experiments",
+      "path": "/discovery/experiments",
+      "line": 457,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "resources /discovery/protein_lists",
+      "kind": "resources",
+      "name": "protein_lists",
+      "path": "/discovery/protein_lists",
+      "line": 458,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/",
+      "controller": "home#index",
+      "line": 469,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /api/doc",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/api/doc",
+      "controller": "api_docs#index",
+      "line": 481,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "GET /api/v1/doc",
+      "kind": "verb",
+      "verb": "GET",
+      "path": "/api/v1/doc",
+      "controller": "api_docs#v1",
+      "line": 482,
+      "mcp_tool": null,
+      "status": "unreviewed"
+    }
+  ]
+}

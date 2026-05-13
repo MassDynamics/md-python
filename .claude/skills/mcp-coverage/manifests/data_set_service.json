@@ -1,0 +1,59 @@
+{
+  "source": "data_set_service",
+  "repo_path": "/Users/giuseppeinfusini/wd/md-repos/data-set-service",
+  "unit_of_work": "job_slug",
+  "pinned_sha": "3e893aa0df386b5ce78e85ba0b8fae0912fe0c8a",
+  "scope_paths": [
+    "db",
+    "src/db",
+    "alembic",
+    "src/routes/jobs.py"
+  ],
+  "coverage": [
+    {
+      "id": "a3655a40-ece2-4e18-92b9-00eaace11479",
+      "slug": "a3655a40-ece2-4e18-92b9-00eaace11479",
+      "evidence": [
+        "test:tests/integration/routes/test_jobs.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "e2074304-56a4-4ec7-9fe8-d0fd37bca3f2",
+      "slug": "e2074304-56a4-4ec7-9fe8-d0fd37bca3f2",
+      "evidence": [
+        "test:tests/integration/routes/test_jobs.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "new-flow",
+      "slug": "new-flow",
+      "evidence": [
+        "test:tests/integration/routes/test_jobs.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "test-flow",
+      "slug": "test-flow",
+      "evidence": [
+        "test:tests/integration/routes/test_jobs.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "test-pool",
+      "slug": "test-pool",
+      "evidence": [
+        "test:tests/integration/routes/test_jobs.py"
+      ],
+      "mcp_tool": null,
+      "status": "unreviewed"
+    }
+  ]
+}

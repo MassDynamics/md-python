@@ -1,0 +1,81 @@
+{
+  "source": "md_converter",
+  "repo_path": "/Users/giuseppeinfusini/wd/md-repos/md-converter",
+  "unit_of_work": "format",
+  "pinned_sha": "fb4e9f827241c2d196eeb9235e7455f4c45254b9",
+  "scope_paths": [
+    "."
+  ],
+  "coverage": [
+    {
+      "id": "diann",
+      "format": "diann",
+      "package_path": "src/mdconverter/diann",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "diann_matrix",
+      "format": "diann_matrix",
+      "package_path": "src/mdconverter/diann_matrix",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "matterworks",
+      "format": "matterworks",
+      "package_path": "src/mdconverter/matterworks",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "maxquant",
+      "format": "maxquant",
+      "package_path": "src/mdconverter/maxquant",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "md_format",
+      "format": "md_format",
+      "package_path": "src/mdconverter/md_format",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "md_format_gene",
+      "format": "md_format_gene",
+      "package_path": "src/mdconverter/md_format_gene",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "md_format_metabolomics",
+      "format": "md_format_metabolomics",
+      "package_path": "src/mdconverter/md_format_metabolomics",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "msfragger",
+      "format": "msfragger",
+      "package_path": "src/mdconverter/msfragger",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "paser",
+      "format": "paser",
+      "package_path": "src/mdconverter/paser",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    },
+    {
+      "id": "spectronaut",
+      "format": "spectronaut",
+      "package_path": "src/mdconverter/spectronaut",
+      "mcp_tool": null,
+      "status": "unreviewed"
+    }
+  ]
+}
