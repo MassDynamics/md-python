@@ -2,7 +2,7 @@
   "source": "md_converter",
   "repo_path": "/Users/giuseppeinfusini/wd/md-repos/md-converter",
   "unit_of_work": "format",
-  "pinned_sha": "fb4e9f827241c2d196eeb9235e7455f4c45254b9",
+  "pinned_sha": "cef266f6ef9df65db916bfbdd7cac1cf82fa0547",
   "scope_paths": [
     "."
   ],
@@ -50,9 +50,9 @@
       "status": "unreviewed"
     },
     {
-      "id": "md_format_metabolomics",
-      "format": "md_format_metabolomics",
-      "package_path": "src/mdconverter/md_format_metabolomics",
+      "id": "md_format_metabolite",
+      "format": "md_format_metabolite",
+      "package_path": "src/mdconverter/md_format_metabolite",
       "mcp_tool": null,
       "status": "unreviewed"
     },

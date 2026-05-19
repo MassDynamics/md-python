@@ -1,4 +1,4 @@
-"""Entity list MCP tools — named lists of proteins / peptides / genes.
+"""Entity list MCP tools — named lists of proteins / peptides / genes / metabolites.
 
 An entity list groups a fixed selection of identifiers drawn from one
 or more datasets so a visualisation module can refer to that selection
@@ -8,12 +8,10 @@ the set every time.
 Endpoints exposed by the v2 API:
 
   POST   /api/workspaces/:workspace_id/entity_lists      → create
+  GET    /api/workspaces/:workspace_id/entity_lists      → list (paginated)
   GET    /api/workspaces/:workspace_id/entity_lists/:id  → show
   PUT    /api/workspaces/:workspace_id/entity_lists/:id  → update
   DELETE /api/workspaces/:workspace_id/entity_lists/:id  → delete
-
-There is no list/index endpoint, so callers must remember the id
-returned by create_entity_list (it is included in the tool's response).
 """
 
 import json
@@ -55,14 +53,15 @@ def create_entity_list(
     entity_type: str,
     items: List[Dict[str, Any]],
 ) -> str:
-    """Create a named entity list (proteins / peptides / genes) in a workspace.
+    """Create a named entity list in a workspace.
 
     Args:
       workspace_id: Parent workspace UUID.
       name: Display name. Must be non-empty.
-      entity_type: One of ``protein``, ``peptide``, or ``gene``. Must
-        match the entity type of the source dataset(s); a peptide list
-        cannot be referenced by a protein-only module.
+      entity_type: One of ``protein``, ``peptide``, ``gene``, or
+        ``metabolite``. Must match the entity type of the source
+        dataset(s); a peptide list cannot be referenced by a
+        protein-only module.
       items: At least one membership row. Each item is a dict with:
         - ``entity_id`` (str, required): the human-readable id, e.g.
           a protein-group accession or peptide sequence.
@@ -74,8 +73,8 @@ def create_entity_list(
     should fetch candidate (entity_id, group_id) pairs from the source
     dataset rather than ask the user to type them by hand.
 
-    Returns the created list as JSON. Save the ``id`` — there is no
-    list/index endpoint, so it cannot be re-discovered after the call.
+    Returns the created list as JSON. The ``id`` is also surfaced in
+    list_entity_lists for later lookup.
     """
     try:
         ell = get_client().workspaces.entity_lists.create(
@@ -89,6 +88,43 @@ def create_entity_list(
     return (
         f"Entity list created. ID: {ell.id}\n"
         f"{json.dumps(_entity_list_to_dict(ell), indent=2)}"
+    )
+
+
+@mcp.tool()
+def list_entity_lists(workspace_id: str, page: int = 1) -> str:
+    """List entity lists in a workspace, paginated (50 per page).
+
+    Args:
+      workspace_id: Parent workspace UUID.
+      page: 1-based page number (default 1).
+
+    Returns JSON with shape::
+
+        {
+          "data": [<entity list dict>, ...],
+          "pagination": {
+            "current_page": int,
+            "per_page": int,
+            "total_count": int,
+            "total_pages": int
+          }
+        }
+
+    Each entity-list dict matches the shape returned by get_entity_list.
+    """
+    try:
+        body = get_client().workspaces.entity_lists.list(
+            workspace_id=workspace_id, page=page
+        )
+    except Exception as e:
+        return json.dumps({"error": str(e)}, indent=2)
+    return json.dumps(
+        {
+            "data": [_entity_list_to_dict(ell) for ell in body["data"]],
+            "pagination": body.get("pagination", {}),
+        },
+        indent=2,
     )
 
 
@@ -124,7 +160,8 @@ def update_entity_list(
       workspace_id: Parent workspace UUID.
       list_id: Entity list UUID to update.
       name: New display name (non-empty).
-      entity_type: One of ``protein``, ``peptide``, or ``gene``.
+      entity_type: One of ``protein``, ``peptide``, ``gene``, or
+        ``metabolite``.
       items: At least one membership row, same shape as
         create_entity_list.
 

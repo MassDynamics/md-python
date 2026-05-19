@@ -9,6 +9,7 @@ from mcp_tools.workspaces.entity_lists import (
     create_entity_list,
     delete_entity_list,
     get_entity_list,
+    list_entity_lists,
     update_entity_list,
 )
 from md_python.models import EntityList, EntityListItem
@@ -73,7 +74,7 @@ class TestCreateEntityList:
 
     def test_resource_error_returns_error_prose(self, mock_client):
         mock_client.workspaces.entity_lists.create.side_effect = ValueError(
-            "entity_type must be one of: protein, peptide, gene"
+            "entity_type must be one of: gene, metabolite, peptide, protein"
         )
         with patch(
             "mcp_tools.workspaces.entity_lists.get_client",
@@ -82,11 +83,67 @@ class TestCreateEntityList:
             result = create_entity_list(
                 workspace_id=WS_ID,
                 name="x",
-                entity_type="metabolite",
+                entity_type="lipid",
                 items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
             )
         assert result.startswith("Error: ")
         assert "entity_type must be one of" in result
+
+
+class TestListEntityLists:
+    def test_returns_paginated_json(self, mock_client):
+        mock_client.workspaces.entity_lists.list.return_value = {
+            "data": [_entity_list()],
+            "pagination": {
+                "current_page": 1,
+                "per_page": 50,
+                "total_count": 1,
+                "total_pages": 1,
+            },
+        }
+        with patch(
+            "mcp_tools.workspaces.entity_lists.get_client",
+            return_value=mock_client,
+        ):
+            result = list_entity_lists(WS_ID)
+        body = json.loads(result)
+        assert body["pagination"]["total_count"] == 1
+        assert len(body["data"]) == 1
+        assert body["data"][0]["id"] == LIST_ID
+
+        kwargs = mock_client.workspaces.entity_lists.list.call_args.kwargs
+        assert kwargs == {"workspace_id": WS_ID, "page": 1}
+
+    def test_passes_page_arg(self, mock_client):
+        mock_client.workspaces.entity_lists.list.return_value = {
+            "data": [],
+            "pagination": {
+                "current_page": 3,
+                "per_page": 50,
+                "total_count": 0,
+                "total_pages": 0,
+            },
+        }
+        with patch(
+            "mcp_tools.workspaces.entity_lists.get_client",
+            return_value=mock_client,
+        ):
+            list_entity_lists(WS_ID, page=3)
+        kwargs = mock_client.workspaces.entity_lists.list.call_args.kwargs
+        assert kwargs == {"workspace_id": WS_ID, "page": 3}
+
+    def test_resource_error_returns_error_envelope(self, mock_client):
+        mock_client.workspaces.entity_lists.list.side_effect = Exception(
+            "Failed to list entity lists: 500 - boom"
+        )
+        with patch(
+            "mcp_tools.workspaces.entity_lists.get_client",
+            return_value=mock_client,
+        ):
+            result = list_entity_lists(WS_ID)
+        body = json.loads(result)
+        assert "error" in body
+        assert "500" in body["error"]
 
 
 class TestGetEntityList:
@@ -143,7 +200,7 @@ class TestUpdateEntityList:
 
     def test_resource_error_returns_error_prose(self, mock_client):
         mock_client.workspaces.entity_lists.update.side_effect = ValueError(
-            "entity_type must be one of: protein, peptide, gene"
+            "entity_type must be one of: gene, metabolite, peptide, protein"
         )
         with patch(
             "mcp_tools.workspaces.entity_lists.get_client",
@@ -153,7 +210,7 @@ class TestUpdateEntityList:
                 workspace_id=WS_ID,
                 list_id=LIST_ID,
                 name="x",
-                entity_type="metabolite",
+                entity_type="lipid",
                 items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
             )
         assert result.startswith("Error: ")

@@ -14,247 +14,22 @@ does not change it.
 """
 
 import json
+import time
 from typing import Any, Dict, List, Optional
-
-from md_python.models import TabModule
 
 from .. import mcp
 from .._client import get_client
 from .._destructive import _attach_destructive
 from . import _introspect
 from ._mandates import _attach_visualisation
+from ._modules_validation import _module_to_dict, resolve_dataset_settings
 
-
-def _module_to_dict(m: TabModule) -> Dict[str, Any]:
-    return {
-        "id": str(m.id),
-        "item_id": m.item_id,
-        "x": m.x,
-        "y": m.y,
-        "width": m.width,
-        "height": m.height,
-        "settings": m.settings,
-    }
-
-
-_VALID_ENTITY_TYPES = ("protein", "peptide", "gene")
-
-
-def _check_dataset_type(
-    ds_id: str, ds_type: Optional[str], required: Optional[str]
-) -> None:
-    """Hard-fail when the persisted dataset's ``type`` doesn't match the
-    module's required dataset_type.
-
-    The most common cause is the LLM confusing **upload_id** (parent
-    record holding sample metadata) with **dataset_id** (the actual
-    analytical artefact — INTENSITY / PAIRWISE / DOSE_RESPONSE / ANOVA).
-    We surface that hypothesis explicitly in the error message.
-    """
-    if required is None or ds_type is None or ds_type == required:
-        return
-    raise ValueError(
-        f"dataset_id {ds_id!r} is type {ds_type!r}, but the module "
-        f"requires a {required!r} dataset.\n\n"
-        "Common causes:\n"
-        "  * You passed an UPLOAD id where a DATASET id is needed. "
-        "Uploads are parent records (they hold sample metadata + raw "
-        "files). Datasets are the analytical artefacts placed on plots "
-        "(INTENSITY for QC + experiment, PAIRWISE for volcano / "
-        "heatmap, DOSE_RESPONSE for DR curves, ANOVA for ANOVA "
-        "volcano). One upload has many datasets.\n"
-        "  * You passed an INTENSITY dataset to a module that needs a "
-        "downstream output. For PAIRWISE you must run "
-        "run_pairwise_comparison first; for ANOVA, run_anova; for "
-        "DOSE_RESPONSE, run_dose_response.\n"
-        "  * You passed an old / wrong dataset id. Use list_datasets / "
-        "find_initial_dataset / query_datasets to look up the right id."
-    )
-
-
-def _resolve_entity_type_settings(
-    item_id: str,
-    entity_type: Optional[str],
-    module: Any,
-) -> Dict[str, Any]:
-    """Validate entity_type against the module's spec and return
-    ``{settings_key: entity_type}`` for merging into settings.
-
-    Returns an empty dict when the module has no EntityType field.
-    Fails-fast when the field is required and the LLM did not supply a
-    value, or when the supplied value is not in {protein, peptide, gene}.
-    """
-    eti = _introspect.entity_type_input_for(module)
-    if eti is None:
-        if entity_type is not None:
-            raise ValueError(
-                f"module {item_id!r} does not accept entity_type (no "
-                "EntityType-typed parameter in its registry spec); drop "
-                "entity_type"
-            )
-        return {}
-    if entity_type is None:
-        if eti["required"]:
-            raise ValueError(
-                f"module {item_id!r} requires entity_type — one of "
-                f"{eti['valid_values']}. The dataset payload does NOT "
-                "carry the entity type, so the LLM must supply it: "
-                "protein/peptide for md_format / DIA-NN / MaxQuant / "
-                "Spectronaut uploads, gene for md_format_gene uploads. "
-                "Confirm with the user when uncertain."
-            )
-        return {}
-    if entity_type not in eti["valid_values"]:
-        raise ValueError(
-            f"entity_type must be one of {eti['valid_values']}, got " f"{entity_type!r}"
-        )
-    return {eti["settings_key"]: entity_type}
-
-
-def _resolve_dataset_settings(
-    item_id: str,
-    dataset_id: Optional[str],
-    dataset_ids: Optional[List[str]],
-    upload_id: Optional[str],
-    upload_ids: Optional[List[str]],
-    entity_type: Optional[str],
-) -> Dict[str, Any]:
-    """Validate dataset + entity_type args against the module's spec and
-    return a settings overlay ready to merge into ``settings``.
-
-    Raises ``ValueError`` with a clear message on every shape mismatch:
-      * arity mismatch (single vs multiple) vs the registry's
-        ``parameters.multiple`` flag,
-      * dataset.type mismatch vs ``parameters.type`` (the most common
-        symptom of the LLM confusing upload_id with dataset_id),
-      * missing companion upload_id(s),
-      * companion list-length mismatch,
-      * dataset args passed to a module that does NOT have a Datasets
-        field (e.g. ``heading``, ``page_break``),
-      * entity_type missing for a module that requires it,
-      * entity_type passed for a module that does not accept one.
-    """
-    has_id_arg = dataset_id is not None
-    has_ids_arg = dataset_ids is not None
-    has_any = has_id_arg or has_ids_arg
-
-    client = get_client()
-    module = client.module_registry.get(item_id)
-    if module is None:
-        raise ValueError(
-            f"item_id {item_id!r} is not in the module registry "
-            "(or is not available to the current user)"
-        )
-
-    overlay: Dict[str, Any] = {}
-    overlay.update(_resolve_entity_type_settings(item_id, entity_type, module))
-
-    di = _introspect.dataset_input_for(module)
-
-    # Module has no Datasets field (heading, page_break, text, …).
-    if di is None:
-        if has_any:
-            raise ValueError(
-                f"module {item_id!r} does not accept a dataset (no "
-                "Datasets-typed parameter in its registry spec); drop "
-                "dataset_id / dataset_ids"
-            )
-        return overlay
-
-    # Module has a Datasets field. If the LLM didn't pass anything and
-    # the field is required, fail-fast.
-    if not has_any:
-        if di["required"]:
-            raise ValueError(
-                f"module {item_id!r} requires a dataset (settings_key="
-                f"{di['settings_key']!r}, arity={di['arity']!r}, "
-                f"dataset_type={di['dataset_type']!r}). Pass "
-                f"{di['tool_args']['ids']}=... and "
-                f"{di['tool_args']['uploads']}=...\n\n"
-                "REMEMBER: dataset_id is the DATASET (analytical "
-                "artefact), upload_id is the UPLOAD (parent record). "
-                "They are different uuids."
-            )
-        return overlay
-
-    # XOR check.
-    if has_id_arg and has_ids_arg:
-        raise ValueError(
-            "pass dataset_id OR dataset_ids, not both — "
-            f"module {item_id!r} has arity {di['arity']!r}"
-        )
-
-    # Arity check.
-    if di["arity"] == "single" and has_ids_arg:
-        raise ValueError(
-            f"module {item_id!r} has arity 'single' (parameters.multiple"
-            "=False); pass dataset_id, not dataset_ids"
-        )
-    if di["arity"] == "multiple" and has_id_arg:
-        raise ValueError(
-            f"module {item_id!r} has arity 'multiple' (parameters.multiple"
-            "=True); pass dataset_ids, not dataset_id"
-        )
-
-    # Build the envelope.
-    if di["arity"] == "single":
-        if upload_id is None:
-            raise ValueError(
-                "dataset_id requires upload_id — passed as experimentId in "
-                "the persisted envelope. Use find_initial_dataset / "
-                "list_datasets to recover the upload_id paired with the "
-                "dataset_id. (upload_id is the PARENT upload's uuid; "
-                "dataset_id is the DATASET's uuid — they are different.)"
-            )
-        assert dataset_id is not None  # narrowed by has_id_arg + arity branch
-        ds = client.datasets.get_by_id(dataset_id)
-        if ds is None:
-            raise ValueError(
-                f"dataset_id {dataset_id!r} not found (or no permission). "
-                "Did you pass an upload_id by mistake? Run list_datasets / "
-                "find_initial_dataset to look up the right dataset uuid."
-            )
-        _check_dataset_type(str(ds.id), ds.type, di["dataset_type"])
-        envelope = _introspect.build_dataset_envelope(
-            dataset_id=str(ds.id),
-            dataset_name=ds.name,
-            upload_id=upload_id,
-            dataset_type=di["dataset_type"],
-        )
-        overlay[di["settings_key"]] = envelope
-        return overlay
-
-    # arity == "multiple"
-    assert dataset_ids is not None  # for mypy
-    if upload_ids is None:
-        raise ValueError(
-            "dataset_ids requires upload_ids — one per dataset, same "
-            "order. Each upload_id is persisted as experimentId in the "
-            "envelope's individualResults."
-        )
-    if len(dataset_ids) != len(upload_ids):
-        raise ValueError(
-            f"dataset_ids has {len(dataset_ids)} entries but upload_ids "
-            f"has {len(upload_ids)} — they must match length and order"
-        )
-    if not dataset_ids:
-        raise ValueError("dataset_ids cannot be empty")
-
-    entries: List[Dict[str, str]] = []
-    for did, uid in zip(dataset_ids, upload_ids):
-        ds = client.datasets.get_by_id(did)
-        if ds is None:
-            raise ValueError(
-                f"dataset_id {did!r} not found (or no permission). "
-                "Did you pass an upload_id by mistake?"
-            )
-        _check_dataset_type(str(ds.id), ds.type, di["dataset_type"])
-        entries.append({"id": str(ds.id), "name": ds.name, "upload_id": uid})
-    envelope = _introspect.build_dataset_envelope_multi(
-        entries, dataset_type=di["dataset_type"]
-    )
-    overlay[di["settings_key"]] = envelope
-    return overlay
+# Server-side rendering can take a long wall-clock time, but the LLM should
+# not silently retry forever — the FastMCP instructions cap wait_* calls at
+# ~10 polls before a check-in. render_module_visualisation enforces a
+# matching internal cap so one MCP call costs at most this many HTTP
+# round-trips, then returns a "still rendering" envelope to the LLM.
+_RENDER_MAX_POLLS = 10
 
 
 @mcp.tool()
@@ -389,8 +164,10 @@ def add_module_to_tab(
 
     See also: describe_module_type, update_tab_module.
     """
+    client = get_client()
     try:
-        structured_overlay = _resolve_dataset_settings(
+        structured_overlay = resolve_dataset_settings(
+            client=client,
             item_id=item_id,
             dataset_id=dataset_id,
             dataset_ids=dataset_ids,
@@ -407,7 +184,7 @@ def add_module_to_tab(
     # [{field:'sample_name', order:'none'}] in the
     # OrderableSampleMetadataColumns instruction). Layered BELOW user
     # settings so the LLM can still override.
-    module = get_client().module_registry.get(item_id)
+    module = client.module_registry.get(item_id)
     fallbacks: Dict[str, Any] = {}
     if module is not None:
         fallbacks = _introspect.field_type_fallbacks(module)
@@ -425,7 +202,7 @@ def add_module_to_tab(
     merged_settings.update(structured_overlay)
 
     try:
-        mod = get_client().workspaces.modules.create_with_defaults(
+        mod = client.workspaces.modules.create_with_defaults(
             workspace_id=workspace_id,
             tab_id=tab_id,
             item_id=item_id,
@@ -616,9 +393,201 @@ def update_text_module(
     return json.dumps(_module_to_dict(mod), indent=2)
 
 
+@mcp.tool()
+def render_module_visualisation(
+    workspace_id: str,
+    tab_id: str,
+    module_id: str,
+    poll: bool = True,
+    timeout_s: float = 300.0,
+) -> str:
+    """Fetch the rendered visualisation JSON for an existing module.
+
+    Calls ``GET /workspaces/:ws/tabs/:tab/modules/:id/visualisation``.
+    The server returns 200 with the visualisation payload when it is
+    ready, or 202 while still rendering (with a ``Retry-After`` header).
+
+    Args:
+      workspace_id, tab_id, module_id: Identify the module to render.
+      poll: When True (default), the tool follows 202 → wait → re-request
+        up to a bounded number of times (``_RENDER_MAX_POLLS``, currently
+        10). When the cap is hit while the server is still 202, the tool
+        returns a ``{"status": "rendering", "polls": N, "retry_after":
+        int}`` envelope so the LLM can decide whether to call this tool
+        again (treating the next call as one more "wait") or check in
+        with the user. When ``poll`` is False, the tool returns the same
+        envelope after a single HTTP request.
+      timeout_s: Soft total wall-clock cap (default 300s). The hard cap
+        is ``_RENDER_MAX_POLLS`` HTTP requests — whichever fires first
+        produces the "still rendering" envelope.
+
+    Use this AFTER add_module_to_tab when you want the rendered payload
+    out-of-band (e.g. to embed in a report or downstream tool). The
+    workspace UI fetches the same endpoint automatically when a user
+    opens the tab — calling this tool is not required for the module to
+    appear in the app.
+
+    POLLING DISCIPLINE — one tool call = at most ``_RENDER_MAX_POLLS``
+    server requests. If the envelope says "still rendering" after that,
+    treat each subsequent call as one more "wait" toward the 10-poll
+    check-in limit documented in the FastMCP instructions. After ~10
+    "still rendering" envelopes in a row, report progress to the user
+    and ask whether to keep waiting.
+
+    Returns the visualisation body as JSON on success, the rendering
+    envelope when the cap fires, or an ``Error: ...`` prose string on
+    HTTP errors / timeouts.
+    """
+    # Track polls in the MCP layer so the LLM gets a hard guarantee that
+    # one tool call never makes more than _RENDER_MAX_POLLS HTTP requests
+    # regardless of what timeout_s says. The resource's own poll loop is
+    # bypassed (poll=False) so we own the counting here.
+    if not poll:
+        try:
+            body = get_client().workspaces.modules.render_visualisation(
+                workspace_id=workspace_id,
+                tab_id=tab_id,
+                module_id=module_id,
+                poll=False,
+                timeout_s=timeout_s,
+            )
+        except Exception as e:
+            return f"Error: {e}"
+        return json.dumps(body, indent=2)
+
+    client = get_client()
+    deadline = time.monotonic() + max(0.0, timeout_s)
+    last_retry_after = 0
+
+    for poll_idx in range(_RENDER_MAX_POLLS):
+        try:
+            body = client.workspaces.modules.render_visualisation(
+                workspace_id=workspace_id,
+                tab_id=tab_id,
+                module_id=module_id,
+                poll=False,
+                timeout_s=timeout_s,
+            )
+        except Exception as e:
+            return f"Error: {e}"
+
+        # Resource returns {"status": "rendering", "retry_after": int}
+        # while the server is still 202; anything else is the rendered
+        # visualisation body. Branch on the rendering sentinel.
+        if (
+            isinstance(body, dict)
+            and body.get("status") == "rendering"
+            and "retry_after" in body
+        ):
+            last_retry_after = int(body["retry_after"])
+            # If we are about to exceed the timeout, surface the envelope
+            # rather than sleeping past the deadline.
+            if time.monotonic() + last_retry_after > deadline:
+                return json.dumps(
+                    {
+                        "status": "rendering",
+                        "polls": poll_idx + 1,
+                        "retry_after": last_retry_after,
+                        "reason": "timeout_s exceeded — call again to keep waiting",
+                    },
+                    indent=2,
+                )
+            time.sleep(last_retry_after)
+            continue
+        return json.dumps(body, indent=2)
+
+    # Hit the internal poll cap without a 200. Hand off to the LLM.
+    return json.dumps(
+        {
+            "status": "rendering",
+            "polls": _RENDER_MAX_POLLS,
+            "retry_after": last_retry_after,
+            "reason": (
+                f"reached internal poll cap ({_RENDER_MAX_POLLS} HTTP "
+                "requests). Call render_module_visualisation again to "
+                "keep waiting, or check in with the user."
+            ),
+        },
+        indent=2,
+    )
+
+
+@mcp.tool()
+def add_plotly_json_module(
+    workspace_id: str,
+    tab_id: str,
+    plotly_json: Dict[str, Any],
+    title: str = "",
+    x: int = 0,
+    y: int = 0,
+    width: int = 12,
+    height: int = 6,
+) -> str:
+    """Add a Plotly-JSON renderer module to a tab.
+
+    The ``plotly_json_renderer`` module renders an arbitrary Plotly
+    figure (``{"data": [...], "layout": {...}}``) client-side. Nothing
+    is sent to the visualisations service — the figure JSON is stored
+    verbatim in ``settings.plotlyJson`` and shipped to the browser.
+
+    LOCAL-ONLY CAVEAT
+    This module is gated by the ``plotly_json_renderer_module`` feature
+    flag, which is currently enabled only on a local workflow app build
+    (testing scaffold). On ``dev.massdynamics.com`` (and production) the
+    flag is off, the module is hidden from the picker, and creating it
+    via this tool will either fail server-side or render as an unknown
+    module. Use only when you know the target environment has the flag
+    enabled.
+
+    Args:
+      workspace_id: Parent workspace UUID.
+      tab_id: Target tab UUID.
+      plotly_json: A Plotly figure spec — at minimum a dict with ``data``
+        (list of traces) and ``layout`` (dict). Passed through unchanged.
+      title: Optional title used both as the plot name and as the
+        download filename. Defaults to an empty string.
+      x, y, width, height: Grid placement on the tab layout. Defaults
+        sized for a single chart (12 wide × 6 tall).
+
+    Skips the visualisation Q&A mandate: there is no platform-default
+    parameter set to walk through — the user supplies the entire figure
+    JSON.
+
+    Returns the created module as JSON, or ``Error: ...`` on failure.
+    """
+    if not isinstance(plotly_json, dict):
+        return (
+            "Error: plotly_json must be a dict with `data` and `layout` "
+            f"keys (got {type(plotly_json).__name__})"
+        )
+
+    settings: Dict[str, Any] = {"plotlyJson": plotly_json}
+    if title:
+        settings["title"] = title
+
+    try:
+        mod = get_client().workspaces.modules.create(
+            workspace_id=workspace_id,
+            tab_id=tab_id,
+            item_id="plotly_json_renderer",
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            settings=settings,
+        )
+    except (ValueError, Exception) as e:
+        return f"Error: {e}"
+    return (
+        f"Plotly JSON module placed. ID: {mod.id}\n"
+        f"{json.dumps(_module_to_dict(mod), indent=2)}"
+    )
+
+
 # Behavioural mandates — visualisation Q&A on add+update; destructive on remove.
-# Note: add_text_module / update_text_module deliberately bypass the
-# visualisation mandate — the body is the user's own content, not a
-# parameter that needs the platform-default vs LLM-recommendation table.
+# Note: add_text_module / update_text_module / add_plotly_json_module
+# deliberately bypass the visualisation mandate — the body / figure is
+# the user's own content, not a parameter that needs the platform-
+# default vs LLM-recommendation table.
 _attach_visualisation(add_module_to_tab, update_tab_module)
 _attach_destructive(remove_module_from_tab)

@@ -1,161 +1,55 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from . import mcp
-from .datasets import (
-    cancel_dataset,
-    delete_dataset,
-    download_dataset_table,
-    find_initial_dataset,
-    find_initial_datasets,
-    list_datasets,
-    list_jobs,
-    query_datasets,
-    retry_dataset,
-    wait_for_dataset,
-    wait_for_datasets_bulk,
-)
-from .entities import (
-    map_gene_to_protein,
-    map_peptide_to_protein,
-    map_protein_to_gene,
-    map_protein_to_peptide,
-    map_protein_to_protein,
-    query_entities,
-)
-from .files import (
-    get_md_format_spec,
-    load_metadata_from_csv,
-    plan_wide_to_md_format,
-    read_csv_preview,
-)
-from .health import get_workflow_guide, health_check
-from .pipelines import (
-    describe_pipeline,
-    generate_pairwise_comparisons,
-    run_anova,
-    run_dose_response,
-    run_dose_response_bulk,
-    run_dose_response_from_upload,
-    run_normalisation_imputation,
-    run_normalisation_imputation_bulk,
-    run_pairwise_comparison,
-    run_pairwise_comparison_bulk,
-)
-from .uploads import (
-    cancel_upload_queue,
-    create_upload,
-    create_upload_from_csv,
-    delete_upload,
-    get_upload,
-    get_upload_sample_metadata,
-    list_uploads_status,
-    query_uploads,
-    update_sample_metadata,
-    validate_upload_inputs,
-    wait_for_upload,
-)
-from .workspaces.crud import (
-    create_workspace,
-    delete_workspace,
-    get_workspace,
-    list_workspaces,
-    update_workspace,
-)
-from .workspaces.entity_lists import (
-    create_entity_list,
-    delete_entity_list,
-    get_entity_list,
-    update_entity_list,
-)
-from .workspaces.modules import (
-    add_module_to_tab,
-    add_text_module,
-    get_tab_module,
-    list_tab_modules,
-    remove_module_from_tab,
-    update_tab_module,
-    update_text_module,
-)
-from .workspaces.registry import describe_module_type, list_module_types
-from .workspaces.tabs import (
-    create_tab,
-    delete_tab,
-    get_tab,
-    list_tabs,
-    update_tab,
-)
 
-_TOOL_REGISTRY: Dict[str, Any] = {
-    "read_csv_preview": read_csv_preview,
-    "load_metadata_from_csv": load_metadata_from_csv,
-    "plan_wide_to_md_format": plan_wide_to_md_format,
-    "get_md_format_spec": get_md_format_spec,
-    "query_entities": query_entities,
-    "map_protein_to_protein": map_protein_to_protein,
-    "map_gene_to_protein": map_gene_to_protein,
-    "map_protein_to_gene": map_protein_to_gene,
-    "map_protein_to_peptide": map_protein_to_peptide,
-    "map_peptide_to_protein": map_peptide_to_protein,
-    "health_check": health_check,
-    "get_workflow_guide": get_workflow_guide,
-    "get_upload": get_upload,
-    "create_upload": create_upload,
-    "create_upload_from_csv": create_upload_from_csv,
-    "delete_upload": delete_upload,
-    "cancel_upload_queue": cancel_upload_queue,
-    "list_uploads_status": list_uploads_status,
-    "query_uploads": query_uploads,
-    "validate_upload_inputs": validate_upload_inputs,
-    "get_upload_sample_metadata": get_upload_sample_metadata,
-    "update_sample_metadata": update_sample_metadata,
-    "wait_for_upload": wait_for_upload,
-    "list_jobs": list_jobs,
-    "list_datasets": list_datasets,
-    "find_initial_dataset": find_initial_dataset,
-    "find_initial_datasets": find_initial_datasets,
-    "wait_for_dataset": wait_for_dataset,
-    "retry_dataset": retry_dataset,
-    "delete_dataset": delete_dataset,
-    "cancel_dataset": cancel_dataset,
-    "query_datasets": query_datasets,
-    "download_dataset_table": download_dataset_table,
-    "describe_pipeline": describe_pipeline,
-    "run_normalisation_imputation": run_normalisation_imputation,
-    "run_normalisation_imputation_bulk": run_normalisation_imputation_bulk,
-    "generate_pairwise_comparisons": generate_pairwise_comparisons,
-    "run_pairwise_comparison": run_pairwise_comparison,
-    "run_pairwise_comparison_bulk": run_pairwise_comparison_bulk,
-    "run_anova": run_anova,
-    "run_dose_response": run_dose_response,
-    "run_dose_response_from_upload": run_dose_response_from_upload,
-    "run_dose_response_bulk": run_dose_response_bulk,
-    "wait_for_datasets_bulk": wait_for_datasets_bulk,
-    # Visualisation layer — workspaces, tabs, modules, registry.
-    "list_module_types": list_module_types,
-    "describe_module_type": describe_module_type,
-    "create_workspace": create_workspace,
-    "list_workspaces": list_workspaces,
-    "get_workspace": get_workspace,
-    "update_workspace": update_workspace,
-    "delete_workspace": delete_workspace,
-    "create_tab": create_tab,
-    "list_tabs": list_tabs,
-    "get_tab": get_tab,
-    "update_tab": update_tab,
-    "delete_tab": delete_tab,
-    "add_module_to_tab": add_module_to_tab,
-    "list_tab_modules": list_tab_modules,
-    "get_tab_module": get_tab_module,
-    "update_tab_module": update_tab_module,
-    "remove_module_from_tab": remove_module_from_tab,
-    "add_text_module": add_text_module,
-    "update_text_module": update_text_module,
-    "create_entity_list": create_entity_list,
-    "get_entity_list": get_entity_list,
-    "update_entity_list": update_entity_list,
-    "delete_entity_list": delete_entity_list,
-}
+# Side-effect imports — bringing these modules in registers every @mcp.tool()
+# decorator with the shared FastMCP instance. Order does not matter beyond
+# "everything must be imported before _TOOL_REGISTRY is read".
+from . import datasets as _datasets_pkg  # noqa: F401
+from . import entities as _entities_mod  # noqa: F401
+from . import files as _files_pkg  # noqa: F401
+from . import health as _health_mod  # noqa: F401
+from . import pipelines as _pipelines_pkg  # noqa: F401
+from . import uploads as _uploads_pkg  # noqa: F401
+from . import workspaces as _workspaces_pkg  # noqa: F401
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Single source of truth for the batch dispatch table.
+#
+# Previously this module hand-maintained ``_TOOL_REGISTRY: Dict[str, fn]``
+# alongside every ``@mcp.tool()`` declaration in the codebase. The two drifted
+# every time a new tool was added — adding ``list_entity_lists``,
+# ``render_module_visualisation``, etc. required two edits in two places.
+#
+# Now ``_TOOL_REGISTRY`` is derived from FastMCP's own tool manager. Every
+# ``@mcp.tool()`` decorator registers the function with ``mcp._tool_manager``;
+# we ask the manager for its tools and build a name→callable map from that.
+# ``batch`` itself is excluded so the dispatch is non-recursive.
+#
+# A regression test (tests/mcp_tools/test_tool_registry_introspection.py)
+# fails the moment a new @mcp.tool is declared but not surfaced here.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _build_tool_registry() -> Dict[str, Callable[..., Any]]:
+    """Build the batch dispatch table from FastMCP introspection.
+
+    Excludes ``batch`` itself to keep dispatch non-recursive. ``batch`` is
+    listed in ``mcp._tool_manager`` because it carries ``@mcp.tool()`` for the
+    LLM-facing surface, but inside the dispatch loop it must not be callable
+    or the LLM could nest ``batch`` calls indefinitely.
+    """
+    registry: Dict[str, Callable[..., Any]] = {}
+    for tool in mcp._tool_manager.list_tools():
+        if tool.name == "batch":
+            continue
+        registry[tool.name] = tool.fn
+    return registry
+
+
+_TOOL_REGISTRY: Dict[str, Callable[..., Any]] = _build_tool_registry()
 
 
 @mcp.tool()
@@ -174,19 +68,12 @@ def batch(
     stop_on_error: stop on first failure (default true); set false only for
       independent inspection operations.
 
-    Available tools: read_csv_preview, load_metadata_from_csv, plan_wide_to_md_format,
-    get_md_format_spec, health_check, get_workflow_guide,
-    get_upload, create_upload, create_upload_from_csv, delete_upload, cancel_upload_queue,
-    list_uploads_status, query_uploads, validate_upload_inputs,
-    get_upload_sample_metadata, update_sample_metadata,
-    wait_for_upload, list_jobs, list_datasets, query_entities,
-    find_initial_dataset, find_initial_datasets,
-    wait_for_dataset, wait_for_datasets_bulk,
-    retry_dataset, delete_dataset, cancel_dataset, query_datasets,
-    download_dataset_table, describe_pipeline,
-    run_normalisation_imputation, run_normalisation_imputation_bulk,
-    generate_pairwise_comparisons, run_pairwise_comparison, run_pairwise_comparison_bulk,
-    run_anova, run_dose_response, run_dose_response_from_upload, run_dose_response_bulk.
+    Available tools: every @mcp.tool registered on this server EXCEPT ``batch``
+    itself. See the TOOL CATEGORIES section in the FastMCP ``instructions``
+    string (mcp_tools.__init__) for the canonical, grouped enumeration, or
+    call ``get_workflow_guide`` for a one-line summary per tool. Passing an
+    unknown tool name returns an ``error_code='unknown_tool'`` entry whose
+    ``error`` field includes the full available-tools list.
 
     ── WORKFLOW EXAMPLE A: inspect an upload by name ────────────────────────────
       operations=[

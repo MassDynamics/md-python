@@ -1,18 +1,8 @@
 """Shared LLM-behaviour mandate for destructive MCP tools.
 
 A destructive tool is one whose effect cannot be undone by a follow-up call.
-For this MCP that means:
-
-  * delete_upload          — wipes upload + uploaded files (server returns 204).
-  * delete_dataset         — wipes a pipeline result dataset (server returns 204).
-  * cancel_dataset         — irrevocably halts a running pipeline job.
-  * cancel_upload_queue    — drops queued background file transfers; uploads
-                             that hadn't started never will (their server
-                             records remain in PENDING).
-  * update_sample_metadata — REPLACES the entire sample_metadata array on an
-                             upload; there is no cell-level patch API.
-
-All five carry the same agent-side behavioural mandate:
+For this MCP the canonical set is enumerated in ``DESTRUCTIVE_TOOL_NAMES``
+below. Every tool in that set carries the same agent-side behavioural mandate:
 
   1. Echo every target id back to the user in plain prose.
   2. Describe the consequence in one sentence (e.g. "deletes the dataset and
@@ -26,9 +16,32 @@ All five carry the same agent-side behavioural mandate:
 
 The fragment is attached to each destructive tool's docstring at import time
 via ``_attach_destructive`` (mirrors ``mcp_tools.pipelines._mandates._attach``).
-Tests assert the fragment is present, so future tools that get added to the
-destructive set will fail loudly if the maintainer forgets to attach it.
+``DESTRUCTIVE_TOOL_NAMES`` is the single source of truth: a regression test
+(tests/mcp_tools/test_mandate_wiring.py) verifies that every name in this set
+exists on the MCP server AND carries the DESTRUCTIVE FRAGMENT in its
+docstring. Adding a new destructive tool? Add its name here, call
+``_attach_destructive`` from the tool's module, done — the test will block
+any drift.
 """
+
+# Canonical set of destructive MCP tool names. Keep alphabetised within each
+# group to make diff review easier.
+DESTRUCTIVE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        # Upload lifecycle
+        "cancel_upload_queue",
+        "delete_upload",
+        "update_sample_metadata",
+        # Dataset lifecycle
+        "cancel_dataset",
+        "delete_dataset",
+        # Workspace lifecycle
+        "delete_entity_list",
+        "delete_tab",
+        "delete_workspace",
+        "remove_module_from_tab",
+    }
+)
 
 # Per-tool mandate fragment — append to every destructive tool docstring.
 DESTRUCTIVE_FRAGMENT = """

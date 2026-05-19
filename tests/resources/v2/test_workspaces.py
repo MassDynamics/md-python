@@ -323,6 +323,94 @@ class TestTabModules:
         assert call[1]["json"] == {"settings": {"text": "<p>new body</p>"}}
 
 
+def _render_response(status_code, json_body=None, retry_after=None):
+    response = _response(status_code, json_body=json_body)
+    response.headers = {}
+    if retry_after is not None:
+        response.headers["Retry-After"] = str(retry_after)
+    return response
+
+
+class TestRenderVisualisation:
+    @pytest.fixture
+    def mock_client(self):
+        return Mock(spec=MDClientV2)
+
+    @pytest.fixture
+    def modules(self, mock_client):
+        return TabModules(mock_client)
+
+    def test_returns_body_on_200(self, modules, mock_client):
+        mock_client._make_request.return_value = _render_response(
+            200, json_body={"data": [], "layout": {}}
+        )
+        body = modules.render_visualisation(WS_ID, TAB_ID, MOD_ID, poll=False)
+        assert body == {"data": [], "layout": {}}
+        call = mock_client._make_request.call_args
+        assert call[1]["method"] == "GET"
+        assert call[1]["endpoint"] == (
+            f"/workspaces/{WS_ID}/tabs/{TAB_ID}/modules/{MOD_ID}/visualisation"
+        )
+
+    def test_returns_rendering_envelope_when_poll_false(self, modules, mock_client):
+        mock_client._make_request.return_value = _render_response(202, retry_after=4)
+        out = modules.render_visualisation(WS_ID, TAB_ID, MOD_ID, poll=False)
+        assert out == {"status": "rendering", "retry_after": 4}
+
+    def test_polls_until_200(self, modules, mock_client):
+        mock_client._make_request.side_effect = [
+            _render_response(202, retry_after=1),
+            _render_response(202, retry_after=1),
+            _render_response(200, json_body={"ok": True}),
+        ]
+        sleeps = []
+        body = modules.render_visualisation(
+            WS_ID,
+            TAB_ID,
+            MOD_ID,
+            poll=True,
+            timeout_s=60,
+            sleep=sleeps.append,
+        )
+        assert body == {"ok": True}
+        assert sleeps == [1.0, 1.0]
+        assert mock_client._make_request.call_count == 3
+
+    def test_clamps_retry_after_to_max(self, modules, mock_client):
+        mock_client._make_request.side_effect = [
+            _render_response(202, retry_after=999),
+            _render_response(200, json_body={"ok": True}),
+        ]
+        sleeps = []
+        modules.render_visualisation(
+            WS_ID,
+            TAB_ID,
+            MOD_ID,
+            poll=True,
+            timeout_s=60,
+            max_retry_s=5,
+            sleep=sleeps.append,
+        )
+        assert sleeps == [5.0]
+
+    def test_polling_times_out(self, modules, mock_client):
+        mock_client._make_request.return_value = _render_response(202, retry_after=10)
+        with pytest.raises(TimeoutError, match="still 202"):
+            modules.render_visualisation(
+                WS_ID,
+                TAB_ID,
+                MOD_ID,
+                poll=True,
+                timeout_s=0.0,
+                sleep=lambda _s: None,
+            )
+
+    def test_non_2xx_raises(self, modules, mock_client):
+        mock_client._make_request.return_value = _response(404, text="missing module")
+        with pytest.raises(Exception, match="404"):
+            modules.render_visualisation(WS_ID, TAB_ID, MOD_ID, poll=False)
+
+
 class TestCreateWithDefaults:
     """create_with_defaults bakes in registry defaults so the persisted
     module always carries a complete settings hash."""

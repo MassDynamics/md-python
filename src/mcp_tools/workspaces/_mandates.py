@@ -22,8 +22,29 @@ Two extra rules apply on top of the pipeline mandates:
      or set it to a value consistent with the condition.
 
 The fragment is attached to ``add_module_to_tab`` and ``update_tab_module``
-docstrings at import time.
+docstrings at import time. The canonical set of tools that MUST carry the
+visualisation mandate is enumerated in ``VISUALISATION_MANDATE_TOOL_NAMES``
+below — single source of truth, mirrored by the test in
+tests/mcp_tools/test_mandate_wiring.py. Add a new visualisation-mandate tool?
+Update the set here AND call ``_attach_visualisation`` from its module, or
+the regression test fails.
+
+Note on scope: only ``add_module_to_tab`` and ``update_tab_module`` carry
+this mandate. The text-module and plotly-json-module tools deliberately do
+NOT — their only user-supplied value is the body / figure itself, so there
+is no platform-default vs LLM-recommendation table to walk through.
 """
+
+# Canonical set of visualisation-mandate tool names. The mandate applies to
+# tools that PLACE or RECONFIGURE a parameterised module — i.e. anything that
+# would benefit from the two-defaults Q&A. Pure content modules (text,
+# plotly-json) are excluded; see the docstring above.
+VISUALISATION_MANDATE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "add_module_to_tab",
+        "update_tab_module",
+    }
+)
 
 VISUALISATION_MANDATE_FRAGMENT = """
 

@@ -18,7 +18,9 @@ def delete_upload(upload_id: str) -> str:
     datasets first via delete_dataset, then retry delete_upload.
 
     Returns a success message on 204, a friendly "has datasets" message on
-    409, and "Failed to delete upload: ..." for any other server error.
+    409, and an ``Error: ...`` prose envelope for any other server error
+    (per the mcp_tools.__init__ CONTRIBUTOR CONTRACT — prose tools surface
+    failures with the ``Error:`` sentinel).
     """
     try:
         ok = get_client().uploads.delete(upload_id)
@@ -30,9 +32,9 @@ def delete_upload(upload_id: str) -> str:
                 "Delete them first via delete_dataset, then call "
                 "delete_upload again."
             )
-        return f"Failed to delete upload: {e}"
+        return f"Error: {e}"
     return (
         "Upload deleted successfully"
         if ok
-        else "Failed to delete upload (unknown server response)"
+        else "Error: delete_upload returned an unknown server response"
     )

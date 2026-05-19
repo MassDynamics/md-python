@@ -110,9 +110,22 @@ class TestCreate:
             lists.create(
                 workspace_id=WS_ID,
                 name="x",
-                entity_type="metabolite",
+                entity_type="lipid",
                 items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
             )
+
+    def test_accepts_metabolite_entity_type(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(
+            201, _list_payload(type="metabolite")
+        )
+        lists.create(
+            workspace_id=WS_ID,
+            name="Top metabolites",
+            entity_type="metabolite",
+            items=[{"entity_id": "HMDB0000001", "group_id": 1, "dataset_id": DATASET_ID}],
+        )
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload["entity_type"] == "metabolite"
 
     def test_rejects_empty_items(self, lists):
         with pytest.raises(ValueError, match="at least one"):
@@ -226,9 +239,23 @@ class TestUpdate:
                 workspace_id=WS_ID,
                 list_id=LIST_ID,
                 name="x",
-                entity_type="metabolite",
+                entity_type="lipid",
                 items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
             )
+
+    def test_update_accepts_metabolite_entity_type(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(
+            200, _list_payload(type="metabolite")
+        )
+        lists.update(
+            workspace_id=WS_ID,
+            list_id=LIST_ID,
+            name="x",
+            entity_type="metabolite",
+            items=[{"entity_id": "HMDB0000001", "group_id": 1, "dataset_id": DATASET_ID}],
+        )
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload["entity_type"] == "metabolite"
 
     def test_update_rejects_empty_items(self, lists):
         with pytest.raises(ValueError, match="at least one"):
@@ -250,6 +277,70 @@ class TestUpdate:
                 entity_type="protein",
                 items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
             )
+
+
+class TestList:
+    @pytest.fixture
+    def mock_client(self):
+        return Mock(spec=MDClientV2)
+
+    @pytest.fixture
+    def lists(self, mock_client):
+        return EntityLists(mock_client)
+
+    def test_returns_envelope_with_decoded_data(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(
+            200,
+            {
+                "data": [_list_payload()],
+                "pagination": {
+                    "current_page": 1,
+                    "per_page": 50,
+                    "total_count": 1,
+                    "total_pages": 1,
+                },
+            },
+        )
+        body = lists.list(WS_ID)
+        call = mock_client._make_request.call_args
+        assert call[1]["method"] == "GET"
+        assert call[1]["endpoint"] == f"/workspaces/{WS_ID}/entity_lists"
+        assert call[1]["params"] == {"page": 1}
+        assert len(body["data"]) == 1
+        assert isinstance(body["data"][0], EntityList)
+        assert body["pagination"]["total_count"] == 1
+
+    def test_list_all_pages_through(self, lists, mock_client):
+        page1 = {
+            "data": [_list_payload(id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")],
+            "pagination": {
+                "current_page": 1,
+                "per_page": 1,
+                "total_count": 2,
+                "total_pages": 2,
+            },
+        }
+        page2 = {
+            "data": [_list_payload(id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")],
+            "pagination": {
+                "current_page": 2,
+                "per_page": 1,
+                "total_count": 2,
+                "total_pages": 2,
+            },
+        }
+        mock_client._make_request.side_effect = [
+            _response(200, page1),
+            _response(200, page2),
+        ]
+        out = lists.list_all(WS_ID)
+        assert len(out) == 2
+        assert mock_client._make_request.call_count == 2
+
+    def test_list_propagates_server_error(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(500, text="boom")
+        with pytest.raises(Exception, match="500"):
+            lists.list(WS_ID)
 
 
 class TestDelete:

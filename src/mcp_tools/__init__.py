@@ -1,5 +1,29 @@
 from mcp.server.fastmcp import FastMCP
 
+# ──────────────────────────────────────────────────────────────────────────────
+# CONTRIBUTOR CONTRACT — error envelopes
+#
+# Every MCP tool returns ONE of:
+#
+#   * JSON-returning tools (their success return is a JSON string parsed by
+#     the caller via ``json.loads``): on failure they MUST return
+#     ``json.dumps({"error": "..."})``. Never return a bare ``"Error: ..."``
+#     prose string from a JSON tool — it breaks ``json.loads`` for the caller.
+#
+#   * Prose-returning tools (their success return starts with a sentinel verb
+#     like "Upload created.", "Dataset deleted successfully", "Module
+#     placed."): on failure they MUST return a string starting with
+#     ``"Error: "``. The legacy ``"Failed to <verb> <noun>"`` prefix is
+#     accepted by the contract for back-compat (it appears in the body of
+#     errors re-raised from SDK resources), but new code returns
+#     ``f"Error: {e}"`` so the LLM can branch on a single sentinel.
+#
+# When you add a new tool, decide its return shape FIRST, then pick the
+# envelope from this rule. The decision is mechanical: ``return json.dumps``
+# of any payload → JSON envelope; ``return f"<verb sentence>"`` → prose
+# envelope. Tests under tests/mcp_tools/test_error_envelopes.py check this.
+# ──────────────────────────────────────────────────────────────────────────────
+
 mcp = FastMCP(
     "mass-dynamics",
     instructions="""
@@ -35,19 +59,29 @@ Every tool returns ONE of:
     get_upload_sample_metadata,
     list_uploads_status, find_initial_datasets, wait_for_datasets_bulk,
     download_dataset_table, run_normalisation_imputation_bulk,
-    run_pairwise_comparison_bulk, run_dose_response_bulk, and
-    list_jobs when called WITHOUT upload_id.
+    run_pairwise_comparison_bulk, run_dose_response_bulk,
+    list_workspaces, get_workspace, list_tabs, get_tab,
+    list_tab_modules, get_tab_module, list_entity_lists, get_entity_list,
+    list_module_types, describe_module_type, render_module_visualisation,
+    and list_jobs when called WITHOUT upload_id.
   - Prose string starting with a sentinel verb — "Upload created.",
     "Upload record created. ID:", "Normalisation/imputation pipeline
     started. Dataset ID:", "Pairwise comparison pipeline started. Dataset
     ID:", "ANOVA pipeline started. Dataset ID:", "Dose response pipeline
     started. Dataset ID:", "Sample metadata updated successfully",
     "Dataset deleted successfully", "Dataset retry triggered successfully",
-    "Dataset cancellation requested", "Upload deleted successfully".
+    "Dataset cancellation requested", "Upload deleted successfully",
+    "Workspace created. ID:", "Workspace deleted successfully. ID:",
+    "Tab created. ID:", "Tab deleted successfully. ID:",
+    "Module placed. ID:", "Text module placed. ID:",
+    "Plotly JSON module placed. ID:", "Module removed successfully. ID:",
+    "Entity list created. ID:", "Entity list deleted successfully. ID:".
     Branch on the sentinel, not on json.loads.
-  - Error envelope: JSON tools return {"error": "..."}. Prose tools return
-    strings starting with "Error:", "Failed to ...", or "STOP". Never
-    treat a non-JSON string as JSON.
+  - Error envelope: JSON tools return {"error": "..."}; prose tools return
+    a string starting with "Error: ". Branch on this sentinel. The legacy
+    prefix "Failed to <verb> <noun>" may still appear INSIDE the body of an
+    Error string (re-raised SDK error message), but never as the leading
+    sentinel of a tool return. Never treat a non-JSON string as JSON.
 
 TOOL CATEGORIES — use roughly in this order:
   1. File tools    : read_csv_preview, load_metadata_from_csv,
@@ -77,7 +111,8 @@ TOOL CATEGORIES — use roughly in this order:
                      add_module_to_tab, list_tab_modules, get_tab_module,
                      update_tab_module, remove_module_from_tab,
                      add_text_module, update_text_module,
-                     create_entity_list, get_entity_list,
+                     add_plotly_json_module, render_module_visualisation,
+                     create_entity_list, list_entity_lists, get_entity_list,
                      update_entity_list, delete_entity_list
   6. Utility       : health_check, batch, get_workflow_guide
 
@@ -136,8 +171,10 @@ Before calling any of these tools, echo the target id(s) back to the user,
 describe what will change, and wait for an explicit "yes, <action> <id>":
   delete_upload, delete_dataset, cancel_dataset, cancel_upload_queue,
   update_sample_metadata, delete_workspace, delete_tab,
-  remove_module_from_tab.
+  remove_module_from_tab, delete_entity_list.
 Never chain a destructive call after a query in the same turn.
+(Source of truth: mcp_tools._destructive.DESTRUCTIVE_TOOL_NAMES — a
+regression test fails if this list drifts.)
 
 VISUALISATION RULE
 Before calling add_module_to_tab or update_tab_module, the LLM MUST
@@ -152,6 +189,13 @@ Do not call wait_for_dataset or wait_for_upload more than ~10 times in a
 row without checking in with the user. If the state is still RUNNING or
 PENDING after ~10 polls, report progress ("still RUNNING after N checks,
 ~M minutes elapsed") and ask whether to keep waiting.
+
+render_module_visualisation enforces a hard internal cap of ~10 HTTP
+requests per MCP call. When the server is still rendering after that, the
+tool returns ``{"status": "rendering", "polls": N, "retry_after": int,
+"reason": "..."}``. Treat each subsequent call as ONE more "wait" toward
+the same 10-poll check-in limit — after ~10 rendering envelopes in a row,
+report progress to the user and ask before continuing.
 
 ENTITY-DATA BOUNDARY — strict rule
 Mass Dynamics handles all data and statistical processing. You must NEVER

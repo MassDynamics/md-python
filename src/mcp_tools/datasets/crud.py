@@ -85,9 +85,9 @@ def cancel_dataset(dataset_id: str) -> str:
     try:
         ok = get_client().datasets.cancel(dataset_id)
     except Exception as e:
-        return f"Failed to cancel dataset: {e}"
+        return f"Error: {e}"
     return (
         "Dataset cancellation requested"
         if ok
-        else "Failed to cancel dataset (unknown server response)"
+        else "Error: cancel_dataset returned an unknown server response"
     )

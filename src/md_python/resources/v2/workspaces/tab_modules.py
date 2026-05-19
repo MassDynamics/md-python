@@ -1,32 +1,14 @@
-"""
-Workspaces resource for the MD Python v2 client.
+"""Tab-modules resource — modules placed on a tab's react-grid-layout grid."""
 
-Maps the `/api/workspaces`, `/api/workspaces/:id/tabs`, and
-`/api/workspaces/:id/tabs/:id/modules` endpoints
-(see `app/api/api/v2/workspaces/`).
-
-The visual environment of the app is structured as
-``Workspace → Tab → Module``. A tab holds a ``layout`` of modules placed on a
-react-grid-layout grid (``x``, ``y``, ``width``, ``height`` in grid units).
-"""
-
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ...models import RegisteredModule, Tab, TabModule, Workspace
-from .entity_lists import EntityLists
+from ....models import RegisteredModule, TabModule
+from ._common import _JSON_HEADERS, _check
 
 if TYPE_CHECKING:
-    from ...base_client import BaseMDClient
-    from .module_registry import ModuleRegistry
-
-
-_PAGE_RESPONSE = Dict[str, Any]
-_JSON_HEADERS = {"Content-Type": "application/json"}
-
-
-def _check(response: Any, expected: int, action: str) -> None:
-    if response.status_code != expected:
-        raise Exception(f"Failed to {action}: {response.status_code} - {response.text}")
+    from ....base_client import BaseMDClient
+    from ..module_registry import ModuleRegistry
 
 
 class TabModules:
@@ -52,7 +34,7 @@ class TabModules:
 
     def _get_registry(self) -> "ModuleRegistry":
         if self._registry is None:
-            from .module_registry import ModuleRegistry
+            from ..module_registry import ModuleRegistry
 
             self._registry = ModuleRegistry(self._client)
         return self._registry
@@ -285,211 +267,79 @@ class TabModules:
         _check(response, 204, "delete module")
         return True
 
-
-class Tabs:
-    """Tabs inside a workspace. Reached via ``client.workspaces.tabs``."""
-
-    def __init__(self, client: "BaseMDClient"):
-        self._client = client
-
-    def _base(self, workspace_id: str) -> str:
-        return f"/workspaces/{workspace_id}/tabs"
-
-    def create(
-        self,
-        workspace_id: str,
-        name: str,
-        settings: Optional[Dict[str, Any]] = None,
-    ) -> Tab:
-        """Create a tab. ``tab_index`` is auto-assigned to ``max + 1``."""
-        payload: Dict[str, Any] = {"name": name}
-        if settings is not None:
-            payload["settings"] = settings
-
-        response = self._client._make_request(
-            method="POST",
-            endpoint=self._base(workspace_id),
-            json=payload,
-            headers=_JSON_HEADERS,
-        )
-        _check(response, 201, "create tab")
-        return Tab.from_json(response.json())
-
-    def list(self, workspace_id: str, page: int = 1) -> _PAGE_RESPONSE:
-        """List tabs in a workspace, paginated and ordered by ``tab_index`` asc.
-
-        Returns the raw paginated envelope::
-
-            {"data": [Tab, ...], "pagination": {...}}
-
-        with the ``data`` items decoded into :class:`Tab` objects.
-        """
-        response = self._client._make_request(
-            method="GET",
-            endpoint=self._base(workspace_id),
-            params={"page": page},
-        )
-        _check(response, 200, "list tabs")
-        body = response.json()
-        return {
-            "data": [Tab.from_json(t) for t in body.get("data", [])],
-            "pagination": body.get("pagination", {}),
-        }
-
-    def list_all(self, workspace_id: str) -> List[Tab]:
-        """Convenience: page through all tabs in a workspace."""
-        out: List[Tab] = []
-        page = 1
-        while True:
-            body = self.list(workspace_id=workspace_id, page=page)
-            out.extend(body["data"])
-            pagination = body["pagination"]
-            if page >= int(pagination.get("total_pages", page)):
-                break
-            page += 1
-        return out
-
-    def get(self, workspace_id: str, tab_id: str) -> Optional[Tab]:
-        response = self._client._make_request(
-            method="GET",
-            endpoint=f"{self._base(workspace_id)}/{tab_id}",
-        )
-        if response.status_code == 404:
-            return None
-        _check(response, 200, "get tab")
-        return Tab.from_json(response.json())
-
-    def update(
+    def render_visualisation(
         self,
         workspace_id: str,
         tab_id: str,
-        name: Optional[str] = None,
-        layout: Optional[Dict[str, Any]] = None,
-        settings: Optional[Dict[str, Any]] = None,
-    ) -> Tab:
-        """Partial update. Locked tabs reject updates."""
-        payload: Dict[str, Any] = {}
-        if name is not None:
-            payload["name"] = name
-        if layout is not None:
-            payload["layout"] = layout
-        if settings is not None:
-            payload["settings"] = settings
+        module_id: str,
+        *,
+        poll: bool = True,
+        timeout_s: float = 300.0,
+        min_retry_s: float = 1.0,
+        max_retry_s: float = 30.0,
+        sleep: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Fetch the rendered visualisation JSON for a module.
 
-        response = self._client._make_request(
-            method="PUT",
-            endpoint=f"{self._base(workspace_id)}/{tab_id}",
-            json=payload,
-            headers=_JSON_HEADERS,
-        )
-        _check(response, 200, "update tab")
-        return Tab.from_json(response.json())
+        Endpoint: ``GET /workspaces/:ws/tabs/:tab/modules/:id/visualisation``.
 
-    def delete(self, workspace_id: str, tab_id: str) -> bool:
-        response = self._client._make_request(
-            method="DELETE",
-            endpoint=f"{self._base(workspace_id)}/{tab_id}",
-        )
-        _check(response, 204, "delete tab")
-        return True
+        The server may answer with either:
+          * 200 — the visualisation JSON in the body.
+          * 202 — render still in flight; ``Retry-After`` (seconds) hints
+            at when to re-request the same URL.
 
+        When ``poll=True`` (default), this method keeps re-requesting
+        until a 200 lands or ``timeout_s`` elapses. When ``poll=False``,
+        a 202 is returned to the caller via the envelope::
 
-class Workspaces:
-    """V2 workspaces resource — the entry point for the visual environment.
+            {"status": "rendering", "retry_after": int}
 
-    Tabs and tab-modules are reached via the nested resources::
+        Args:
+          workspace_id, tab_id, module_id: Identify the module to render.
+          poll: Follow 202 replies until 200 or timeout. Default True.
+          timeout_s: Maximum total wall-clock time to spend polling.
+          min_retry_s, max_retry_s: Clamp for the server-supplied
+            ``Retry-After`` (when missing, defaults to ``min_retry_s``).
+          sleep: Optional callable ``f(seconds) -> None`` to override
+            ``time.sleep`` — useful for tests.
 
-        client.workspaces.create(name="...")
-        client.workspaces.tabs.create(workspace_id, name="...")
-        client.workspaces.modules.create(workspace_id, tab_id, ...)
-    """
+        Returns:
+          The visualisation JSON body (dict), or the rendering envelope
+          when ``poll=False`` and the server is still working.
 
-    def __init__(
-        self,
-        client: "BaseMDClient",
-        registry: Optional["ModuleRegistry"] = None,
-    ):
-        self._client = client
-        self.tabs = Tabs(client)
-        self.modules = TabModules(client, registry=registry)
-        self.entity_lists = EntityLists(client)
+        Raises:
+          TimeoutError: ``timeout_s`` exceeded while polling.
+          Exception: any non-200/202 response.
+        """
+        endpoint = f"{self._base(workspace_id, tab_id)}/{module_id}/visualisation"
+        sleeper = sleep if sleep is not None else time.sleep
+        deadline = time.monotonic() + timeout_s
 
-    def create(self, name: str, description: Optional[str] = None) -> Workspace:
-        payload: Dict[str, Any] = {"name": name}
-        if description is not None:
-            payload["description"] = description
-
-        response = self._client._make_request(
-            method="POST",
-            endpoint="/workspaces",
-            json=payload,
-            headers=_JSON_HEADERS,
-        )
-        _check(response, 201, "create workspace")
-        return Workspace.from_json(response.json())
-
-    def list(self, page: int = 1) -> _PAGE_RESPONSE:
-        """List workspaces accessible to the current user, 50 per page."""
-        response = self._client._make_request(
-            method="GET",
-            endpoint="/workspaces",
-            params={"page": page},
-        )
-        _check(response, 200, "list workspaces")
-        body = response.json()
-        return {
-            "data": [Workspace.from_json(w) for w in body.get("data", [])],
-            "pagination": body.get("pagination", {}),
-        }
-
-    def list_all(self) -> List[Workspace]:
-        """Convenience: page through all accessible workspaces."""
-        out: List[Workspace] = []
-        page = 1
         while True:
-            body = self.list(page=page)
-            out.extend(body["data"])
-            pagination = body["pagination"]
-            if page >= int(pagination.get("total_pages", page)):
-                break
-            page += 1
-        return out
+            response = self._client._make_request(method="GET", endpoint=endpoint)
+            if response.status_code == 200:
+                return response.json()
+            if response.status_code != 202:
+                raise Exception(
+                    f"Failed to render visualisation: "
+                    f"{response.status_code} - {response.text}"
+                )
 
-    def get(self, workspace_id: str) -> Optional[Workspace]:
-        response = self._client._make_request(
-            method="GET",
-            endpoint=f"/workspaces/{workspace_id}",
-        )
-        if response.status_code == 404:
-            return None
-        _check(response, 200, "get workspace")
-        return Workspace.from_json(response.json())
+            retry_raw = response.headers.get("Retry-After") if hasattr(
+                response, "headers"
+            ) else None
+            try:
+                retry_after = float(retry_raw) if retry_raw is not None else min_retry_s
+            except (TypeError, ValueError):
+                retry_after = min_retry_s
+            retry_after = max(min_retry_s, min(max_retry_s, retry_after))
 
-    def update(
-        self,
-        workspace_id: str,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Workspace:
-        payload: Dict[str, Any] = {}
-        if name is not None:
-            payload["name"] = name
-        if description is not None:
-            payload["description"] = description
-
-        response = self._client._make_request(
-            method="PUT",
-            endpoint=f"/workspaces/{workspace_id}",
-            json=payload,
-            headers=_JSON_HEADERS,
-        )
-        _check(response, 200, "update workspace")
-        return Workspace.from_json(response.json())
-
-    def delete(self, workspace_id: str) -> bool:
-        response = self._client._make_request(
-            method="DELETE",
-            endpoint=f"/workspaces/{workspace_id}",
-        )
-        _check(response, 204, "delete workspace")
-        return True
+            if not poll:
+                return {"status": "rendering", "retry_after": int(retry_after)}
+            if time.monotonic() + retry_after > deadline:
+                raise TimeoutError(
+                    f"render_visualisation: still 202 after {timeout_s:.0f}s "
+                    f"(workspace_id={workspace_id}, tab_id={tab_id}, "
+                    f"module_id={module_id})"
+                )
+            sleeper(retry_after)

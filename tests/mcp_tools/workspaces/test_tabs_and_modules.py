@@ -7,9 +7,11 @@ from uuid import UUID
 
 from mcp_tools.workspaces.modules import (
     add_module_to_tab,
+    add_plotly_json_module,
     add_text_module,
     list_tab_modules,
     remove_module_from_tab,
+    render_module_visualisation,
     update_tab_module,
     update_text_module,
 )
@@ -728,3 +730,199 @@ class TestUpdateTextModule:
         wrapped = getattr(update_text_module, "fn", None) or update_text_module
         doc = (update_text_module.__doc__ or "") + (wrapped.__doc__ or "")
         assert "LLM BEHAVIOURAL MANDATES — VISUALISATION" not in doc
+
+
+class TestRenderModuleVisualisation:
+    def test_returns_json_body_on_success(self, mock_client):
+        # MCP tool layer always drives polling itself (resource called with
+        # poll=False) so the per-call HTTP count stays bounded by the
+        # internal cap. First (and only) resource call returns the body.
+        mock_client.workspaces.modules.render_visualisation.return_value = {
+            "data": [{"type": "scatter"}],
+            "layout": {"title": "x"},
+        }
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID)
+        body = json.loads(result)
+        assert body["data"][0]["type"] == "scatter"
+
+        kwargs = mock_client.workspaces.modules.render_visualisation.call_args.kwargs
+        assert kwargs == {
+            "workspace_id": WS_ID,
+            "tab_id": TAB_ID,
+            "module_id": MOD_ID,
+            "poll": False,
+            "timeout_s": 300.0,
+        }
+        # One MCP call MUST translate to exactly one HTTP request when the
+        # server answers 200 on the first try — the MCP layer must not
+        # over-poll a ready render.
+        assert mock_client.workspaces.modules.render_visualisation.call_count == 1
+
+    def test_timeout_returns_error_prose(self, mock_client):
+        mock_client.workspaces.modules.render_visualisation.side_effect = TimeoutError(
+            "render_visualisation: still 202 after 60s"
+        )
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = render_module_visualisation(
+                WS_ID, TAB_ID, MOD_ID, poll=True, timeout_s=60
+            )
+        assert result.startswith("Error:")
+        assert "still 202" in result
+
+    def test_returns_envelope_when_poll_false(self, mock_client):
+        mock_client.workspaces.modules.render_visualisation.return_value = {
+            "status": "rendering",
+            "retry_after": 5,
+        }
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = render_module_visualisation(
+                WS_ID, TAB_ID, MOD_ID, poll=False
+            )
+        body = json.loads(result)
+        assert body["status"] == "rendering"
+        assert body["retry_after"] == 5
+
+    def test_internal_poll_cap_returns_rendering_envelope(self, mock_client):
+        """When the server keeps answering 202, ONE MCP call makes at most
+        _RENDER_MAX_POLLS HTTP requests before surfacing a rendering
+        envelope to the LLM — per the polling-discipline mandate.
+        """
+        from mcp_tools.workspaces.modules import _RENDER_MAX_POLLS
+
+        # Server always says "still rendering" with retry_after=0 so the
+        # tool never actually sleeps in the test.
+        mock_client.workspaces.modules.render_visualisation.return_value = {
+            "status": "rendering",
+            "retry_after": 0,
+        }
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = render_module_visualisation(
+                WS_ID, TAB_ID, MOD_ID, poll=True, timeout_s=300.0
+            )
+
+        body = json.loads(result)
+        assert body["status"] == "rendering"
+        assert body["polls"] == _RENDER_MAX_POLLS
+        assert "internal poll cap" in body["reason"]
+        # Exactly _RENDER_MAX_POLLS HTTP requests — the hard cap.
+        assert (
+            mock_client.workspaces.modules.render_visualisation.call_count
+            == _RENDER_MAX_POLLS
+        )
+
+    def test_internal_poll_succeeds_on_second_try(self, mock_client):
+        """Resource answers 202 first, then a real body. Tool unwraps the
+        body without surfacing the rendering envelope."""
+        mock_client.workspaces.modules.render_visualisation.side_effect = [
+            {"status": "rendering", "retry_after": 0},
+            {"data": [{"type": "bar"}], "layout": {}},
+        ]
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = render_module_visualisation(
+                WS_ID, TAB_ID, MOD_ID, poll=True, timeout_s=300.0
+            )
+        body = json.loads(result)
+        assert body["data"][0]["type"] == "bar"
+        assert mock_client.workspaces.modules.render_visualisation.call_count == 2
+
+    def test_internal_poll_returns_envelope_when_deadline_exceeded(
+        self, mock_client
+    ):
+        """A small timeout_s should produce the rendering envelope BEFORE
+        the internal poll cap when the next retry_after would blow the
+        deadline."""
+        mock_client.workspaces.modules.render_visualisation.return_value = {
+            "status": "rendering",
+            "retry_after": 5,
+        }
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = render_module_visualisation(
+                WS_ID, TAB_ID, MOD_ID, poll=True, timeout_s=0.0
+            )
+        body = json.loads(result)
+        assert body["status"] == "rendering"
+        assert "timeout_s exceeded" in body["reason"]
+        # First request was made; loop bailed before sleeping.
+        assert (
+            mock_client.workspaces.modules.render_visualisation.call_count == 1
+        )
+
+
+class TestAddPlotlyJsonModule:
+    def test_creates_with_plotly_json_settings(self, mock_client):
+        mock_client.workspaces.modules.create.return_value = _module(
+            item_id="plotly_json_renderer",
+            settings={"plotlyJson": {"data": [], "layout": {}}, "title": "My plot"},
+        )
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = add_plotly_json_module(
+                WS_ID,
+                TAB_ID,
+                plotly_json={"data": [{"type": "scatter"}], "layout": {"title": "x"}},
+                title="My plot",
+            )
+
+        assert result.startswith("Plotly JSON module placed.")
+        kwargs = mock_client.workspaces.modules.create.call_args.kwargs
+        assert kwargs["item_id"] == "plotly_json_renderer"
+        assert kwargs["settings"] == {
+            "plotlyJson": {"data": [{"type": "scatter"}], "layout": {"title": "x"}},
+            "title": "My plot",
+        }
+        assert (kwargs["width"], kwargs["height"]) == (12, 6)
+
+    def test_omits_title_when_empty(self, mock_client):
+        mock_client.workspaces.modules.create.return_value = _module(
+            item_id="plotly_json_renderer", settings={"plotlyJson": {}}
+        )
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            add_plotly_json_module(WS_ID, TAB_ID, plotly_json={})
+        kwargs = mock_client.workspaces.modules.create.call_args.kwargs
+        assert kwargs["settings"] == {"plotlyJson": {}}
+
+    def test_non_dict_plotly_json_returns_error(self, mock_client):
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = add_plotly_json_module(
+                WS_ID, TAB_ID, plotly_json="{}"  # type: ignore[arg-type]
+            )
+        assert result.startswith("Error:")
+        assert "must be a dict" in result
+        mock_client.workspaces.modules.create.assert_not_called()
+
+    def test_resource_error_returns_error_prose(self, mock_client):
+        mock_client.workspaces.modules.create.side_effect = Exception(
+            "Failed to create module: 422 - feature flag off"
+        )
+        with patch(
+            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
+        ):
+            result = add_plotly_json_module(
+                WS_ID, TAB_ID, plotly_json={"data": [], "layout": {}}
+            )
+        assert result.startswith("Error:")
+        assert "feature flag off" in result
+
+    def test_docstring_carries_local_only_caveat(self):
+        wrapped = getattr(add_plotly_json_module, "fn", None) or add_plotly_json_module
+        doc = (add_plotly_json_module.__doc__ or "") + (wrapped.__doc__ or "")
+        assert "LOCAL-ONLY" in doc.upper()
+        assert "dev.massdynamics.com" in doc
