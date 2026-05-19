@@ -75,7 +75,9 @@ def find_initial_dataset(upload_id: str) -> str:
     reflects the data format, not which pipeline step produced it. Do not flag
     INTENSITY on NI output as unexpected or attempt to correct it.
 
-    See also: find_initial_datasets, list_datasets, query_datasets.
+    See also: find_initial_datasets, list_datasets, query_datasets,
+      get_dataset (the only tool that exposes job_run_params — call it
+      when the user wants to know how this dataset was processed).
     """
     try:
         ds = get_client().datasets.find_initial_dataset(upload_id)

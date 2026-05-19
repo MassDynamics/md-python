@@ -4,6 +4,7 @@ from .._destructive import _attach_destructive
 from .crud import cancel_dataset, delete_dataset, retry_dataset
 from .download import download_dataset_table
 from .find import find_initial_dataset, find_initial_datasets
+from .get import get_dataset
 from .list import list_datasets, list_jobs
 from .query import query_datasets
 from .wait import wait_for_dataset
@@ -21,6 +22,7 @@ __all__ = [
     "list_datasets",
     "find_initial_dataset",
     "find_initial_datasets",
+    "get_dataset",
     "wait_for_dataset",
     "wait_for_datasets_bulk",
     "retry_dataset",

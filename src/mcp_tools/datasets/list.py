@@ -87,7 +87,9 @@ def list_datasets(upload_id: str, type_filter: Optional[str] = None) -> str:
     raw upload input. The type reflects data format, not which step
     produced it — this is correct, do not flag it.
 
-    See also: find_initial_dataset, query_datasets, list_jobs.
+    See also: find_initial_dataset, query_datasets, list_jobs,
+      get_dataset (the only tool that exposes job_run_params — call it
+      when the user wants to know how a dataset in this list was run).
     """
     datasets = get_client().datasets.list_by_upload(upload_id)
     if type_filter:

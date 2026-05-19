@@ -55,6 +55,11 @@ def query_datasets(
 
     experiment_id is the upload UUID that owns the dataset. Returns
     {"error": "..."} on HTTP failure.
+
+    NOTE: ``query_datasets`` only returns summary fields. To see how a
+    dataset was run — normalisation / imputation method, comparison
+    config, filter criteria, etc. — call ``get_dataset(dataset_id)``,
+    which is the only tool that exposes ``job_run_params``.
     """
     try:
         response = get_client().datasets.query(

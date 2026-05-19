@@ -92,7 +92,8 @@ TOOL CATEGORIES — use roughly in this order:
                      update_sample_metadata, list_uploads_status,
                      query_uploads, cancel_upload_queue, delete_upload
   3. Dataset tools : find_initial_dataset, find_initial_datasets,
-                     list_datasets, list_jobs, wait_for_dataset,
+                     get_dataset, list_datasets, list_jobs,
+                     wait_for_dataset,
                      wait_for_datasets_bulk, retry_dataset, delete_dataset,
                      cancel_dataset, query_datasets, download_dataset_table,
                      query_entities, map_protein_to_protein,
