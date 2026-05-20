@@ -13,6 +13,7 @@ from .dose_response import (
     run_dose_response_bulk,
     run_dose_response_from_upload,
 )
+from .mofa import run_mofa
 from .normalisation import (
     run_normalisation_imputation,
     run_normalisation_imputation_bulk,
@@ -30,6 +31,7 @@ _attach(
     run_dose_response,
     run_dose_response_bulk,
     run_dose_response_from_upload,
+    run_mofa,
     run_normalisation_imputation,
     run_normalisation_imputation_bulk,
     run_pairwise_comparison,
@@ -44,6 +46,7 @@ __all__ = [
     "run_dose_response",
     "run_dose_response_bulk",
     "run_dose_response_from_upload",
+    "run_mofa",
     "run_normalisation_imputation",
     "run_normalisation_imputation_bulk",
     "run_pairwise_comparison",

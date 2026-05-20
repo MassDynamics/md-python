@@ -4,6 +4,7 @@ from md_python.models import SampleMetadata
 from md_python.models.dataset_builders import (
     DoseResponseDataset,
     MinimalDataset,
+    MOFADataset,
     NormalisationImputationDataset,
     PairwiseComparisonDataset,
 )
@@ -71,6 +72,108 @@ def test_minimal_dataset_build_and_run(mocker):
     client.datasets.create.return_value = "min-id"
     out = md.run(client)
     assert out == "min-id"
+
+
+def test_mofa_dataset_build_and_run(mocker):
+    mofa = MOFADataset(
+        input_dataset_ids=[str(UUID(int=7)), str(UUID(int=8))],
+        dataset_name="MOFA integration",
+    )
+    ds = mofa.to_dataset()
+    assert ds.name == "MOFA integration"
+    assert ds.job_slug == "mofa"
+    assert ds.job_run_params == {
+        "num_factors": 15,
+        "convergence_mode": "fast",
+        "scale_views": True,
+        "center_groups": True,
+        "max_iter": 1000,
+        "ard_factors": True,
+        "drop_factor_threshold": 0.01,
+    }
+    assert len(ds.input_dataset_ids) == 2
+    # dataset_name is NOT placed in job_run_params — the dataset-service
+    # injects it server-side, same as pairwise / NI builders.
+    assert "dataset_name" not in ds.job_run_params
+
+    client = mocker.Mock()
+    client.datasets = mocker.Mock()
+    client.datasets.create.return_value = "mofa-id"
+    assert mofa.run(client) == "mofa-id"
+
+
+def test_mofa_dataset_custom_params_round_trip():
+    mofa = MOFADataset(
+        input_dataset_ids=[str(UUID(int=7)), str(UUID(int=8))],
+        dataset_name="MOFA tuned",
+        num_factors=25,
+        convergence_mode="slow",
+        scale_views=False,
+        center_groups=False,
+        max_iter=5000,
+        ard_factors=False,
+        drop_factor_threshold=0.0,
+    )
+    params = mofa.to_dataset().job_run_params
+    assert params["num_factors"] == 25
+    assert params["convergence_mode"] == "slow"
+    assert params["scale_views"] is False
+    assert params["center_groups"] is False
+    assert params["max_iter"] == 5000
+    assert params["ard_factors"] is False
+    assert params["drop_factor_threshold"] == 0.0
+
+
+def test_mofa_dataset_validation_errors():
+    two_ids = [str(UUID(int=7)), str(UUID(int=8))]
+
+    # fewer than 2 views
+    try:
+        MOFADataset(input_dataset_ids=[str(UUID(int=7))], dataset_name="x").validate()
+        raise AssertionError("expected ValueError for <2 input datasets")
+    except ValueError as e:
+        assert "at least 2" in str(e)
+
+    # num_factors out of range
+    try:
+        MOFADataset(
+            input_dataset_ids=two_ids, dataset_name="x", num_factors=1
+        ).validate()
+        raise AssertionError("expected ValueError for num_factors=1")
+    except ValueError as e:
+        assert "num_factors" in str(e)
+
+    # bad convergence_mode
+    try:
+        MOFADataset(
+            input_dataset_ids=two_ids, dataset_name="x", convergence_mode="turbo"
+        ).validate()
+        raise AssertionError("expected ValueError for bad convergence_mode")
+    except ValueError as e:
+        assert "convergence_mode" in str(e)
+
+    # max_iter out of range
+    try:
+        MOFADataset(input_dataset_ids=two_ids, dataset_name="x", max_iter=50).validate()
+        raise AssertionError("expected ValueError for max_iter=50")
+    except ValueError as e:
+        assert "max_iter" in str(e)
+
+    # drop_factor_threshold out of range
+    try:
+        MOFADataset(
+            input_dataset_ids=two_ids, dataset_name="x", drop_factor_threshold=0.5
+        ).validate()
+        raise AssertionError("expected ValueError for drop_factor_threshold=0.5")
+    except ValueError as e:
+        assert "drop_factor_threshold" in str(e)
+
+    # empty dataset_name
+    try:
+        MOFADataset(input_dataset_ids=two_ids, dataset_name="").validate()
+        raise AssertionError("expected ValueError for empty dataset_name")
+    except ValueError as e:
+        assert "dataset_name" in str(e)
 
 
 def test_builders_validation_errors():

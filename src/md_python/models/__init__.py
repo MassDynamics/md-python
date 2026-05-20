@@ -7,6 +7,7 @@ from .dataset_builders import (
     BaseDatasetBuilder,
     DoseResponseDataset,
     MinimalDataset,
+    MOFADataset,
     NormalisationImputationDataset,
     PairwiseComparisonDataset,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "BaseDatasetBuilder",
     "DoseResponseDataset",
     "MinimalDataset",
+    "MOFADataset",
     "PairwiseComparisonDataset",
     "NormalisationImputationDataset",
     "Workspace",

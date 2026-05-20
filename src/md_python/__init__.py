@@ -12,6 +12,7 @@ from .models import (
     Experiment,
     ExperimentDesign,
     MinimalDataset,
+    MOFADataset,
     NormalisationImputationDataset,
     PairwiseComparisonDataset,
     SampleMetadata,
@@ -35,5 +36,6 @@ __all__ = [
     "PairwiseComparisonDataset",
     "DoseResponseDataset",
     "MinimalDataset",
+    "MOFADataset",
     "NormalisationImputationDataset",
 ]
