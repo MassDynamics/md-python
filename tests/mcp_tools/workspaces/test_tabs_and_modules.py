@@ -789,6 +789,42 @@ class TestRenderModuleVisualisation:
         assert body["status"] == "rendering"
         assert body["retry_after"] == 5
 
+    def test_render_failure_returns_structured_error_envelope(self, mock_client):
+        from md_python.resources.v2.workspaces import RenderVisualisationError
+
+        mock_client.workspaces.modules.render_visualisation.side_effect = (
+            RenderVisualisationError(
+                status_code=400,
+                response_text=(
+                    '{"error": "Visualisation not supported for module '
+                    "type 'missing_values_by_sample_plot'\"}"
+                ),
+            )
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID)
+        body = json.loads(result)
+        assert body["status"] == "error"
+        assert body["http_status"] == 400
+        assert "not supported" in body["error"]
+        assert body["module_id"] == MOD_ID
+        assert body["workspace_id"] == WS_ID
+        assert body["tab_id"] == TAB_ID
+        assert body["detail"]["error"].startswith("Visualisation not supported")
+
+    def test_render_failure_envelope_when_poll_false(self, mock_client):
+        from md_python.resources.v2.workspaces import RenderVisualisationError
+
+        mock_client.workspaces.modules.render_visualisation.side_effect = (
+            RenderVisualisationError(status_code=500, response_text="upstream boom")
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID, poll=False)
+        body = json.loads(result)
+        assert body["status"] == "error"
+        assert body["http_status"] == 500
+        assert body["error"] == "upstream boom"
+
     def test_internal_poll_cap_returns_rendering_envelope(self, mock_client):
         """When the server keeps answering 202, ONE MCP call makes at most
         _RENDER_MAX_POLLS HTTP requests before surfacing a rendering

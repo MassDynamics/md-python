@@ -17,6 +17,8 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 
+from md_python.resources.v2.workspaces import RenderVisualisationError
+
 from .. import mcp
 from .._client import get_client
 from .._destructive import _attach_destructive
@@ -30,6 +32,34 @@ from ._modules_validation import _module_to_dict, resolve_dataset_settings
 # matching internal cap so one MCP call costs at most this many HTTP
 # round-trips, then returns a "still rendering" envelope to the LLM.
 _RENDER_MAX_POLLS = 10
+
+
+def _render_error_envelope(
+    e: RenderVisualisationError, workspace_id: str, tab_id: str, module_id: str
+) -> str:
+    """Build a structured error envelope from a render failure.
+
+    The vis-service returns a real error body on failure (e.g.
+    ``{"error": "Visualisation not supported for module type '...'"}``).
+    Surfacing it as a structured ``{"status": "error", ...}`` envelope —
+    rather than a flat ``Error: ...`` string — lets the LLM branch on the
+    failure: inform the user, decide whether to retry, or pick another
+    module. ``http_status`` distinguishes a client error (4xx — usually a
+    bad module/dataset or an unsupported module type, not worth retrying)
+    from a server error (5xx — may be transient).
+    """
+    return json.dumps(
+        {
+            "status": "error",
+            "http_status": e.status_code,
+            "error": e.error,
+            "workspace_id": workspace_id,
+            "tab_id": tab_id,
+            "module_id": module_id,
+            "detail": e.body,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -434,9 +464,31 @@ def render_module_visualisation(
     "still rendering" envelopes in a row, report progress to the user
     and ask whether to keep waiting.
 
-    Returns the visualisation body as JSON on success, the rendering
-    envelope when the cap fires, or an ``Error: ...`` prose string on
-    HTTP errors / timeouts.
+    Returns one of:
+      * On success — the visualisation body as JSON.
+      * Still rendering after the internal poll cap — a ``{"status":
+        "rendering", ...}`` envelope.
+      * Render FAILED (vis-service returned a non-200/202) — a structured
+        error envelope::
+
+            {
+              "status": "error",
+              "http_status": 400,
+              "error": "<vis-service message>",
+              "workspace_id": "...", "tab_id": "...", "module_id": "...",
+              "detail": <parsed error body or raw text>
+            }
+
+        ACT on this envelope — do not silently swallow it. Tell the user
+        the render failed and why (quote ``error``). ``http_status`` in
+        the 4xx range is a client-side problem — an unsupported module
+        type, a bad/!missing module or dataset — and retrying will not
+        help; surface it and, if appropriate, suggest an alternative
+        module or check the inputs. A 5xx may be transient — offer to
+        retry. When the module type itself is unsupported by the render
+        endpoint, the module still renders in the workspace UI; tell the
+        user they can open the workspace to see it.
+      * Other errors / timeouts — an ``Error: ...`` prose string.
     """
     # Track polls in the MCP layer so the LLM gets a hard guarantee that
     # one tool call never makes more than _RENDER_MAX_POLLS HTTP requests
@@ -451,6 +503,8 @@ def render_module_visualisation(
                 poll=False,
                 timeout_s=timeout_s,
             )
+        except RenderVisualisationError as e:
+            return _render_error_envelope(e, workspace_id, tab_id, module_id)
         except Exception as e:
             return f"Error: {e}"
         return json.dumps(body, indent=2)
@@ -468,6 +522,8 @@ def render_module_visualisation(
                 poll=False,
                 timeout_s=timeout_s,
             )
+        except RenderVisualisationError as e:
+            return _render_error_envelope(e, workspace_id, tab_id, module_id)
         except Exception as e:
             return f"Error: {e}"
 

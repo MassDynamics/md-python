@@ -1,5 +1,6 @@
 """Tab-modules resource — modules placed on a tab's react-grid-layout grid."""
 
+import json
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -9,6 +10,46 @@ from ._common import _JSON_HEADERS, _check
 if TYPE_CHECKING:
     from ....base_client import BaseMDClient
     from ..module_registry import ModuleRegistry
+
+
+class RenderVisualisationError(Exception):
+    """Raised when the visualisation render endpoint returns a non-200/202.
+
+    The vis-service sends a real error body on failure — e.g.
+    ``{"error": "Visualisation not supported for module type '...'"}``.
+    A flat exception string buries that, so this exception keeps the HTTP
+    status and the parsed body as attributes. The render_module_visualisation
+    MCP tool turns them into a structured error envelope an LLM can branch
+    on (inform the user, decide whether to retry, pick another module).
+
+    Attributes:
+      status_code: the HTTP status (e.g. 400, 404, 500).
+      error: the best human-readable message — the vis-service ``error`` /
+        ``message`` / ``detail`` field when the body is JSON, else the raw
+        response text.
+      body: the parsed JSON body (dict) when the response was JSON, else
+        the raw response text.
+    """
+
+    def __init__(self, status_code: int, response_text: str):
+        self.status_code = status_code
+        self.response_text = response_text
+        self.error: str = response_text
+        self.body: Any = response_text
+        try:
+            parsed = json.loads(response_text)
+        except (ValueError, TypeError):
+            parsed = None
+        if isinstance(parsed, dict):
+            self.body = parsed
+            for key in ("error", "message", "detail"):
+                msg = parsed.get(key)
+                if isinstance(msg, str) and msg:
+                    self.error = msg
+                    break
+        super().__init__(
+            f"Failed to render visualisation: {status_code} - {self.error}"
+        )
 
 
 class TabModules:
@@ -309,7 +350,8 @@ class TabModules:
 
         Raises:
           TimeoutError: ``timeout_s`` exceeded while polling.
-          Exception: any non-200/202 response.
+          RenderVisualisationError: any non-200/202 response. Carries
+            ``status_code`` and the parsed ``body`` / ``error`` message.
         """
         endpoint = f"{self._base(workspace_id, tab_id)}/{module_id}/visualisation"
         sleeper = sleep if sleep is not None else time.sleep
@@ -320,9 +362,9 @@ class TabModules:
             if response.status_code == 200:
                 return response.json()
             if response.status_code != 202:
-                raise Exception(
-                    f"Failed to render visualisation: "
-                    f"{response.status_code} - {response.text}"
+                raise RenderVisualisationError(
+                    status_code=response.status_code,
+                    response_text=response.text,
                 )
 
             retry_raw = response.headers.get("Retry-After") if hasattr(

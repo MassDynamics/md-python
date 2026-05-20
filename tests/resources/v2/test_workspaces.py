@@ -4,7 +4,12 @@ import pytest
 
 from md_python.client_v2 import MDClientV2
 from md_python.models import RegisteredModule
-from md_python.resources.v2.workspaces import TabModules, Tabs, Workspaces
+from md_python.resources.v2.workspaces import (
+    RenderVisualisationError,
+    TabModules,
+    Tabs,
+    Workspaces,
+)
 
 WS_ID = "11111111-1111-1111-1111-111111111111"
 TAB_ID = "22222222-2222-2222-2222-222222222222"
@@ -405,10 +410,29 @@ class TestRenderVisualisation:
                 sleep=lambda _s: None,
             )
 
-    def test_non_2xx_raises(self, modules, mock_client):
+    def test_non_2xx_raises_render_error_with_status_and_body(
+        self, modules, mock_client
+    ):
         mock_client._make_request.return_value = _response(404, text="missing module")
-        with pytest.raises(Exception, match="404"):
+        with pytest.raises(RenderVisualisationError) as exc_info:
             modules.render_visualisation(WS_ID, TAB_ID, MOD_ID, poll=False)
+        err = exc_info.value
+        assert err.status_code == 404
+        # Non-JSON body — error and body fall back to the raw text.
+        assert err.error == "missing module"
+        assert err.body == "missing module"
+
+    def test_non_2xx_parses_json_error_body(self, modules, mock_client):
+        mock_client._make_request.return_value = _response(
+            400,
+            text='{"error": "Visualisation not supported for module type \'x\'"}',
+        )
+        with pytest.raises(RenderVisualisationError) as exc_info:
+            modules.render_visualisation(WS_ID, TAB_ID, MOD_ID, poll=False)
+        err = exc_info.value
+        assert err.status_code == 400
+        assert err.error == "Visualisation not supported for module type 'x'"
+        assert err.body == {"error": "Visualisation not supported for module type 'x'"}
 
 
 class TestCreateWithDefaults:

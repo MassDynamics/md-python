@@ -20,8 +20,8 @@ Layout:
 continues to work after the split.
 """
 
-from .tab_modules import TabModules
+from .tab_modules import RenderVisualisationError, TabModules
 from .tabs import Tabs
 from .workspaces import Workspaces
 
-__all__ = ["TabModules", "Tabs", "Workspaces"]
+__all__ = ["RenderVisualisationError", "TabModules", "Tabs", "Workspaces"]
