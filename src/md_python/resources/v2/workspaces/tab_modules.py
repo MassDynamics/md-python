@@ -360,16 +360,19 @@ class TabModules:
         while True:
             response = self._client._make_request(method="GET", endpoint=endpoint)
             if response.status_code == 200:
-                return response.json()
+                body: Dict[str, Any] = response.json()
+                return body
             if response.status_code != 202:
                 raise RenderVisualisationError(
                     status_code=response.status_code,
                     response_text=response.text,
                 )
 
-            retry_raw = response.headers.get("Retry-After") if hasattr(
-                response, "headers"
-            ) else None
+            retry_raw = (
+                response.headers.get("Retry-After")
+                if hasattr(response, "headers")
+                else None
+            )
             try:
                 retry_after = float(retry_raw) if retry_raw is not None else min_retry_s
             except (TypeError, ValueError):
