@@ -74,6 +74,9 @@ _FORMAT_ANNOTATION_COLS: Dict[str, Set[str]] = {
     "md_format_gene": {
         "geneid",
     },
+    "md_format_metabolite": {
+        "metaboliteid",
+    },
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -138,6 +141,30 @@ _MD_FORMAT_GENE_SPEC = {
     ),
 }
 
+_MD_FORMAT_METABOLITE_SPEC = {
+    "MetaboliteId": (
+        "REQUIRED — string — metabolite identifier (e.g. HMDB ID, KEGG ID, "
+        "or compound name)."
+    ),
+    "MetaboliteIntensity": (
+        "REQUIRED — float — measured intensity. Use 0.0 for missing values, "
+        "BUT every row with MetaboliteIntensity=0.0 MUST also have Imputed=1."
+    ),
+    "SampleName": (
+        "REQUIRED — string — sample identifier; must match sample_name in "
+        "sample_metadata exactly (case-sensitive)."
+    ),
+    "Imputed": (
+        "REQUIRED — integer 0 or 1, validated: md-converter rejects any value "
+        "other than 0 or 1 (md-converter/src/mdconverter/md_format_metabolite/"
+        "reader.py:80-82). Unlike md_format_gene, the md_format_metabolite "
+        "reader does NOT auto-derive this column — you MUST set it. Set 1 for "
+        "every row where MetaboliteIntensity=0.0. The required columns the "
+        "converter checks for are [MetaboliteId, MetaboliteIntensity, "
+        "SampleName, Imputed] (reader.py:8 REQUIRED_METABOLITE_COLUMNS)."
+    ),
+}
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Generic conversion templates (no file path — fill in column names)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -197,6 +224,36 @@ long_df["GeneExpression"] = long_df["GeneExpression"].fillna(0.0)
 
 result = long_df[["GeneId", "SampleName", "GeneExpression"]]
 result.to_csv("output_md_format_gene.tsv", sep="\\t", index=False)
+print(f"Saved {len(result)} rows")
+"""
+
+_GENERIC_METABOLITE_TEMPLATE = """\
+import pandas as pd
+
+annotation_cols = ["MetaboliteId"]   # entity metadata columns (MetaboliteId required)
+# Everything else is treated as sample columns
+
+df = pd.read_csv("your_file.tsv", sep="\\t", low_memory=False)
+
+sample_cols = [c for c in df.columns if c not in annotation_cols]
+
+long_df = df.melt(
+    id_vars=annotation_cols,
+    value_vars=sample_cols,
+    var_name="SampleName",
+    value_name="MetaboliteIntensity",
+)
+
+# Imputed is REQUIRED for md_format_metabolite and validated as 0/1 by
+# md-converter (md_format_metabolite/reader.py:80-82). Unlike md_format_gene
+# it is NOT auto-derived — you must emit it explicitly.
+long_df["Imputed"] = long_df["MetaboliteIntensity"].isna().astype(int)
+long_df["MetaboliteIntensity"] = long_df["MetaboliteIntensity"].fillna(0.0)
+# CRITICAL: if source uses 0.0 for missing (not NaN), uncomment the line below:
+# long_df.loc[long_df["MetaboliteIntensity"] == 0, "Imputed"] = 1
+
+result = long_df[["MetaboliteId", "SampleName", "MetaboliteIntensity", "Imputed"]]
+result.to_csv("output_md_format_metabolite.tsv", sep="\\t", index=False)
 print(f"Saved {len(result)} rows")
 """
 
@@ -330,6 +387,55 @@ print(f"Saved {{len(result)}} rows to {{out}}")
 """
 
 
+def _build_metabolite_script(
+    input_file: str,
+    annotation_cols: List[str],
+    sep: str,
+    metabolite_col: str,
+    transpose: bool = False,
+) -> str:
+    sep_repr = r"\t" if sep == "\t" else ","
+    ann_repr = repr(annotation_cols)
+    transpose_block = (
+        (
+            "\n# ── 1b. Transpose: samples were in rows, metabolites in columns ────────────\n"
+            "df = df.set_index(df.columns[0]).T.reset_index()\n"
+            "df = df.rename(columns={'index': 'MetaboliteId'})\n"
+        )
+        if transpose
+        else ""
+    )
+    return f"""import pandas as pd
+
+df = pd.read_csv({repr(input_file)}, sep={repr(sep_repr)}, low_memory=False)
+{transpose_block}
+annotation_cols = {ann_repr}
+sample_cols = [c for c in df.columns if c not in annotation_cols]
+
+long_df = df.melt(
+    id_vars=annotation_cols,
+    value_vars=sample_cols,
+    var_name="SampleName",
+    value_name="MetaboliteIntensity",
+)
+
+# Imputed is REQUIRED for md_format_metabolite and validated as 0/1 by
+# md-converter (md_format_metabolite/reader.py:80-82). Unlike md_format_gene
+# it is NOT auto-derived — emit it explicitly.
+long_df["Imputed"] = long_df["MetaboliteIntensity"].isna().astype(int)
+long_df["MetaboliteIntensity"] = long_df["MetaboliteIntensity"].fillna(0.0)
+# CRITICAL: if source uses 0.0 for missing (not NaN), uncomment:
+# long_df.loc[long_df["MetaboliteIntensity"] == 0, "Imputed"] = 1
+long_df["MetaboliteId"] = long_df[{repr(metabolite_col)}]
+
+result = long_df[["MetaboliteId", "SampleName", "MetaboliteIntensity", "Imputed"]]
+
+out = {repr(input_file.rsplit(".", 1)[0] + "_md_format_metabolite.tsv")}
+result.to_csv(out, sep="\\t", index=False)
+print(f"Saved {{len(result)}} rows to {{out}}")
+"""
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MCP tools
 # ──────────────────────────────────────────────────────────────────────────────
@@ -346,7 +452,7 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
     file-specific script automatically.
 
     Args:
-        entity_type: "protein" (default), "peptide", or "gene"
+        entity_type: "protein" (default), "peptide", "gene", or "metabolite"
 
     Returns JSON with:
     - entity_type:          the requested type
@@ -360,6 +466,10 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
         spec = _MD_FORMAT_GENE_SPEC
         template = _GENERIC_GENE_TEMPLATE
         source = "md_format_gene"
+    elif et == "metabolite":
+        spec = _MD_FORMAT_METABOLITE_SPEC
+        template = _GENERIC_METABOLITE_TEMPLATE
+        source = "md_format_metabolite"
     elif et == "peptide":
         spec = _MD_FORMAT_PEPTIDE_SPEC
         template = _GENERIC_PROTEIN_TEMPLATE.replace(
@@ -390,6 +500,24 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
             "skips the 'experiment_design required' validation for source=md_format_gene "
             "(workflow/app/models/experiment.rb:98-103).",
         ]
+    elif et == "metabolite":
+        notes = [
+            "SampleName values in the output MUST exactly match sample_name values "
+            "in your experiment_design and sample_metadata — case-sensitive.",
+            "METABOLITE-SPECIFIC: Imputed is REQUIRED and validated — md-converter "
+            "rejects any value other than 0 or 1 (md-converter/src/mdconverter/"
+            "md_format_metabolite/reader.py:80-82). Unlike md_format_gene it is NOT "
+            "auto-derived: set Imputed=1 for every row where MetaboliteIntensity=0.0.",
+            "The input must be a FULL matrix — every MetaboliteId x SampleName "
+            "combination present as exactly one row "
+            "(md_format_metabolite/reader.py:93-107). Melting a wide intensity matrix "
+            "satisfies this automatically.",
+            f"After converting, upload with source='{source}' in create_upload.",
+            "You still need an experiment_design CSV and a sample_metadata CSV "
+            "alongside the data file. experiment_design IS required for "
+            "md_format_metabolite uploads — only md_format_gene is exempt "
+            "(workflow/app/models/experiment.rb:98-103).",
+        ]
     else:
         intensity_col = "PeptideIntensity" if et == "peptide" else "ProteinIntensity"
         notes = [
@@ -405,6 +533,15 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
             "You still need an experiment_design CSV and a sample_metadata CSV alongside "
             "the data file.",
         ]
+
+    notes.insert(
+        0,
+        "MD format is LONG format and MUST be a FULL matrix: exactly one row per "
+        "entity per sample, with EVERY entity x sample combination present — NO "
+        "EXCEPTIONS. A non-measurement is represented as a row with intensity 0.0 "
+        "and Imputed=1, never as an absent row. Melting a complete wide intensity "
+        "matrix produces this automatically.",
+    )
 
     return json.dumps(
         {
@@ -439,6 +576,7 @@ def plan_wide_to_md_format(
     md_format (peptide): ModifiedSequence, StrippedSequence, ProteinGroup,
                           ProteinGroupId, GeneNames, SampleName, PeptideIntensity, Imputed
     md_format_gene:       GeneId, SampleName, GeneExpression
+    md_format_metabolite: MetaboliteId, SampleName, MetaboliteIntensity, Imputed
 
     To get the full spec without a file, call get_md_format_spec(entity_type) first.
 
@@ -449,9 +587,11 @@ def plan_wide_to_md_format(
 
     Parameters:
     - file_path:          path to the wide-format input file
-    - target:             "md_format" (protein or peptide) or "md_format_gene"
+    - target:             "md_format" (protein or peptide), "md_format_gene",
+                          or "md_format_metabolite"
     - source_hint:        optional format name to improve auto-detection:
-                          diann_tabular, maxquant, spectronaut, md_format_gene
+                          diann_tabular, maxquant, spectronaut, md_format_gene,
+                          md_format_metabolite
     - annotation_columns: optional explicit list of annotation column names
                           (everything else will be treated as sample columns).
                           Use annotation_columns to fix wrong auto-detection.
@@ -550,6 +690,28 @@ def plan_wide_to_md_format(
         script = _build_gene_script(
             file_path, detected_ann, sep, gene_id_col, do_transpose
         )
+    elif target.lower() == "md_format_metabolite":
+        spec = _MD_FORMAT_METABOLITE_SPEC
+        metabolite_id_col = next(
+            (
+                h
+                for h in detected_ann
+                if h.lower()
+                in (
+                    "metaboliteid",
+                    "metabolite id",
+                    "metabolite_id",
+                    "metabolite",
+                    "compound",
+                    "compoundid",
+                    "compound_id",
+                )
+            ),
+            detected_ann[0] if detected_ann else "MetaboliteId",
+        )
+        script = _build_metabolite_script(
+            file_path, detected_ann, sep, metabolite_id_col, do_transpose
+        )
     else:
         spec = _MD_FORMAT_PROTEIN_SPEC
         script = _build_protein_script(
@@ -598,6 +760,20 @@ def plan_wide_to_md_format(
             "[GeneId, GeneExpression, SampleName] (reader.py:8 REQUIRED_GENE_COLUMNS). "
             "Do NOT manually emit Imputed for gene data — it will be overwritten."
         )
+    elif target.lower() == "md_format_metabolite":
+        notes.append(
+            "After converting, upload the output file using "
+            "source='md_format_metabolite' in create_upload. You still need an "
+            "experiment_design CSV and a sample_metadata CSV — use "
+            "load_metadata_from_csv or build them manually."
+        )
+        notes.append(
+            "METABOLITE-SPECIFIC: Imputed is REQUIRED and validated as 0/1 by "
+            "md-converter (md_format_metabolite/reader.py:80-82). Unlike "
+            "md_format_gene it is NOT auto-derived — the generated script emits it. "
+            "Every row where MetaboliteIntensity = 0.0 MUST have Imputed=1, otherwise "
+            "downstream jobs treat zeros as real measurements."
+        )
     else:
         notes.append(
             "After converting, upload the output file using source='md_format' "
@@ -609,6 +785,14 @@ def plan_wide_to_md_format(
             "PeptideIntensity = 0.0 MUST have Imputed=1, otherwise downstream pairwise "
             "/ ANOVA jobs will treat zeros as real measurements and fail silently."
         )
+    notes.append(
+        "MD format is LONG format and MUST be a FULL matrix: exactly one row per "
+        "entity per sample, with EVERY entity x sample combination present — NO "
+        "EXCEPTIONS. Missing combinations are an error (md-converter rejects an "
+        "incomplete matrix); represent a non-measurement as a row with intensity 0.0 "
+        "and Imputed=1, never as an absent row. Melting a complete wide matrix (as "
+        "this script does) produces a full matrix automatically."
+    )
     notes.append(
         "SampleName values in the output must exactly match sample_name values "
         "in your sample_metadata. "

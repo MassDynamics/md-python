@@ -80,6 +80,19 @@ def create_upload(
           "md_format_gene"  MD gene-level TSV with columns GeneId,
                             GeneExpression, SampleName
                             (readers/md_format_gene/reader.py:8).
+          "md_format_metabolite"
+                            MD metabolite-level TSV with columns
+                            MetaboliteId, MetaboliteIntensity, SampleName,
+                            Imputed (readers/md_format_metabolite/reader.py:8).
+                            Imputed is REQUIRED and validated 0/1 — it is
+                            NOT auto-derived (unlike md_format_gene).
+
+      ALL md_format* sources are LONG format and MUST be a FULL matrix:
+      exactly one row per entity per sample, with EVERY entity x sample
+      combination present — NO EXCEPTIONS. md-converter rejects an
+      incomplete matrix. A non-measurement is a row with intensity 0.0 and
+      Imputed=1, never an absent row. Use plan_wide_to_md_format to generate
+      a conversion script that produces this shape by construction.
 
       experiment_design: 2D array with header row [filename, sample_name,
         condition] (order irrelevant; synonyms normalised client-side).

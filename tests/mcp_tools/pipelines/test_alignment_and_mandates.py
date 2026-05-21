@@ -287,7 +287,7 @@ class TestUploadSourceEnumAlignment:
     def test_mcp_sources_are_subset_of_workflow_sources(self):
         from md_python.resources.v2.uploads import ALLOWED_UPLOAD_SOURCES
 
-        # Workflow VALID_SOURCE_FORMATS as of experiment.rb:27-35.
+        # Workflow VALID_SOURCE_FORMATS as of experiment.rb:28-37.
         workflow_sources = frozenset(
             {
                 "diann_tabular",
@@ -296,6 +296,7 @@ class TestUploadSourceEnumAlignment:
                 "maxquant",
                 "md_format",
                 "md_format_gene",
+                "md_format_metabolite",
                 "unknown",
             }
         )
@@ -305,6 +306,11 @@ class TestUploadSourceEnumAlignment:
         from md_python.resources.v2.uploads import ALLOWED_UPLOAD_SOURCES
 
         assert "md_format_gene" in ALLOWED_UPLOAD_SOURCES
+
+    def test_mcp_sources_include_metabolite_format(self):
+        from md_python.resources.v2.uploads import ALLOWED_UPLOAD_SOURCES
+
+        assert "md_format_metabolite" in ALLOWED_UPLOAD_SOURCES
 
 
 class TestNormalisationSchemaEntityValuesAlignment:

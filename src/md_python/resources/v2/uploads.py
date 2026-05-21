@@ -30,6 +30,7 @@ ALLOWED_UPLOAD_SOURCES: frozenset[str] = frozenset(
         "spectronaut",
         "md_format",
         "md_format_gene",
+        "md_format_metabolite",
     }
 )
 

@@ -63,6 +63,40 @@ class TestPlanWideToMdFormat:
         assert "GeneExpression" in result["md_format_spec"]
         assert "GeneId" in result["conversion_script"]
 
+    def test_metabolite_target_produces_metabolite_spec(self, cleanup):
+        path = write_tsv(
+            [
+                ["MetaboliteId", "S1", "S2"],
+                ["HMDB0000001", "100", "200"],
+            ]
+        )
+        cleanup.append(path)
+        result = json.loads(
+            plan_wide_to_md_format(
+                path,
+                target="md_format_metabolite",
+                annotation_columns=["MetaboliteId"],
+            )
+        )
+        assert "MetaboliteIntensity" in result["md_format_spec"]
+        assert "MetaboliteId" in result["conversion_script"]
+        assert "Imputed" in result["conversion_script"]
+
+    def test_notes_mention_full_matrix_long_format(self, cleanup):
+        path = write_tsv(
+            [
+                ["Protein.Group", "S1", "S2"],
+                ["P12345", "1e7", "2e7"],
+            ]
+        )
+        cleanup.append(path)
+        result = json.loads(
+            plan_wide_to_md_format(path, annotation_columns=["Protein.Group"])
+        )
+        combined = " ".join(result["notes"]).lower()
+        assert "full matrix" in combined
+        assert "long format" in combined
+
     def test_md_format_spec_contains_required_columns(self, cleanup):
         path = write_tsv(
             [
@@ -164,6 +198,19 @@ class TestGetMdFormatSpec:
         for col in ("GeneId", "SampleName", "GeneExpression"):
             assert col in spec
         assert result["upload_source"] == "md_format_gene"
+
+    def test_metabolite_spec(self):
+        result = json.loads(get_md_format_spec("metabolite"))
+        spec = result["spec"]
+        for col in ("MetaboliteId", "SampleName", "MetaboliteIntensity", "Imputed"):
+            assert col in spec
+        assert result["upload_source"] == "md_format_metabolite"
+
+    def test_metabolite_spec_notes_mention_full_matrix(self):
+        result = json.loads(get_md_format_spec("metabolite"))
+        combined = " ".join(result["notes"]).lower()
+        assert "full matrix" in combined
+        assert "long format" in combined
 
     def test_peptide_spec(self):
         result = json.loads(get_md_format_spec("peptide"))

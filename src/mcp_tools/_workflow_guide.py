@@ -152,7 +152,8 @@ _WORKFLOW_GUIDE = {
             "steps": [
                 "1. plan_wide_to_md_format(file_path, source_hint='diann_tabular') — reads header only; returns a ready-to-run Python/pandas conversion script.",
                 "2. Share the script with the user and ask them to run it locally (do NOT execute it yourself).",
-                "3. Once the user has the converted file, follow Workflow A with source='md_format' (protein/peptide) or 'md_format_gene' (gene). PROTEIN/PEPTIDE: every row where ProteinIntensity / PeptideIntensity = 0 MUST have Imputed=1 — a zero with Imputed=0 is treated as a real measurement and breaks pairwise/anova downstream. GENE: do NOT pre-write Imputed; md-converter auto-derives it (NaN or 0 → Imputed=1) from md_format_gene/reader.py:120-124. Required gene columns are only [GeneId, GeneExpression, SampleName] (reader.py:8).",
+                "3. Once the user has the converted file, follow Workflow A with source='md_format' (protein/peptide), 'md_format_gene' (gene), or 'md_format_metabolite' (metabolite). PROTEIN/PEPTIDE: every row where ProteinIntensity / PeptideIntensity = 0 MUST have Imputed=1 — a zero with Imputed=0 is treated as a real measurement and breaks pairwise/anova downstream. GENE: do NOT pre-write Imputed; md-converter auto-derives it (NaN or 0 → Imputed=1) from md_format_gene/reader.py:120-124. Required gene columns are only [GeneId, GeneExpression, SampleName] (reader.py:8). METABOLITE: columns are [MetaboliteId, MetaboliteIntensity, SampleName, Imputed]; Imputed IS required and validated 0/1 (md_format_metabolite/reader.py:8,80-82) — set 1 where MetaboliteIntensity=0.",
+                "ALL md_format* outputs are LONG format and MUST be a FULL matrix: exactly one row per entity per sample, every entity x sample combination present, NO EXCEPTIONS. A non-measurement is a 0.0 row with Imputed=1, never an absent row. The plan_wide_to_md_format script produces this by construction.",
             ],
         },
         "G_dry_run_inspection": {
@@ -405,7 +406,7 @@ _WORKFLOW_GUIDE = {
         "file_tools": {
             "read_csv_preview": "Inspect a CSV/TSV metadata file — columns and first N rows. Optional: max_rows (default 5), delimiter (auto-detected).",
             "load_metadata_from_csv": "Parse experiment_design and sample_metadata from a CSV file. Never construct these arrays manually. Optional: delimiter (auto-detected).",
-            "get_md_format_spec": "Return the MD format column spec and a generic pandas conversion template for protein, peptide, or gene data. Call this when explaining the format to a user or writing custom conversion code without a file.",
+            "get_md_format_spec": "Return the MD format column spec and a generic pandas conversion template for protein, peptide, gene, or metabolite data. Call this when explaining the format to a user or writing custom conversion code without a file.",
             "plan_wide_to_md_format": "Generate a pandas conversion script for any wide-format intensity matrix → MD long format. Works for DIA-NN, MaxQuant, Spectronaut, or any generic CSV/TSV. Use annotation_columns to fix wrong auto-detection. Use transpose=True (or omit to auto-detect) when samples are rows and proteins are columns.",
         },
         "upload_tools": {

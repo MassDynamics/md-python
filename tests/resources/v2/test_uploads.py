@@ -166,6 +166,7 @@ class TestV2Uploads:
             "spectronaut",
             "md_format",
             "md_format_gene",
+            "md_format_metabolite",
         ],
     )
     def test_create_accepts_allowed_sources(self, uploads, mock_client, good_source):
