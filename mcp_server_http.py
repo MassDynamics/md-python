@@ -38,6 +38,7 @@ load_env_from(Path(__file__).resolve().parent)
 import mcp_tools.batch  # noqa: F401, E402
 import mcp_tools.datasets  # noqa: F401
 import mcp_tools.entities  # noqa: F401
+import mcp_tools.entity_meta  # noqa: F401
 import mcp_tools.files  # noqa: F401
 import mcp_tools.health  # noqa: F401
 import mcp_tools.pipelines  # noqa: F401
