@@ -497,3 +497,48 @@ class TestDescribe:
         assert out["parameters"] == []
         assert out["registry_defaults"] == {}
         assert out["required_keys_no_default"] == []
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# field_type_fallbacks — wire-shape regression tests
+#
+# Each fallback value MUST match the shape vis-service expects on the wire.
+# Drift here surfaces as cryptic 4xx render failures.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestFieldTypeFallbackWireShape:
+    def test_dataset_sample_metadata_values_is_flat_list(self):
+        """``DatasetSampleMetadataValues`` ships as a flat List[Union[int, str]]
+        per the Vue field
+        (workflow/app/javascript/workspaces/lib/fields/DatasetSampleMetadataValuesField.vue:62
+        emits ``Array.from(this.selectedValues)``). Wrapping it as
+        ``{"values": []}`` produces
+        ``"Invalid sample_names type: <class 'dict'>. Expected
+        List[Union[int, str]]."`` on Dimensionality Reduction render
+        (visualisations-service/src/requests/dimensionality_reduction_request.py:237).
+        """
+        from mcp_tools.workspaces._introspect import _FIELD_TYPE_FALLBACKS
+
+        assert _FIELD_TYPE_FALLBACKS["DatasetSampleMetadataValues"] == []
+
+    def test_sample_metadata_values_filter_is_values_envelope(self):
+        """``SampleMetadataValuesFilter`` is the dict envelope variant — keep
+        them distinct so the bug above can't recur by accident."""
+        from mcp_tools.workspaces._introspect import _FIELD_TYPE_FALLBACKS
+
+        assert _FIELD_TYPE_FALLBACKS["SampleMetadataValuesFilter"] == {
+            "values": []
+        }
+
+    def test_dim_red_fallback_overlay_uses_flat_list(self):
+        """End-to-end: building the fallback overlay for a module that uses
+        ``DatasetSampleMetadataValues`` for ``sampleNames`` must yield a flat
+        list, not a dict."""
+        from mcp_tools.workspaces._introspect import field_type_fallbacks
+
+        mod = _module(
+            {"sampleNames": {"fieldType": "DatasetSampleMetadataValues"}}
+        )
+        out = field_type_fallbacks(mod)
+        assert out == {"sampleNames": []}

@@ -119,7 +119,16 @@ def dataset_input_for(module: RegisteredModule) -> Optional[Dict[str, Any]]:
 _FIELD_TYPE_FALLBACKS: Dict[str, Any] = {
     "OrderableSampleMetadataColumns": [{"field": "sample_name", "order": "none"}],
     "SampleMetadataValuesFilter": {"values": []},
-    "DatasetSampleMetadataValues": {"values": []},
+    # DatasetSampleMetadataValues stores a FLAT list, not a {values: [...]}
+    # envelope (that's SampleMetadataValuesFilter's shape). Every workflow
+    # instruction using this field type declares ``default: []`` and the Vue
+    # field emits ``Array.from(this.selectedValues)`` on change
+    # (workflow/app/javascript/workspaces/lib/fields/DatasetSampleMetadataValuesField.vue:62).
+    # Wrapping it as {"values": []} broke the Dimensionality Reduction
+    # render — vis-service's request validator surfaced
+    # "Invalid sample_names type: <class 'dict'>. Expected List[Union[int, str]]"
+    # (visualisations-service/src/requests/dimensionality_reduction_request.py:237).
+    "DatasetSampleMetadataValues": [],
     "ProteinLists": [],
     "ProteinSelection": {
         "proteinListId": None,
