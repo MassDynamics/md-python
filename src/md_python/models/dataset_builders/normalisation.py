@@ -16,9 +16,11 @@ from ._methods import (
     _IMPUTATION_METHODS,
     _KNN_TN_DISTANCE,
     _KNN_WEIGHTS,
+    _METABOLITE_FILTRATION_METHODS,
     _PEPTIDE_FILTRATION_METHODS,
     _PROTEIN_FILTRATION_METHODS,
     _PROTEOMICS_NORMALISATION_METHODS,
+    _PTM_FILTRATION_METHODS,
     _batch_correction_technique_key,
     _canon_method,
     _filtration_methods_key,
@@ -255,6 +257,8 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
             "protein": _PROTEIN_FILTRATION_METHODS,
             "peptide": _PEPTIDE_FILTRATION_METHODS,
             "gene": _GENE_FILTRATION_METHODS,
+            "ptm": _PTM_FILTRATION_METHODS,
+            "metabolite": _METABOLITE_FILTRATION_METHODS,
         }[self.entity_type]
         if filt is not None and filt not in allowed_filt:
             raise ValueError(

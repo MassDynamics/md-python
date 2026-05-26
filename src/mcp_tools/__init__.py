@@ -53,6 +53,7 @@ Every tool returns ONE of:
   - JSON string (parse with json.loads). Used by: health_check,
     get_workflow_guide, read_csv_preview, load_metadata_from_csv,
     get_md_format_spec, plan_wide_to_md_format, describe_pipeline,
+    describe_entity_type,
     query_uploads, query_datasets, query_entities, map_protein_to_protein,
     map_gene_to_protein, map_protein_to_gene, map_protein_to_peptide,
     map_peptide_to_protein,
@@ -99,7 +100,8 @@ TOOL CATEGORIES — use roughly in this order:
                      query_entities, map_protein_to_protein,
                      map_gene_to_protein, map_protein_to_gene,
                      map_protein_to_peptide, map_peptide_to_protein
-  4. Pipeline tools: describe_pipeline, run_normalisation_imputation,
+  4. Pipeline tools: describe_pipeline, describe_entity_type,
+                     run_normalisation_imputation,
                      run_normalisation_imputation_bulk,
                      generate_pairwise_comparisons, run_pairwise_comparison,
                      run_pairwise_comparison_bulk, run_anova,
@@ -128,6 +130,8 @@ ALLOWED_UPLOAD_SOURCES; mirrors workflow/app/models/experiment.rb:27-34):
   md_format       MD long-format TSV (ProteinGroupId, ProteinGroup,
                   GeneNames, SampleName, ProteinIntensity, Imputed)
   md_format_gene  MD gene-level TSV (GeneId, GeneExpression, SampleName)
+  md_format_metabolite  MD metabolite-level TSV (MetaboliteId,
+                  MetaboliteIntensity, SampleName, Imputed)
 Any other value (including raw, diann_raw, generic_format, simple,
 unknown, diann_matrix, md_diann_maxlfq, msfragger) is rejected by the
 client before a request is sent.

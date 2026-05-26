@@ -3,6 +3,11 @@
 from typing import Any, Dict, List, Optional
 
 from md_python.models.dataset_builders import MinimalDataset
+from md_python.models.dataset_builders._methods import (
+    _DE_METHODS_PER_ENTITY,
+    _ENTITY_TYPES,
+    _de_method_key,
+)
 from md_python.models.metadata import SampleMetadata
 
 from .. import mcp
@@ -24,6 +29,11 @@ def run_anova(
     limma_trend: bool = True,
     robust_empirical_bayes: bool = True,
     entity_type: str = "protein",
+    de_method: str = "limma",
+    edger_norm_method: str = "TMM",
+    deseq2_lfc_shrinkage: str = "none",
+    deseq2_alpha: float = 0.05,
+    apeglm_seed: int = 1,
     control_variables: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     """Run an ANOVA-based differential abundance analysis across multiple conditions.
@@ -74,9 +84,30 @@ def run_anova(
                                                            "full experiment"
     limma_trend                  True                     True | False
     robust_empirical_bayes       True                     True | False
-    entity_type                  "protein"                "protein" | "peptide" | "gene"
-                                                          Gene path uses limma only;
-                                                          edgeR / DESeq2 are NOT exposed.
+    entity_type                  "protein"                "protein" | "peptide" | "gene" |
+                                                          "metabolite" | "ptm"
+                                                          (lowercase on the wire — UI
+                                                          shows "PTM" / "Metabolite").
+    de_method                    "limma"                  "limma" (default; only choice
+                                                          for protein/peptide/metabolite/
+                                                          ptm).
+                                                          GENE only: also "edgeR" or
+                                                          "DESeq2". Wire field is
+                                                          entity-keyed —
+                                                          ``de_method_<entity_type>``.
+    edger_norm_method            "TMM"                    Only when de_method='edgeR'.
+                                                          One of: TMM | RLE |
+                                                          upperquartile | none.
+    deseq2_lfc_shrinkage         "none"                   Only when de_method='DESeq2'.
+                                                          One of: none | apeglm | ashr |
+                                                          normal.
+    deseq2_alpha                 0.05                     Only when de_method='DESeq2'.
+                                                          Float 0–1. Set to the FDR
+                                                          threshold you will apply
+                                                          downstream.
+    apeglm_seed                  1                        Only when de_method='DESeq2'
+                                                          AND deseq2_lfc_shrinkage=
+                                                          'apeglm'.
     control_variables            None                     list of {column, type:
                                                           "categorical"|"numerical"}
                                                           covariate dicts; e.g.
@@ -147,11 +178,42 @@ def run_anova(
             )
         filter_values_criteria["filter_threshold_count"] = filter_threshold_count
 
-    if entity_type not in {"protein", "peptide", "gene"}:
+    if entity_type not in _ENTITY_TYPES:
         raise ValueError(
-            "entity_type must be one of: protein, peptide, gene "
+            f"entity_type must be one of: {sorted(_ENTITY_TYPES)} "
             f"(got '{entity_type}')"
         )
+
+    # DE method gating. Only entity_type='gene' accepts edgeR / DESeq2.
+    allowed_de = _DE_METHODS_PER_ENTITY[entity_type]
+    if de_method not in allowed_de:
+        raise ValueError(
+            f"de_method '{de_method}' not allowed for entity_type='{entity_type}'. "
+            f"Allowed: {sorted(allowed_de)}"
+        )
+    if de_method == "edgeR":
+        if edger_norm_method not in {"TMM", "RLE", "upperquartile", "none"}:
+            raise ValueError(
+                "edger_norm_method must be one of: TMM, RLE, upperquartile, none "
+                f"(got '{edger_norm_method}')"
+            )
+    if de_method == "DESeq2":
+        if deseq2_lfc_shrinkage not in {"none", "apeglm", "ashr", "normal"}:
+            raise ValueError(
+                "deseq2_lfc_shrinkage must be one of: none, apeglm, ashr, normal "
+                f"(got '{deseq2_lfc_shrinkage}')"
+            )
+        if not 0.0 <= deseq2_alpha <= 1.0:
+            raise ValueError(
+                "deseq2_alpha must be between 0 and 1 "
+                f"(got {deseq2_alpha})"
+            )
+        if deseq2_lfc_shrinkage == "apeglm":
+            if not 0 <= apeglm_seed <= 2147483647:
+                raise ValueError(
+                    "apeglm_seed must be between 0 and 2147483647 "
+                    f"(got {apeglm_seed})"
+                )
 
     if control_variables is not None:
         if not isinstance(control_variables, list):
@@ -177,7 +239,19 @@ def run_anova(
         "limma_trend": limma_trend,
         "robust_empirical_bayes": robust_empirical_bayes,
         "entity_type": entity_type,
+        # DE method on the wire is entity-keyed: emit ``de_method_<entity>``
+        # so the MDFlexiComparisons Pydantic schema picks it up.
+        _de_method_key(entity_type): de_method,
     }
+    # edgeR / DESeq2 companion params — only emit when the chosen DE method
+    # needs them.
+    if de_method == "edgeR":
+        job_run_params["edger_norm_method"] = edger_norm_method
+    elif de_method == "DESeq2":
+        job_run_params["deseq2_lfc_shrinkage"] = deseq2_lfc_shrinkage
+        job_run_params["deseq2_alpha"] = deseq2_alpha
+        if deseq2_lfc_shrinkage == "apeglm":
+            job_run_params["apeglm_seed"] = apeglm_seed
     if condition_comparisons:
         # Source-of-truth: MDFlexiComparisons/src/md_flexi_comparisons/process_r.py:91-92
         # ConditionComparisons = {"condition_comparison_pairs": List[Tuple[str,str]]}.

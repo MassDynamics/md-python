@@ -91,8 +91,9 @@ class TestWorkflowGuide:
         assert "by missing values" in haystack
         # Filter-only guidance
         assert "FILTER-ONLY PATTERN" in haystack
-        # Gene-stat scope guidance
-        assert "GENE STATISTICS SCOPE" in haystack
+        # Gene-stat scope guidance (renamed to DE METHOD SCOPE in 2026-05; gene
+        # now exposes edgeR / DESeq2 via de_method while non-gene stays limma-only).
+        assert "DE METHOD SCOPE" in haystack
         assert "edgeR" in haystack and "DESeq2" in haystack
         # md_format_gene guidance
         assert "GENE UPLOAD SOURCE" in haystack

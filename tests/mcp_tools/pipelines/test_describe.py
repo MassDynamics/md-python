@@ -78,15 +78,17 @@ class TestDescribePipeline:
         # filtration_extra_params is a top-level parameter.
         assert "filtration_extra_params" in result["parameters"]
 
-    def test_pairwise_supports_gene_entity_type(self):
+    def test_pairwise_supports_all_entity_types(self):
         result = json.loads(describe_pipeline("pairwise_comparison"))
         valid = result["parameters"]["entity_type"]["valid_values"]
-        assert valid == ["protein", "peptide", "gene"]
+        # Wire format is lowercase; ptm + metabolite confirmed against live
+        # job_run_params 2026-05-27.
+        assert valid == ["protein", "peptide", "gene", "metabolite", "ptm"]
 
-    def test_anova_supports_gene_entity_type(self):
+    def test_anova_supports_all_entity_types(self):
         result = json.loads(describe_pipeline("anova"))
         valid = result["parameters"]["entity_type"]["valid_values"]
-        assert valid == ["protein", "peptide", "gene"]
+        assert valid == ["protein", "peptide", "gene", "metabolite", "ptm"]
 
     def test_normalisation_imputation_has_entity_type(self):
         result = json.loads(describe_pipeline("normalisation_imputation"))

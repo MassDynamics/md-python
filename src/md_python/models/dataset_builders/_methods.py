@@ -7,7 +7,11 @@ import graph acyclic.
 
 from typing import Dict, Optional
 
-_ENTITY_TYPES = {"protein", "peptide", "gene"}
+# Wire-format entity_type values accepted by the platform. Confirmed against
+# live pairwise job_run_params on 2026-05-27 — `ptm` and `metabolite` are the
+# canonical lowercase strings the backend stores (UI shows "PTM" / "Metabolite"
+# but the wire is lowercase).
+_ENTITY_TYPES = {"protein", "peptide", "gene", "metabolite", "ptm"}
 
 _PROTEOMICS_NORMALISATION_METHODS = {
     "skip",
@@ -44,6 +48,18 @@ _PEPTIDE_FILTRATION_METHODS = {
     "by ptm localization probability",
 }
 _GENE_FILTRATION_METHODS = {"skip", "by minimum abundance"}
+# PTM behaves like a peptide on the wire (it IS a localised peptide), and
+# `by ptm localization probability` is the obvious filter for it.
+_PTM_FILTRATION_METHODS = {
+    "skip",
+    "by missing values",
+    "by ptm localization probability",
+}
+# Metabolite NI is upstream-gated by md-converter today (intensity_imputation
+# does not accept entity_type=metabolite). We still accept skip + by missing
+# values client-side so the validator does not over-reject when md-converter
+# eventually catches up.
+_METABOLITE_FILTRATION_METHODS = {"skip", "by missing values"}
 
 _BATCH_CORRECTION_TECHNIQUES_PROTEOMICS = {
     "limma remove batch effect",
@@ -103,3 +119,27 @@ def _batch_correction_technique_key(entity_type: str) -> str:
         if entity_type == "gene"
         else "batch_correction_technique_proteomics"
     )
+
+
+# DE methods accepted by mdFlexiComparisons per entity_type. Confirmed by
+# reading PairwiseParamsProperties / ANOVAParamsProperties in
+# MDFlexiComparisons/src/md_flexi_comparisons/process_r.py on 2026-05-27 —
+# only gene exposes multiple DE engines.
+_DE_METHODS_PER_ENTITY: Dict[str, frozenset[str]] = {
+    "protein": frozenset({"limma"}),
+    "peptide": frozenset({"limma"}),
+    "gene": frozenset({"limma", "edgeR", "DESeq2"}),
+    "metabolite": frozenset({"limma"}),
+    "ptm": frozenset({"limma"}),
+}
+
+
+def _de_method_key(entity_type: str) -> str:
+    """Wire-format key for the per-entity de_method field.
+
+    The data-set-service / MDFlexiComparisons Pydantic schema stores the DE
+    method under an entity-keyed field name (e.g. ``de_method_gene``) and
+    picks the right one at runtime via ``When.equals("entity_type", "<v>")``
+    gates. A flat ``de_method`` key is silently dropped on the wire.
+    """
+    return f"de_method_{entity_type}"

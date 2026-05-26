@@ -57,6 +57,11 @@ def run_pairwise_comparison(
     limma_trend: bool = True,
     robust_empirical_bayes: bool = True,
     entity_type: str = "protein",
+    de_method: str = "limma",
+    edger_norm_method: str = "TMM",
+    deseq2_lfc_shrinkage: str = "none",
+    deseq2_alpha: float = 0.05,
+    apeglm_seed: int = 1,
     control_variables: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     """Run a pairwise differential abundance analysis using limma.
@@ -93,9 +98,36 @@ def run_pairwise_comparison(
     condition_comparisons        (from generate_*)        ALL pairs as one list.
                                                           Do NOT make one call per
                                                           pair — see note below.
-    entity_type                  "protein"                "protein" | "peptide" | "gene"
-                                                          (gene path uses limma; edgeR /
-                                                           DESeq2 are NOT exposed)
+    entity_type                  "protein"                "protein" | "peptide" | "gene" |
+                                                          "metabolite" | "ptm"
+                                                          (lowercase on the wire — UI
+                                                          shows "PTM" / "Metabolite")
+    de_method                    "limma"                  "limma" (default; only choice
+                                                          for protein/peptide/metabolite/
+                                                          ptm).
+                                                          GENE only: also "edgeR" or
+                                                          "DESeq2". The MCP rejects
+                                                          edgeR/DESeq2 for any non-gene
+                                                          entity_type before submission.
+                                                          Wire field is entity-keyed —
+                                                          ``de_method_<entity_type>``.
+    edger_norm_method            "TMM"                    Only when de_method='edgeR'.
+                                                          One of: TMM | RLE |
+                                                          upperquartile | none.
+    deseq2_lfc_shrinkage         "none"                   Only when de_method='DESeq2'.
+                                                          One of: none | apeglm | ashr |
+                                                          normal. "apeglm" is the
+                                                          modern default for ranking.
+    deseq2_alpha                 0.05                     Only when de_method='DESeq2'.
+                                                          Float 0–1. SET TO THE FDR
+                                                          THRESHOLD YOU WILL APPLY
+                                                          DOWNSTREAM — DESeq2's
+                                                          independent filtering loses
+                                                          power if mismatched.
+    apeglm_seed                  1                        Only when de_method='DESeq2'
+                                                          AND deseq2_lfc_shrinkage=
+                                                          'apeglm'. RNG seed for
+                                                          reproducibility.
     fit_separate_models          True                     True  = one limma model per
                                                             comparison (recommended)
                                                           False = full contrast matrix
@@ -127,11 +159,14 @@ def run_pairwise_comparison(
           ["CKD1","CKD2"],   ["CKD1","CKD3"],   ["CKD2","CKD3"],
         ]
 
-    entity_type: "protein" (default), "peptide", or "gene".
-      Must match the entity type in the upstream intensity dataset.
-      Gene-level pairwise runs through limma (mdFlexiComparisons runDiscovery,
-      de_method="limma"). edgeR / DESeq2 are NOT exposed by this MCP — those
-      count-data engines remain out of scope this round.
+    entity_type: "protein" (default), "peptide", "gene", "metabolite", or
+      "ptm". Must match the entity type in the upstream intensity dataset.
+      Wire format is lowercase (the UI shows "PTM" / "Metabolite" but the
+      backend stores them lowercase — confirmed against live job_run_params
+      2026-05-27). Gene / metabolite / ptm pairwise runs through limma
+      (mdFlexiComparisons runDiscovery, de_method="limma"). edgeR / DESeq2
+      are NOT exposed by this MCP — those count-data engines remain out of
+      scope this round.
 
     filter_valid_values_logic controls which proteins/peptides/genes pass the
       completeness filter before modelling:
@@ -206,6 +241,11 @@ def run_pairwise_comparison(
         limma_trend=limma_trend,
         robust_empirical_bayes=robust_empirical_bayes,
         entity_type=entity_type,
+        de_method=de_method,
+        edger_norm_method=edger_norm_method,
+        deseq2_lfc_shrinkage=deseq2_lfc_shrinkage,
+        deseq2_alpha=deseq2_alpha,
+        apeglm_seed=apeglm_seed,
         control_variables=cv,
     ).run(get_client())
     return (
@@ -256,6 +296,11 @@ def _submit_pc_job(
             limma_trend=job.get("limma_trend", True),
             robust_empirical_bayes=job.get("robust_empirical_bayes", True),
             entity_type=job.get("entity_type", "protein"),
+            de_method=job.get("de_method", "limma"),
+            edger_norm_method=job.get("edger_norm_method", "TMM"),
+            deseq2_lfc_shrinkage=job.get("deseq2_lfc_shrinkage", "none"),
+            deseq2_alpha=job.get("deseq2_alpha", 0.05),
+            apeglm_seed=job.get("apeglm_seed", 1),
             control_variables=job.get("control_variables"),
         )
         if "Dataset ID:" in run_result:
@@ -296,14 +341,38 @@ def run_pairwise_comparison_bulk(jobs: List[Dict[str, Any]]) -> str:
       fit_separate_models     bool       — default True
       limma_trend             bool       — default True
       robust_empirical_bayes  bool       — default True
-      entity_type             str        — "protein" (default), "peptide", or "gene"
-                                            (gene runs via limma; edgeR/DESeq2 not exposed)
+      entity_type             str        — "protein" (default), "peptide", "gene",
+                                            "metabolite", or "ptm" (lowercase on the
+                                            wire)
+      de_method               str        — "limma" (default). Gene only also accepts
+                                            "edgeR" / "DESeq2". Rejected client-side
+                                            for any non-gene entity_type with a
+                                            count-engine value.
+      edger_norm_method       str        — "TMM" (default). Only used when
+                                            de_method='edgeR'. One of: TMM | RLE |
+                                            upperquartile | none.
+      deseq2_lfc_shrinkage    str        — "none" (default). Only used when
+                                            de_method='DESeq2'. One of: none |
+                                            apeglm | ashr | normal.
+      deseq2_alpha            float      — 0.05 (default). Only used when
+                                            de_method='DESeq2'. Set to the FDR
+                                            threshold the user will apply downstream.
+      apeglm_seed             int        — 1 (default). Only used when
+                                            de_method='DESeq2' AND
+                                            deseq2_lfc_shrinkage='apeglm'.
       control_variables       list       — optional covariates
       if_exists               str        — "skip" (default) or "run"
 
-    Returns JSON array:
-      [{index, upload_id, dataset_name, dataset_id?, skipped?, error?, error_code?}]
-    Or a JSON error object if len(jobs) > 500.
+    Returns JSON envelope:
+      {
+        "summary": {"total": N, "submitted": int, "skipped": int,
+                    "failed": int, "failed_indices": [int, ...]},
+        "results": [{index, upload_id, dataset_name, dataset_id?, skipped?,
+                     error?, error_code?}, ...],
+      }
+    The summary sits ABOVE the results so a partial failure can't be missed —
+    if summary.failed > 0, walk results at summary.failed_indices to see why.
+    Or a JSON error object (no `results` key) if len(jobs) > 500.
     """
     unique_ids = list({job.get("upload_id", "") for job in jobs})
     existing_cache: Dict[str, Dict[str, str]] = {}

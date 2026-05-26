@@ -7,6 +7,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from ..dataset import Dataset
 from ..metadata import SampleMetadata
 from ._base import BaseDatasetBuilder
+from ._methods import _DE_METHODS_PER_ENTITY, _ENTITY_TYPES, _de_method_key
 
 
 @pydantic_dataclass
@@ -44,7 +45,11 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         Optional dictionary of control variables in the form:
         {"control_variables": [{"column": str, "type": "numerical"|"categorical"}, ...]}
     entity_type : str
-        One of: "protein", "peptide". Default: "protein".
+        One of: "protein", "peptide", "gene", "metabolite", "ptm". Default:
+        "protein". Backend accepts lowercase only — the UI shows "PTM" and
+        "Metabolite" but the wire is lowercase. Gene / metabolite / ptm
+        pairwise runs through limma (mdFlexiComparisons runDiscovery,
+        de_method='limma'). edgeR / DESeq2 are NOT exposed by this MCP.
     job_slug : str
         Job slug for the backend flow. Default: "pairwise_comparison".
     """
@@ -65,6 +70,15 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
     robust_empirical_bayes: bool = True
     control_variables: Optional[Dict[str, List[Dict[str, str]]]] = None
     entity_type: str = "protein"
+    # DE engine for the differential test. Only gene exposes a real choice
+    # (limma | edgeR | DESeq2); every other entity_type is limma-only per the
+    # MDFlexiComparisons schema. Emitted on the wire as ``de_method_<entity_type>``.
+    de_method: str = "limma"
+    # edgeR / DESeq2 companion params — sent only when de_method warrants it.
+    edger_norm_method: str = "TMM"
+    deseq2_lfc_shrinkage: str = "none"
+    deseq2_alpha: float = 0.05
+    apeglm_seed: int = 1
     job_slug: str = "pairwise_comparison"
 
     @staticmethod
@@ -109,24 +123,38 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         return [[b, a] for a, b in combinations(ordered, 2)]
 
     def to_dataset(self) -> Dataset:
+        params: Dict[str, Any] = {
+            "condition_column": self.condition_column,
+            "condition_comparisons": {
+                "condition_comparison_pairs": self.condition_comparisons
+            },
+            "experiment_design": self.sample_metadata.to_columns(),
+            "filter_valid_values_logic": self.filter_valid_values_logic,
+            "filter_values_criteria": self.filter_values_criteria,
+            "fit_separate_models": self.fit_separate_models,
+            "limma_trend": self.limma_trend,
+            "robust_empirical_bayes": self.robust_empirical_bayes,
+            "control_variables": self.control_variables,
+            "entity_type": self.entity_type,
+            # DE method on the wire is entity-keyed: emit ``de_method_<entity>``
+            # so the MDFlexiComparisons Pydantic schema picks it up. The other
+            # four per-entity de_method fields default to limma in the schema.
+            _de_method_key(self.entity_type): self.de_method,
+        }
+        # edgeR / DESeq2 companion params — only emit when the chosen DE
+        # method needs them; otherwise let the backend defaults stand.
+        if self.de_method == "edgeR":
+            params["edger_norm_method"] = self.edger_norm_method
+        elif self.de_method == "DESeq2":
+            params["deseq2_lfc_shrinkage"] = self.deseq2_lfc_shrinkage
+            params["deseq2_alpha"] = self.deseq2_alpha
+            if self.deseq2_lfc_shrinkage == "apeglm":
+                params["apeglm_seed"] = self.apeglm_seed
         return Dataset(
             input_dataset_ids=[UUID(x) for x in self.input_dataset_ids],
             name=self.dataset_name,
             job_slug=self.job_slug,
-            job_run_params={
-                "condition_column": self.condition_column,
-                "condition_comparisons": {
-                    "condition_comparison_pairs": self.condition_comparisons
-                },
-                "experiment_design": self.sample_metadata.to_columns(),
-                "filter_valid_values_logic": self.filter_valid_values_logic,
-                "filter_values_criteria": self.filter_values_criteria,
-                "fit_separate_models": self.fit_separate_models,
-                "limma_trend": self.limma_trend,
-                "robust_empirical_bayes": self.robust_empirical_bayes,
-                "control_variables": self.control_variables,
-                "entity_type": self.entity_type,
-            },
+            job_run_params=params,
         )
 
     @classmethod
@@ -145,7 +173,7 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
             "- limma_trend (bool): apply limma trend (default True)",
             "- robust_empirical_bayes (bool): apply robust EB moderation (default True)",
             "- control_variables (dict): {'control_variables': [{column: str, type: numerical|categorical}, ...]} (optional)",
-            "- entity_type (str): protein|peptide (default protein)",
+            "- entity_type (str): protein|peptide|gene|metabolite|ptm (default protein)",
             "- job_slug (str): backend job slug (default pairwise_comparison)",
         ]
         return "\n".join(lines)
@@ -177,10 +205,65 @@ class PairwiseComparisonDataset(BaseDatasetBuilder):
         if not isinstance(self.robust_empirical_bayes, bool):
             raise ValueError("robust_empirical_bayes must be a bool")
 
-        # entity type — gene is supported via limma (mdFlexiComparisons R/runDiscovery.R).
-        # edgeR / DESeq2 (gene-only count engines) are intentionally NOT exposed.
-        if self.entity_type not in {"protein", "peptide", "gene"}:
-            raise ValueError("entity_type must be one of: protein, peptide, gene")
+        # Entity types are sourced from _ENTITY_TYPES so this validator stays in
+        # lock-step with the rest of the package. As of 2026-05-27 the live
+        # backend stores pairwise jobs with entity_type in
+        # {protein, peptide, gene, metabolite, ptm} — see
+        # project_pairwise_de_method_entity_keyed memory.
+        if self.entity_type not in _ENTITY_TYPES:
+            raise ValueError(
+                f"entity_type must be one of: {sorted(_ENTITY_TYPES)}"
+            )
+
+        # DE method gating. MDFlexiComparisons Pydantic schema only allows
+        # edgeR / DESeq2 for entity_type='gene'; sending those for any other
+        # entity will be rejected by the per-entity ``Literal["limma"]``.
+        allowed_de = _DE_METHODS_PER_ENTITY[self.entity_type]
+        if self.de_method not in allowed_de:
+            raise ValueError(
+                f"de_method '{self.de_method}' not allowed for "
+                f"entity_type='{self.entity_type}'. "
+                f"Allowed: {sorted(allowed_de)}"
+            )
+
+        # edgeR companion: validate norm method enum.
+        if self.de_method == "edgeR":
+            if self.edger_norm_method not in {
+                "TMM",
+                "RLE",
+                "upperquartile",
+                "none",
+            }:
+                raise ValueError(
+                    "edger_norm_method must be one of: "
+                    "TMM, RLE, upperquartile, none "
+                    f"(got '{self.edger_norm_method}')"
+                )
+
+        # DESeq2 companions: validate shrinkage enum + alpha range + seed range.
+        if self.de_method == "DESeq2":
+            if self.deseq2_lfc_shrinkage not in {
+                "none",
+                "apeglm",
+                "ashr",
+                "normal",
+            }:
+                raise ValueError(
+                    "deseq2_lfc_shrinkage must be one of: "
+                    "none, apeglm, ashr, normal "
+                    f"(got '{self.deseq2_lfc_shrinkage}')"
+                )
+            if not 0.0 <= self.deseq2_alpha <= 1.0:
+                raise ValueError(
+                    "deseq2_alpha must be between 0 and 1 "
+                    f"(got {self.deseq2_alpha})"
+                )
+            if self.deseq2_lfc_shrinkage == "apeglm":
+                if not 0 <= self.apeglm_seed <= 2147483647:
+                    raise ValueError(
+                        "apeglm_seed must be between 0 and 2147483647 "
+                        f"(got {self.apeglm_seed})"
+                    )
 
         if self.filter_valid_values_logic not in [
             "all conditions",

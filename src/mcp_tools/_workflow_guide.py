@@ -234,8 +234,10 @@ _WORKFLOW_GUIDE = {
         "L_gene_workflow": {
             "description": (
                 "End-to-end gene workflow: md_format_gene upload → NI (with cpm + "
-                "by minimum abundance) → pairwise / ANOVA. Gene differential analysis is "
-                "supported via limma only — edgeR and DESeq2 are NOT exposed by this MCP."
+                "by minimum abundance) → pairwise / ANOVA. Gene differential analysis "
+                "supports de_method ∈ {limma, edgeR, DESeq2} via the entity-keyed "
+                "de_method_gene wire field; protein / peptide / metabolite / ptm are "
+                "limma-only."
             ),
             "steps": [
                 "── Phase 1: Upload ──",
@@ -258,12 +260,15 @@ _WORKFLOW_GUIDE = {
                 "'experiment_design': <SampleMetadata.to_columns()>}).",
                 "7. wait_for_dataset(upload_id, ni_id).",
                 "",
-                "── Phase 3: Pairwise OR ANOVA (limma only) ──",
+                "── Phase 3: Pairwise OR ANOVA (limma | edgeR | DESeq2) ──",
                 "8a. run_pairwise_comparison(input_dataset_ids=[<ni_id>], dataset_name=..., "
                 "sample_metadata=..., condition_column=..., condition_comparisons=..., "
-                "entity_type='gene').",
+                "entity_type='gene', de_method='limma' | 'edgeR' | 'DESeq2'). edgeR/"
+                "DESeq2 carry companion params — see describe_pipeline('pairwise_"
+                "comparison') for the full menu.",
                 "8b. run_anova(input_dataset_ids=[<ni_id>], dataset_name=..., "
-                "sample_metadata=..., condition_column=..., entity_type='gene').",
+                "sample_metadata=..., condition_column=..., entity_type='gene', "
+                "de_method='limma' | 'edgeR' | 'DESeq2').",
                 "9. wait_for_dataset(upload_id, output_id).",
             ],
             "notes": [
@@ -271,7 +276,7 @@ _WORKFLOW_GUIDE = {
                 "experiment_design is OPTIONAL for md_format_gene uploads — workflow skips the 'experiment_design required' validation for source=md_format_gene (workflow/app/models/experiment.rb:98-103). sample_metadata IS still required.",
                 "If the user has a metadata CSV with both filename and sample_name (the standard LFQ shape), pass it through load_metadata_from_csv as usual — the resulting experiment_design is harmlessly accepted.",
                 "cpm normalisation is gene-only. ComBat-Seq is gene-only batch correction; ComBat and Limma remove batch effect work for gene too.",
-                "Pairwise + ANOVA are limma-only on gene data here. If the user explicitly asks for edgeR or DESeq2, say it's not available through this MCP.",
+                "Gene pairwise / ANOVA now accept de_method ∈ {limma, edgeR, DESeq2}. The wire field is entity-keyed (de_method_gene). Protein / peptide / metabolite / ptm are limma-only — the MCP rejects edgeR/DESeq2 for them client-side before submission.",
             ],
         },
         "M_visualise": {
@@ -494,7 +499,7 @@ _WORKFLOW_GUIDE = {
         "sample_names and control_samples for dose-response must come verbatim from sample_metadata rows.",
         "Sample name matching is exact and case-sensitive across all tables.",
         "DESTRUCTIVE tools (delete_upload, delete_dataset, cancel_dataset, cancel_upload_queue, update_sample_metadata) carry the MANDATORY DESTRUCTIVE-ACTION CONFIRMATION mandate (see each tool's docstring): (1) echo every target id back to the user, (2) state the consequence in plain language, (3) wait for explicit 'yes, <verb> <id>' confirmation — silence and bare 'OK' are NOT enough, (4) never chain a destructive call after a query in the same turn.",
-        "Upload source must be one of: maxquant, diann_tabular, tims_diann, spectronaut, md_format, md_format_gene. Every other value is rejected client-side and server-side.",
+        "Upload source must be one of: maxquant, diann_tabular, tims_diann, spectronaut, md_format, md_format_gene, md_format_metabolite. Every other value is rejected client-side and server-side.",
     ],
     "common_mistakes": [
         "PAIRWISE — ONE CALL FOR ALL PAIRS: generate_pairwise_comparisons returns a list "
@@ -533,14 +538,20 @@ _WORKFLOW_GUIDE = {
         "Underscored aliases ('by_missing_values', 'minimum_abundance', "
         "'ptm_localization_probability') are accepted on input but deprecated.",
         "FILTRATION ENTITY MATRIX: protein → 'by missing values' only; peptide → 'by missing "
-        "values' or 'by ptm localization probability'; gene → 'by minimum abundance' only. "
-        "Cross-entity combinations are rejected client-side.",
+        "values' or 'by ptm localization probability'; gene → 'by minimum abundance' only; "
+        "ptm → 'by missing values' or 'by ptm localization probability'; "
+        "metabolite → 'by missing values' (NI for metabolite is currently upstream-"
+        "gated by md-converter and may 422). Cross-entity combinations are rejected "
+        "client-side.",
         "FILTER-ONLY PATTERN: To filter without normalising/imputing, pass "
         "normalisation_method='skip' + imputation_method='skip' + a filtration_method "
         "(see Workflow K). Output is still an INTENSITY dataset.",
-        "GENE STATISTICS SCOPE: Pairwise and ANOVA support entity_type='gene' via limma "
-        "ONLY. The count-data engines edgeR and DESeq2 are NOT exposed by this MCP. Do not "
-        "promise either to the user — if they ask, say it's not available here.",
+        "DE METHOD SCOPE: Pairwise and ANOVA accept de_method ∈ {limma, edgeR, DESeq2} "
+        "for entity_type='gene' only. Every other entity_type (protein, peptide, "
+        "metabolite, ptm) is limma-only — the MCP rejects edgeR/DESeq2 for them "
+        "client-side. Wire field is entity-keyed: ``de_method_<entity_type>``. "
+        "edgeR carries `edger_norm_method`; DESeq2 carries `deseq2_lfc_shrinkage`, "
+        "`deseq2_alpha`, and `apeglm_seed` (only when shrinkage='apeglm').",
         "GENE UPLOAD SOURCE: Gene-level uploads use source='md_format_gene' (long format "
         "with GeneExpression + Imputed columns). Other md_format sources are protein- or "
         "peptide-level.",

@@ -145,11 +145,15 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             "entity_type": {
                 "type": "str",
                 "required": True,
-                "valid_values": ["protein", "peptide", "gene"],
+                "valid_values": ["protein", "peptide", "gene", "metabolite", "ptm"],
                 "description": (
                     "Entity level of the input dataset. Must match the upstream INTENSITY "
-                    "dataset (e.g. md_format_gene uploads → 'gene'). Drives which "
-                    "normalisation / filtration methods are valid."
+                    "dataset (e.g. md_format_gene uploads → 'gene', md_format_metabolite "
+                    "→ 'metabolite', phospho uploads → 'ptm'). Drives which normalisation "
+                    "/ filtration methods are valid. Wire format is lowercase — the UI "
+                    "shows 'PTM' / 'Metabolite' but the backend stores them lowercase "
+                    "(confirmed against live job_run_params 2026-05-27). Metabolite NI "
+                    "is currently upstream-gated by md-converter and may 422."
                 ),
             },
             "normalisation_method": {
@@ -184,6 +188,20 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
                         "sum",
                         "batch correction",
                         "cpm",
+                    ],
+                    "ptm": [
+                        "skip",
+                        "median",
+                        "quantile",
+                        "sum",
+                        "batch correction",
+                    ],
+                    "metabolite": [
+                        "skip",
+                        "median",
+                        "quantile",
+                        "sum",
+                        "batch correction",
                     ],
                 },
                 "method_params": {
@@ -470,6 +488,12 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
                         "by ptm localization probability",
                     ],
                     "gene": ["skip", "by minimum abundance"],
+                    "ptm": [
+                        "skip",
+                        "by missing values",
+                        "by ptm localization probability",
+                    ],
+                    "metabolite": ["skip", "by missing values"],
                 },
                 "method_params": {
                     "skip": "No extra parameters. Filtration is skipped.",
@@ -653,11 +677,63 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             "entity_type": {
                 "type": "str",
                 "default": "protein",
-                "valid_values": ["protein", "peptide", "gene"],
+                "valid_values": ["protein", "peptide", "gene", "metabolite", "ptm"],
                 "description": (
-                    "Entity level to analyse. Gene ANOVA runs through limma "
-                    "(mdFlexiComparisons runANOVA, de_method='limma'). The count-data "
-                    "engines edgeR / DESeq2 are NOT exposed by this MCP."
+                    "Entity level to analyse. Wire format is lowercase (UI shows "
+                    "'PTM' / 'Metabolite' but the backend stores them lowercase)."
+                ),
+            },
+            "de_method": {
+                "type": "str",
+                "default": "limma",
+                "valid_values": ["limma", "edgeR", "DESeq2"],
+                "valid_values_per_entity_type": {
+                    "protein": ["limma"],
+                    "peptide": ["limma"],
+                    "gene": ["limma", "edgeR", "DESeq2"],
+                    "metabolite": ["limma"],
+                    "ptm": ["limma"],
+                },
+                "description": (
+                    "Differential-expression engine. Same shape as pairwise — only "
+                    "entity_type='gene' allows edgeR / DESeq2. Wire field is "
+                    "entity-keyed: ``de_method_<entity_type>``."
+                ),
+            },
+            "edger_norm_method": {
+                "type": "str",
+                "default": "TMM",
+                "valid_values": ["TMM", "RLE", "upperquartile", "none"],
+                "description": (
+                    "Library size normalisation method for edgeR. Only used when "
+                    "de_method='edgeR' (entity_type='gene' only)."
+                ),
+            },
+            "deseq2_lfc_shrinkage": {
+                "type": "str",
+                "default": "none",
+                "valid_values": ["none", "apeglm", "ashr", "normal"],
+                "description": (
+                    "Log-fold-change shrinkage method for DESeq2. Only used when "
+                    "de_method='DESeq2' (entity_type='gene' only)."
+                ),
+            },
+            "deseq2_alpha": {
+                "type": "float",
+                "default": 0.05,
+                "range": "0.0–1.0",
+                "description": (
+                    "DESeq2 independent-filtering FDR threshold. Set this to the "
+                    "downstream FDR threshold you intend to apply. Only used when "
+                    "de_method='DESeq2'."
+                ),
+            },
+            "apeglm_seed": {
+                "type": "int",
+                "default": 1,
+                "description": (
+                    "RNG seed for apeglm. Only used when de_method='DESeq2' AND "
+                    "deseq2_lfc_shrinkage='apeglm'."
                 ),
             },
             "control_variables": {
@@ -845,11 +921,71 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             "entity_type": {
                 "type": "str",
                 "default": "protein",
-                "valid_values": ["protein", "peptide", "gene"],
+                "valid_values": ["protein", "peptide", "gene", "metabolite", "ptm"],
                 "description": (
-                    "Entity level to analyse. Gene pairwise runs through limma "
-                    "(mdFlexiComparisons runDiscovery, de_method='limma'). The count-data "
-                    "engines edgeR / DESeq2 are NOT exposed by this MCP."
+                    "Entity level to analyse. Wire format is lowercase (UI shows "
+                    "'PTM' / 'Metabolite' but the backend stores them lowercase — "
+                    "confirmed against live job_run_params 2026-05-27)."
+                ),
+            },
+            "de_method": {
+                "type": "str",
+                "default": "limma",
+                "valid_values": ["limma", "edgeR", "DESeq2"],
+                "valid_values_per_entity_type": {
+                    "protein": ["limma"],
+                    "peptide": ["limma"],
+                    "gene": ["limma", "edgeR", "DESeq2"],
+                    "metabolite": ["limma"],
+                    "ptm": ["limma"],
+                },
+                "description": (
+                    "Differential-expression engine. Only entity_type='gene' "
+                    "exposes a real choice; every other entity_type is hard-pinned "
+                    "to 'limma' by the MDFlexiComparisons Pydantic schema. The MCP "
+                    "rejects edgeR / DESeq2 for any non-gene entity_type "
+                    "client-side. Wire field is entity-keyed: ``de_method_<entity_type>``."
+                ),
+            },
+            "edger_norm_method": {
+                "type": "str",
+                "default": "TMM",
+                "valid_values": ["TMM", "RLE", "upperquartile", "none"],
+                "description": (
+                    "Library size normalisation method for edgeR. Only used when "
+                    "de_method='edgeR' (entity_type='gene' only)."
+                ),
+            },
+            "deseq2_lfc_shrinkage": {
+                "type": "str",
+                "default": "none",
+                "valid_values": ["none", "apeglm", "ashr", "normal"],
+                "description": (
+                    "Log-fold-change shrinkage method for DESeq2. Only used when "
+                    "de_method='DESeq2' (entity_type='gene' only). 'apeglm' is the "
+                    "recommended modern choice for ranking."
+                ),
+            },
+            "deseq2_alpha": {
+                "type": "float",
+                "default": 0.05,
+                "range": "0.0–1.0",
+                "description": (
+                    "DESeq2 independent-filtering FDR threshold (alpha). SET TO THE "
+                    "FDR THRESHOLD YOU WILL APPLY DOWNSTREAM — DESeq2's independent "
+                    "filtering optimises the rejection set at this alpha, so "
+                    "mismatched values silently lose statistical power. Only used "
+                    "when de_method='DESeq2'."
+                ),
+            },
+            "apeglm_seed": {
+                "type": "int",
+                "default": 1,
+                "description": (
+                    "RNG seed for apeglm shrinkage. Only used when "
+                    "de_method='DESeq2' AND deseq2_lfc_shrinkage='apeglm'. apeglm's "
+                    "posterior optimisation uses random initialisation for some "
+                    "genes; fixing this seed guarantees reproducible results."
                 ),
             },
             "control_variables": {

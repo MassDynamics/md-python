@@ -137,7 +137,12 @@ def run_normalisation_imputation(
                                         "knn", "knn_tn", "global_median",
                                         "median_by_entity", "mindet",
                                         "set to constant", "set to missing", "skip"
-    entity_type           "protein"     "protein" | "peptide" | "gene"
+    entity_type           "protein"     "protein" | "peptide" | "gene" |
+                                        "metabolite" | "ptm" (lowercase on
+                                        the wire; metabolite NI is currently
+                                        upstream-gated by md-converter and
+                                        will likely 422 — see metabolite
+                                        pipeline gap memory)
     filtration_method     None ("skip") see filtration table below
 
     Method-specific params (defaults sent automatically; confirm with user):
@@ -187,6 +192,13 @@ def run_normalisation_imputation(
     gene          skip                         —
     gene          by minimum abundance         minimum_abundance_threshold (0–100)
                                                 + shared filter block
+    ptm           skip                         —
+    ptm           by missing values            shared filter block
+    ptm           by ptm localization probability   threshold (0–1, default 0.5)
+    metabolite    skip                         —
+    metabolite    by missing values            shared filter block (upstream NI
+                                                support for metabolite is
+                                                currently absent — likely 422)
 
     Shared filter block (by missing values, by minimum abundance):
       filter_valid_values_criteria   "percentage" | "count"
@@ -311,7 +323,10 @@ def run_normalisation_imputation_bulk(jobs: List[Dict[str, Any]]) -> str:
       dataset_name             str   — name for the output dataset (required)
       normalisation_method     str   — see run_normalisation_imputation (required)
       imputation_method        str   — see run_normalisation_imputation (required)
-      entity_type              str   — "protein" (default), "peptide", or "gene"
+      entity_type              str   — "protein" (default), "peptide", "gene",
+                                       "metabolite", or "ptm" (lowercase on
+                                       the wire; metabolite NI is upstream-
+                                       gated and may 422)
       filtration_method        str   — optional; "skip" | "by missing values" |
                                        "by ptm localization probability" |
                                        "by minimum abundance" (entity-specific)
@@ -330,9 +345,16 @@ def run_normalisation_imputation_bulk(jobs: List[Dict[str, Any]]) -> str:
                                         filter_based_on_condition, experiment_design.
       if_exists                str   — "skip" (default) or "run"
 
-    Returns JSON array:
-      [{index, upload_id, dataset_name, dataset_id?, skipped?, error?, error_code?}]
-    Or a JSON error object if len(jobs) > 500.
+    Returns JSON envelope:
+      {
+        "summary": {"total": N, "submitted": int, "skipped": int,
+                    "failed": int, "failed_indices": [int, ...]},
+        "results": [{index, upload_id, dataset_name, dataset_id?, skipped?,
+                     error?, error_code?}, ...],
+      }
+    The summary sits ABOVE the results so a partial failure can't be missed —
+    if summary.failed > 0, walk results at summary.failed_indices to see why.
+    Or a JSON error object (no `results` key) if len(jobs) > 500.
     """
     unique_ids = list({job.get("upload_id", "") for job in jobs})
     existing_cache: Dict[str, Dict[str, str]] = {}
