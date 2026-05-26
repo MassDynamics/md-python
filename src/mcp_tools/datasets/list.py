@@ -5,6 +5,7 @@ from typing import Optional
 
 from .. import mcp
 from .._client import get_client
+from .._retry import retry_on_5xx
 
 
 @mcp.tool()
@@ -42,7 +43,9 @@ def list_jobs(upload_id: Optional[str] = None) -> str:
     See also: describe_pipeline, list_datasets, find_initial_dataset.
     """
     if upload_id is not None:
-        datasets = get_client().datasets.list_by_upload(upload_id)
+        datasets = retry_on_5xx(
+            lambda: get_client().datasets.list_by_upload(upload_id)
+        )
         if not datasets:
             return "No pipeline jobs found for this upload"
         lines = [f"Found {len(datasets)} job(s) for upload {upload_id}:"]
@@ -91,7 +94,9 @@ def list_datasets(upload_id: str, type_filter: Optional[str] = None) -> str:
       get_dataset (the only tool that exposes job_run_params — call it
       when the user wants to know how a dataset in this list was run).
     """
-    datasets = get_client().datasets.list_by_upload(upload_id)
+    datasets = retry_on_5xx(
+        lambda: get_client().datasets.list_by_upload(upload_id)
+    )
     if type_filter:
         datasets = [d for d in datasets if d.type == type_filter.upper()]
     if not datasets:

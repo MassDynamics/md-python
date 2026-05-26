@@ -99,7 +99,15 @@ def validate_upload_inputs(
     # Duplicate check (Counter is O(n) vs list.count's O(n²))
     ed_dupes = sorted(s for s, n in Counter(ed_samples).items() if n > 1)
     if ed_dupes:
-        errors.append(f"Duplicate sample_names in experiment_design: {ed_dupes}")
+        errors.append(
+            f"Duplicate sample_names in experiment_design: {ed_dupes}. "
+            "If this is a multi-file md_format upload (e.g. a phospho upload "
+            "with both a peptide-level and a protein-level md_format file), "
+            "use ONE row per sample with `filename` set to ONE of the data "
+            "files — both files are still ingested because they are both "
+            "listed in `filenames=`. The filename column is effectively "
+            "decorative when multiple data files exist for the same sample."
+        )
 
     sm_dupes = sorted(s for s, n in Counter(sm_samples).items() if n > 1)
     if sm_dupes:

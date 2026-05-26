@@ -6,6 +6,7 @@ from typing import Dict
 
 from .. import mcp
 from .._client import get_client
+from .._retry import retry_on_5xx
 
 
 def _fetch_dataset_state(job: Dict[str, str]) -> Dict[str, str]:
@@ -21,8 +22,13 @@ def _fetch_dataset_state(job: Dict[str, str]) -> Dict[str, str]:
     dataset_id = job["dataset_id"]
     upload_id = job.get("upload_id")
     try:
+        # Transient 5xx during a poll cycle is common and self-heals; retry
+        # silently so a hiccup never produces a fake FETCH_ERROR for a dataset
+        # that is actually fine. See mcp_tools/_retry.py for the policy.
         if upload_id:
-            datasets = get_client().datasets.list_by_upload(upload_id)
+            datasets = retry_on_5xx(
+                lambda: get_client().datasets.list_by_upload(upload_id)
+            )
             ds = next((d for d in datasets if str(d.id) == dataset_id), None)
             if ds is None:
                 return {
@@ -32,7 +38,9 @@ def _fetch_dataset_state(job: Dict[str, str]) -> Dict[str, str]:
                     "error": "Dataset ID not found in upload — it may still be queued or the ID may be wrong.",
                 }
         else:
-            ds = get_client().datasets.get_by_id(dataset_id)
+            ds = retry_on_5xx(
+                lambda: get_client().datasets.get_by_id(dataset_id)
+            )
             if ds is None:
                 return {
                     "dataset_id": dataset_id,

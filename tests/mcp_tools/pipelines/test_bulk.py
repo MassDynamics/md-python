@@ -44,8 +44,11 @@ class TestRunDoseResponseBulk:
         with patch_pipeline_client(mock_client):
             result = json.loads(run_dose_response_bulk(jobs))
 
-        assert result[0]["dataset_id"] == "dr-id-1"
-        assert result[1]["dataset_id"] == "dr-id-2"
+        assert result["summary"]["total"] == 2
+        assert result["summary"]["submitted"] == 2
+        assert result["summary"]["failed"] == 0
+        assert result["results"][0]["dataset_id"] == "dr-id-1"
+        assert result["results"][1]["dataset_id"] == "dr-id-2"
 
     def test_skips_existing_jobs(self):
         mock_client = MagicMock()
@@ -67,8 +70,9 @@ class TestRunDoseResponseBulk:
                 )
             )
 
-        assert result[0]["dataset_id"] == "existing-id"
-        assert result[0]["skipped"] is True
+        assert result["results"][0]["dataset_id"] == "existing-id"
+        assert result["results"][0]["skipped"] is True
+        assert result["summary"]["skipped"] == 1
         mock_client.datasets.create.assert_not_called()
 
     def test_caches_initial_dataset_lookup(self):
@@ -143,8 +147,8 @@ class TestRunDoseResponseBulk:
             result = json.loads(run_dose_response_bulk(jobs))
 
         mock_client.uploads.get_by_id.assert_called_once_with("upload-1")
-        assert result[0]["dataset_id"] == "id-1"
-        assert result[1]["dataset_id"] == "id-2"
+        assert result["results"][0]["dataset_id"] == "id-1"
+        assert result["results"][1]["dataset_id"] == "id-2"
 
     def test_captures_errors_inline(self):
         mock_client = MagicMock()
@@ -164,8 +168,10 @@ class TestRunDoseResponseBulk:
                 )
             )
 
-        assert "error" in result[0]
-        assert result[0]["error_code"] == "dataset_not_found"
+        assert "error" in result["results"][0]
+        assert result["results"][0]["error_code"] == "dataset_not_found"
+        assert result["summary"]["failed"] == 1
+        assert result["summary"]["failed_indices"] == [0]
 
 
 class TestRunNormalisationImputationBulk:
@@ -188,8 +194,9 @@ class TestRunNormalisationImputationBulk:
         with patch_pipeline_client(mock_client):
             result = json.loads(run_normalisation_imputation_bulk(jobs))
 
-        assert result[0]["dataset_id"] == "ni-id-1"
-        assert result[1]["dataset_id"] == "ni-id-2"
+        assert result["summary"]["submitted"] == 2
+        assert result["results"][0]["dataset_id"] == "ni-id-1"
+        assert result["results"][1]["dataset_id"] == "ni-id-2"
 
     def test_skips_existing_jobs(self):
         ni_ds = MagicMock()
@@ -213,8 +220,9 @@ class TestRunNormalisationImputationBulk:
                 )
             )
 
-        assert result[0]["dataset_id"] == "existing-ni-id"
-        assert result[0]["skipped"] is True
+        assert result["results"][0]["dataset_id"] == "existing-ni-id"
+        assert result["results"][0]["skipped"] is True
+        assert result["summary"]["skipped"] == 1
         mock_client.datasets.create.assert_not_called()
 
     def test_enforces_job_cap(self):
@@ -249,8 +257,9 @@ class TestRunNormalisationImputationBulk:
                 )
             )
 
-        assert "error" in result[0]
-        assert result[0]["error_code"] == "dataset_not_found"
+        assert "error" in result["results"][0]
+        assert result["results"][0]["error_code"] == "dataset_not_found"
+        assert result["summary"]["failed_indices"] == [0]
 
 
 class TestRunPairwiseComparisonBulk:
@@ -280,8 +289,9 @@ class TestRunPairwiseComparisonBulk:
         with patch_pipeline_client(mock_client):
             result = json.loads(run_pairwise_comparison_bulk(jobs))
 
-        assert result[0]["dataset_id"] == "pc-id-1"
-        assert result[1]["dataset_id"] == "pc-id-2"
+        assert result["summary"]["submitted"] == 2
+        assert result["results"][0]["dataset_id"] == "pc-id-1"
+        assert result["results"][1]["dataset_id"] == "pc-id-2"
 
     def test_skips_existing_jobs(self):
         pc_ds = MagicMock()
@@ -294,8 +304,9 @@ class TestRunPairwiseComparisonBulk:
         with patch_pipeline_client(mock_client):
             result = json.loads(run_pairwise_comparison_bulk([self._base_job]))
 
-        assert result[0]["dataset_id"] == "existing-pc-id"
-        assert result[0]["skipped"] is True
+        assert result["results"][0]["dataset_id"] == "existing-pc-id"
+        assert result["results"][0]["skipped"] is True
+        assert result["summary"]["skipped"] == 1
         mock_client.datasets.create.assert_not_called()
 
     def test_error_when_missing_input_dataset_ids(self):
@@ -308,7 +319,8 @@ class TestRunPairwiseComparisonBulk:
         with patch_pipeline_client(mock_client):
             result = json.loads(run_pairwise_comparison_bulk([job]))
 
-        assert result[0]["error_code"] == "missing_input"
+        assert result["results"][0]["error_code"] == "missing_input"
+        assert result["summary"]["failed"] == 1
 
     def test_enforces_job_cap(self):
         jobs = [{**self._base_job, "dataset_name": f"PC {i}"} for i in range(501)]

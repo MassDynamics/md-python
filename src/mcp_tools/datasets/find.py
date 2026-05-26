@@ -5,6 +5,7 @@ from typing import List
 
 from .. import mcp
 from .._client import get_client
+from .._retry import retry_on_5xx
 
 
 @mcp.tool()
@@ -34,7 +35,7 @@ def find_initial_datasets(upload_ids: List[str]) -> str:
     results: dict = {}
     for uid in upload_ids:
         try:
-            ds = c.datasets.find_initial_dataset(uid)
+            ds = retry_on_5xx(lambda: c.datasets.find_initial_dataset(uid))
             if ds:
                 results[uid] = {"dataset_id": str(ds.id)}
             else:
@@ -54,12 +55,23 @@ def find_initial_dataset(upload_id: str) -> str:
     Disambiguation (when an upload has multiple INTENSITY datasets — common
     once an NI or filter-only run has executed): the unique INTENSITY dataset
     whose ``input_dataset_ids`` is empty is the upload-created one. NI/
-    filter-only outputs are also typed INTENSITY but always carry a non-empty
-    ``input_dataset_ids`` pointing back to the original upload-created
-    dataset (md_python.resources.v2.datasets.Datasets.find_initial_dataset:
+    filter-only outputs are also typed INTENSITY but normally carry a
+    non-empty ``input_dataset_ids`` pointing back to the original upload-
+    created dataset (md_python.resources.v2.datasets.Datasets.find_initial_dataset:
     226-262). When the disambiguation cannot pick a single record, the
     underlying resource raises ValueError; this tool surfaces that as
     ``Error: <message>`` and lists the candidate ids.
+
+    KNOWN EXCEPTION — multi-entity md_format uploads (e.g. dual-file phospho
+    uploads that contain both a peptide-level and a protein-level md_format
+    file): observed 2026-05-26 that the user-facing INTENSITY dataset can
+    have a non-empty ``input_dataset_ids`` pointing at an upstream sibling
+    that is NOT returned by ``list_datasets`` for the same upload (the
+    sibling exists only in the workflow's internal graph). In that case the
+    "unique INTENSITY with empty input_dataset_ids" rule may select the
+    wrong record or fail to find any. Fall back to ``list_datasets`` and
+    inspect ``input_dataset_ids`` manually, or pick the dataset by name.
+    This is a workflow-side gap, not an md-python bug.
 
     Use this when: a single upload_id needs its input dataset id resolved.
 
@@ -80,7 +92,9 @@ def find_initial_dataset(upload_id: str) -> str:
       when the user wants to know how this dataset was processed).
     """
     try:
-        ds = get_client().datasets.find_initial_dataset(upload_id)
+        ds = retry_on_5xx(
+            lambda: get_client().datasets.find_initial_dataset(upload_id)
+        )
     except ValueError as e:
         return f"Error: {e}"
     return f"Initial dataset found.\nID: {ds.id}\n{ds}"

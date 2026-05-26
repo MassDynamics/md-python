@@ -4,6 +4,7 @@ import json
 
 from .. import mcp
 from .._client import get_client
+from .._retry import retry_on_5xx
 
 
 @mcp.tool()
@@ -58,7 +59,11 @@ def get_dataset(dataset_id: str) -> str:
     See also: list_datasets, query_datasets, find_initial_dataset.
     """
     try:
-        ds = get_client().datasets.get_by_id(dataset_id)
+        # Bounded retry on transient 5xx — the platform occasionally returns
+        # 500 from /datasets/:id during load spikes even when the dataset is
+        # healthy (user reported persistent 500s 2026-05-26 on a COMPLETED
+        # dataset). After max_attempts the exception surfaces normally.
+        ds = retry_on_5xx(lambda: get_client().datasets.get_by_id(dataset_id))
     except Exception as e:
         return json.dumps({"error": str(e), "dataset_id": dataset_id})
 

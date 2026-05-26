@@ -304,9 +304,16 @@ def run_dose_response_bulk(jobs: List[Dict[str, Any]]) -> str:
       prop_required_in_protein float — default 0.5
       if_exists         str   — "skip" (default) or "run"
 
-    Returns JSON array:
-      [{index, upload_id, dataset_name, dataset_id?, skipped?, error?, error_code?}]
-    Or a JSON error object if len(jobs) > 500.
+    Returns JSON envelope:
+      {
+        "summary": {"total": N, "submitted": int, "skipped": int,
+                    "failed": int, "failed_indices": [int, ...]},
+        "results": [{index, upload_id, dataset_name, dataset_id?, skipped?,
+                     error?, error_code?}, ...],
+      }
+    The summary sits ABOVE the results so a partial failure can't be missed —
+    if summary.failed > 0, walk results at summary.failed_indices to see why.
+    Or a JSON error object (no `results` key) if len(jobs) > 500.
     """
     unique_ids = list({job.get("upload_id", "") for job in jobs})
     existing_cache: Dict[str, Dict[str, str]] = {}

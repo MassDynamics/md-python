@@ -40,9 +40,27 @@ def _run_jobs_parallel(
     jobs: List[Dict[str, Any]],
     process_fn: Callable[[int, Dict[str, Any]], Dict[str, Any]],
 ) -> str:
-    """Validate job count, submit all jobs in parallel, return ordered JSON array.
+    """Validate job count, submit all jobs in parallel, return summary + results.
 
-    Returns an error JSON object (not array) if the job count exceeds _MAX_BULK_JOBS.
+    Returns a JSON envelope:
+
+        {
+            "summary": {
+                "total": N,
+                "submitted": int,    # got a dataset_id back
+                "skipped": int,      # if_exists='skip' matched an existing dataset
+                "failed": int,       # at least one of {error, error_code} present
+                "failed_indices": [int, ...],  # ordered by job index
+            },
+            "results": [ {...per-job entry...}, ... ],
+        }
+
+    The summary lives at the TOP of the response so a partial failure can never
+    be silently dropped — the LLM sees `failed: K/N` before reading any job.
+
+    Returns an error JSON object (no `results` key) if the job count exceeds
+    _MAX_BULK_JOBS.
+
     process_fn(index, job) must return a result dict with at least {"index": index}.
     """
     if len(jobs) > _MAX_BULK_JOBS:
@@ -59,4 +77,19 @@ def _run_jobs_parallel(
         futures = [executor.submit(process_fn, i, job) for i, job in enumerate(jobs)]
         results = [f.result() for f in futures]
 
-    return json.dumps(results, indent=2)
+    submitted = sum(
+        1 for r in results if "dataset_id" in r and not r.get("skipped")
+    )
+    skipped = sum(1 for r in results if r.get("skipped"))
+    failed_indices = sorted(
+        r["index"] for r in results if "error" in r or "error_code" in r
+    )
+    summary: Dict[str, Any] = {
+        "total": len(results),
+        "submitted": submitted,
+        "skipped": skipped,
+        "failed": len(failed_indices),
+        "failed_indices": failed_indices,
+    }
+
+    return json.dumps({"summary": summary, "results": results}, indent=2)
