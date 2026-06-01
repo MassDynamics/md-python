@@ -218,12 +218,27 @@ class TestGetMdFormatSpec:
         for col in (
             "ModifiedSequence",
             "StrippedSequence",
+            "Unique",
             "ProteinGroup",
+            "ProteinGroupId",
             "SampleName",
             "PeptideIntensity",
             "Imputed",
         ):
             assert col in spec
+
+    def test_peptide_spec_documents_dual_file_and_unique(self):
+        result = json.loads(get_md_format_spec("peptide"))
+        notes = " ".join(result["notes"]).lower()
+        # dual-file requirement and the cross-table id rule must be surfaced
+        assert "dual-file" in notes or "protein-level" in notes
+        assert "unique" in notes
+        assert "identical" in notes or "do not factorize" in notes
+        # the conversion template must emit Unique and derive ids from the
+        # protein companion (not an independent factorize)
+        template = result["conversion_template"]
+        assert "Unique" in template
+        assert "pg_to_id" in template
 
     def test_default_is_protein(self):
         default = json.loads(get_md_format_spec())

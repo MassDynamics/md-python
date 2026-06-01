@@ -102,20 +102,38 @@ _MD_FORMAT_PROTEIN_SPEC = {
 }
 
 _MD_FORMAT_PEPTIDE_SPEC = {
-    "ModifiedSequence": "string — peptide sequence with modifications (e.g. PEPT(UniMod:21)IDE)",
-    "StrippedSequence": "string — bare amino acid sequence",
-    "ProteinGroup": "string — parent protein group identifier",
-    "ProteinGroupId": "integer — matches protein-level ProteinGroupId",
-    "GeneNames": "string — gene name(s)",
-    "SampleName": "string — sample identifier",
+    "ModifiedSequence": "REQUIRED — string — peptide sequence with modifications (e.g. PEPT(UniMod:21)IDE)",
+    "StrippedSequence": "REQUIRED — string — bare amino acid sequence",
+    "Unique": (
+        "REQUIRED — boolean (TRUE/FALSE) — TRUE if the peptide is unique to its "
+        "protein group. Compute as: TRUE where the StrippedSequence maps to exactly "
+        "one ProteinGroup across the dataset, FALSE otherwise."
+    ),
+    "ProteinGroup": (
+        "REQUIRED — string — parent protein group identifier. MUST use the IDENTICAL "
+        "ProteinGroup→ProteinGroupId mapping as the companion protein-level file "
+        "(see DUAL-FILE note below)."
+    ),
+    "ProteinGroupId": (
+        "REQUIRED — integer — MUST match the protein-level file's ProteinGroupId for "
+        "the same ProteinGroup. Do NOT factorize the peptide and protein files "
+        "independently — derive the peptide ProteinGroupId from the protein file's "
+        "ProteinGroup→ProteinGroupId map (peptide-only groups absent from the protein "
+        "file get fresh ids above the protein file's max)."
+    ),
+    "GeneNames": "REQUIRED — string — gene name(s); same as the protein-level file.",
+    "SampleName": "REQUIRED — string — sample identifier; same sample set as the protein file.",
     "PeptideIntensity": (
-        "float — measured intensity. Use 0.0 for missing values, "
+        "REQUIRED — float — measured intensity. Use 0.0 for missing values, "
         "BUT every row with PeptideIntensity=0.0 MUST also have Imputed=1."
     ),
     "Imputed": (
-        "integer 0 or 1 — set to 1 for every row where PeptideIntensity=0.0. "
+        "REQUIRED — integer 0 or 1 — set to 1 for every row where PeptideIntensity=0.0. "
         "A zero with Imputed=0 is treated as a real measurement and causes downstream failures."
     ),
+    "OtherProteinGroupIds": "OPTIONAL — string — for a nonunique peptide, the other protein group ids (semicolon-separated).",
+    "ProteinNames": "OPTIONAL — string — protein name(s), semicolon-separated.",
+    "Description": "OPTIONAL — string — protein description(s), semicolon-separated.",
 }
 
 _MD_FORMAT_GENE_SPEC = {
@@ -197,6 +215,68 @@ long_df["GeneNames"] = long_df["GeneNames"].fillna("") if "GeneNames" in long_df
 result = long_df[["ProteinGroupId", "ProteinGroup", "GeneNames", "SampleName", "ProteinIntensity", "Imputed"]]
 result.to_csv("output_md_format.tsv", sep="\\t", index=False)
 print(f"Saved {len(result)} rows")
+"""
+
+# Peptide is a DUAL-FILE upload: a peptide-level file PLUS a companion protein-
+# level file, both passed to create_upload filenames=. The peptide table needs a
+# Unique column and a ProteinGroupId that MATCHES the protein file's
+# ProteinGroup->ProteinGroupId mapping (do NOT factorize the two files
+# independently). This template produces both that requirement and the protein
+# companion's id map.
+_GENERIC_PEPTIDE_TEMPLATE = """\
+import pandas as pd
+
+# ── 1. Protein companion file (REQUIRED alongside the peptide file) ──────────
+# Build (or load) the protein-level md_format table first; its
+# ProteinGroup->ProteinGroupId map is the single source of truth for ids.
+protein_df = pd.read_csv("output_md_format.tsv", sep="\\t")   # protein md_format
+pg_to_id = (
+    protein_df[["ProteinGroup", "ProteinGroupId"]]
+    .drop_duplicates()
+    .set_index("ProteinGroup")["ProteinGroupId"]
+    .to_dict()
+)
+
+# ── 2. Peptide wide-format file ─────────────────────────────────────────────
+annotation_cols = ["ModifiedSequence", "StrippedSequence", "ProteinGroup", "GeneNames"]
+df = pd.read_csv("your_peptide_file.tsv", sep="\\t", low_memory=False)
+sample_cols = [c for c in df.columns if c not in annotation_cols]
+
+long_df = df.melt(
+    id_vars=annotation_cols,
+    value_vars=sample_cols,
+    var_name="SampleName",
+    value_name="PeptideIntensity",
+)
+
+long_df["Imputed"] = long_df["PeptideIntensity"].isna().astype(int)
+long_df["PeptideIntensity"] = long_df["PeptideIntensity"].fillna(0.0)
+# CRITICAL: if source uses 0.0 for missing (not NaN), uncomment:
+# long_df.loc[long_df["PeptideIntensity"] == 0, "Imputed"] = 1
+
+# Unique = TRUE if the stripped sequence maps to exactly one protein group.
+pg_per_seq = long_df.groupby("StrippedSequence")["ProteinGroup"].transform("nunique")
+long_df["Unique"] = pg_per_seq == 1
+
+# ProteinGroupId MUST come from the protein file's map (not an independent
+# factorize). Peptide-only groups absent from the protein file get fresh ids
+# above the protein file's max.
+_next = (max(pg_to_id.values()) + 1) if pg_to_id else 1
+for pg in sorted(set(long_df["ProteinGroup"]) - set(pg_to_id)):
+    pg_to_id[pg] = _next
+    _next += 1
+long_df["ProteinGroupId"] = long_df["ProteinGroup"].map(pg_to_id).astype(int)
+long_df["GeneNames"] = long_df["GeneNames"].fillna("") if "GeneNames" in long_df.columns else ""
+
+result = long_df[[
+    "ModifiedSequence", "StrippedSequence", "Unique", "ProteinGroup",
+    "ProteinGroupId", "GeneNames", "SampleName", "PeptideIntensity", "Imputed",
+]]
+result.to_csv("output_md_format_peptide.tsv", sep="\\t", index=False)
+print(f"Saved {len(result)} peptide rows")
+# Upload BOTH files together:
+#   create_upload(..., source="md_format",
+#                 filenames=["output_md_format_peptide.tsv", "output_md_format.tsv"])
 """
 
 _GENERIC_GENE_TEMPLATE = """\
@@ -472,12 +552,7 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
         source = "md_format_metabolite"
     elif et == "peptide":
         spec = _MD_FORMAT_PEPTIDE_SPEC
-        template = _GENERIC_PROTEIN_TEMPLATE.replace(
-            "ProteinIntensity", "PeptideIntensity"
-        ).replace(
-            '["ProteinGroupId", "ProteinGroup", "GeneNames", "SampleName", "ProteinIntensity", "Imputed"]',
-            '["ModifiedSequence", "StrippedSequence", "ProteinGroup", "ProteinGroupId", "GeneNames", "SampleName", "PeptideIntensity", "Imputed"]',
-        )
+        template = _GENERIC_PEPTIDE_TEMPLATE
         source = "md_format"
     else:
         spec = _MD_FORMAT_PROTEIN_SPEC
@@ -533,6 +608,21 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
             "You still need an experiment_design CSV and a sample_metadata CSV alongside "
             "the data file.",
         ]
+        if et == "peptide":
+            notes += [
+                "PEPTIDE = DUAL-FILE UPLOAD: a peptide md_format upload MUST include "
+                "BOTH a peptide-level file AND a companion protein-level md_format file, "
+                "both passed in filenames=. A peptide file alone fails ingestion with "
+                "'Protein data file not found' (md-converter md_format/reader.py:47).",
+                "PEPTIDE REQUIRES a Unique column (boolean, TRUE if the peptide is "
+                "unique to its protein group) that the protein file does not have.",
+                "CROSS-TABLE ID RULE: ProteinGroupId and ProteinGroup MUST use the "
+                "IDENTICAL ProteinGroup→ProteinGroupId mapping in the peptide and "
+                "protein files. Do NOT factorize the two files independently — derive "
+                "the peptide ProteinGroupId from the protein file's map (peptide-only "
+                "groups get fresh ids above the protein file's max). Independent "
+                "factorization yields mismatched ids and a silent ingestion failure.",
+            ]
 
     notes.insert(
         0,
