@@ -2,10 +2,11 @@
 
 import json
 import os
+import re
 from typing import Dict, List, Optional, Set
 
 from .. import mcp
-from ._io import _read_header_only, _sniff_delimiter
+from ._io import _read_header_only, _read_preview, _sniff_delimiter
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Known annotation (non-intensity) columns for each format.
@@ -85,7 +86,15 @@ _FORMAT_ANNOTATION_COLS: Dict[str, Set[str]] = {
 
 _MD_FORMAT_PROTEIN_SPEC = {
     "ProteinGroupId": "integer — unique per protein group (use pd.factorize)",
-    "ProteinGroup": "string — primary protein group identifier (e.g. UniProt accession)",
+    "ProteinGroup": (
+        "string — primary protein group identifier. MUST be UniProt accession(s) "
+        "(e.g. P12345, or P12345;Q67890 for a group) — NOT Ensembl IDs (ENSP/ENSG) "
+        "or bare gene symbols. The platform maps PTM sites onto UniProt protein "
+        "SEQUENCES; non-UniProt ids resolve to 0 sequences and the upload fails "
+        "(silently, as a stuck 'processing' status). If your source uses Ensembl "
+        "ids, convert them to UniProt accessions first (e.g. UniProt ID-mapping "
+        "Ensembl_Protein→UniProtKB)."
+    ),
     "GeneNames": "string — gene name(s), empty string if unknown",
     "SampleName": "string — sample identifier (must match experiment_design sample_name)",
     "ProteinIntensity": (
@@ -110,9 +119,12 @@ _MD_FORMAT_PEPTIDE_SPEC = {
         "one ProteinGroup across the dataset, FALSE otherwise."
     ),
     "ProteinGroup": (
-        "REQUIRED — string — parent protein group identifier. MUST use the IDENTICAL "
-        "ProteinGroup→ProteinGroupId mapping as the companion protein-level file "
-        "(see DUAL-FILE note below)."
+        "REQUIRED — string — parent protein group identifier. MUST be UniProt "
+        "accession(s) (e.g. P12345) — NOT Ensembl ids (ENSP/ENSG) or gene symbols: "
+        "PTM sites are mapped onto UniProt protein SEQUENCES, and non-UniProt ids "
+        "yield 0 sequence matches and a (silent) failed upload. MUST also use the "
+        "IDENTICAL ProteinGroup→ProteinGroupId mapping as the companion protein-level "
+        "file (see DUAL-FILE note below)."
     ),
     "ProteinGroupId": (
         "REQUIRED — integer — MUST match the protein-level file's ProteinGroupId for "
@@ -622,6 +634,17 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
                 "the peptide ProteinGroupId from the protein file's map (peptide-only "
                 "groups get fresh ids above the protein file's max). Independent "
                 "factorization yields mismatched ids and a silent ingestion failure.",
+                "PROTEINGROUP MUST BE UNIPROT: ProteinGroup must hold UniProt "
+                "accession(s) (e.g. P12345), NOT Ensembl ids (ENSP/ENSG) or gene "
+                "symbols. PTM sites are located within UniProt protein SEQUENCES; "
+                "non-UniProt ids match 0 sequences and the upload fails silently "
+                "(stuck 'processing'). VERIFY BEFORE UPLOAD that StrippedSequence "
+                "values are substrings of the UniProt sequence for their ProteinGroup "
+                "(sample a few hundred; expect >90% — isoform differences explain the "
+                "rest). Convert Ensembl→UniProt via UniProt ID-mapping "
+                "(Ensembl_Protein→UniProtKB) if needed. Also resolve ';'-joined "
+                "ambiguous peptide forms (e.g. 'PEPTIDEK;EPTIDEK') to a single "
+                "sequence — joined forms never match a sequence.",
             ]
 
     notes.insert(
@@ -899,4 +922,93 @@ def plan_wide_to_md_format(
             "notes": notes,
         },
         indent=2,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Pre-upload guard: catch non-UniProt ProteinGroup ids before they cause a
+# silent server-side PTM site-mapping failure (0 sequences -> stuck "processing").
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Patterns that are NOT valid UniProt accessions and break PTM site-mapping.
+_ENSEMBL_RE = re.compile(r"^ENS[A-Z]*[GPT]\d{6,}", re.IGNORECASE)
+# UniProt accession formats (Swiss-Prot 6-char + newer 10-char; allow isoform -N).
+_UNIPROT_RE = re.compile(
+    r"^[OPQ][0-9][A-Z0-9]{3}[0-9]"
+    r"|^[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}",
+    re.IGNORECASE,
+)
+
+
+@mcp.tool()
+def validate_md_format_ids(file_path: str, delimiter: Optional[str] = None) -> str:
+    """Check that an md_format file's ProteinGroup column holds UniProt accessions.
+
+    Call this on a protein- OR peptide-level md_format data file BEFORE
+    create_upload. It catches the most common silent failure for peptide/PTM
+    uploads: ProteinGroup populated with Ensembl ids (ENSP/ENSG) or bare gene
+    symbols instead of UniProt accessions. The platform maps PTM sites onto
+    UniProt protein SEQUENCES; non-UniProt ids match 0 sequences and the upload
+    fails silently (it sits in "processing" with no dataset, no surfaced error).
+
+    Reads ONLY the header + a sample of rows (never the full file), so it is safe
+    on multi-GB md_format files and respects the entity-data boundary — it looks
+    at the ProteinGroup id column only, not at intensity values.
+
+    Returns a prose verdict:
+      "OK: ProteinGroup looks like UniProt accessions (N/M sampled)."  on pass, or
+      "WARNING: ProteinGroup does not look like UniProt ..."           with the
+      offending examples + the Ensembl→UniProt remediation hint, on fail.
+    Returns "Error: ..." if the file is unreadable or has no ProteinGroup column.
+    """
+    if not os.path.exists(file_path):
+        return f"Error: file not found: {file_path}"
+    delim = delimiter or _sniff_delimiter(file_path)
+    header, rows = _read_preview(file_path, delim, max_rows=500)
+    if not header:
+        return f"Error: could not read a header row from {file_path}"
+    norm = [h.strip().lower() for h in header]
+    if "proteingroup" not in norm:
+        return (
+            "Error: no ProteinGroup column found. This check applies to "
+            "md_format protein/peptide files (gene/metabolite use a different id)."
+        )
+    idx = norm.index("proteingroup")
+    vals = [r[idx].strip() for r in rows if len(r) > idx and r[idx].strip()]
+    if not vals:
+        return "Error: ProteinGroup column is present but empty in the sampled rows."
+
+    # A group may be ';'-joined accessions — test the first member of each.
+    firsts = [v.split(";")[0] for v in vals]
+    ensembl = [v for v in firsts if _ENSEMBL_RE.match(v)]
+    uniprot = [v for v in firsts if _UNIPROT_RE.match(v)]
+    n = len(firsts)
+
+    if ensembl:
+        ex = sorted(set(ensembl))[:5]
+        return (
+            "WARNING: ProteinGroup contains Ensembl ids, not UniProt accessions "
+            f"({len(ensembl)}/{n} sampled look like Ensembl, e.g. {ex}). "
+            "PTM/peptide uploads map sites onto UniProt SEQUENCES — Ensembl ids "
+            "resolve to 0 sequences and the upload will FAIL SILENTLY (stuck "
+            "'processing', no dataset). FIX: convert ProteinGroup to UniProt "
+            "accessions (UniProt ID-mapping Ensembl_Protein→UniProtKB), keep the "
+            "peptide/protein ProteinGroupId mapping consistent, then re-verify "
+            "that StrippedSequence values are substrings of the UniProt sequence "
+            "for their ProteinGroup before uploading."
+        )
+    frac = len(uniprot) / n
+    if frac < 0.5:
+        ex = sorted(set(firsts))[:5]
+        return (
+            f"WARNING: only {len(uniprot)}/{n} sampled ProteinGroup values look "
+            f"like UniProt accessions (e.g. {ex}). If these are gene symbols or "
+            "another identifier, convert to UniProt accessions before upload — "
+            "PTM site-mapping requires UniProt sequences."
+        )
+    return (
+        f"OK: ProteinGroup looks like UniProt accessions ({len(uniprot)}/{n} "
+        "sampled match). Note: this validates id FORMAT only — for peptide/PTM "
+        "uploads also verify StrippedSequence values fall within the UniProt "
+        "sequence for their ProteinGroup."
     )
