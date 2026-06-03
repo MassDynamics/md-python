@@ -43,8 +43,12 @@ def run_anova(
 
     Use this when: the user wants an omnibus test across 3+ condition levels
     to detect any difference, on any entity type (protein / peptide / gene).
-    Gene-level ANOVA runs through limma (mdFlexiComparisons runANOVA.R,
-    de_method="limma"). edgeR / DESeq2 are NOT exposed by this MCP.
+    Gene-level ANOVA supports THREE DE engines via de_method: "limma"
+    (default), "edgeR", and "DESeq2" (gate: MDFlexiComparisons process_r.py
+    de_method_gene; see the de_method row below). protein/peptide/metabolite/
+    ptm are limma-only. limma takes pre-normalised values (e.g. a CPM dataset);
+    edgeR/DESeq2 take RAW integer counts and normalise + low-count-filter
+    internally.
 
     Do NOT use this when: only two conditions are being compared (use
     run_pairwise_comparison — ANOVA reduces to a t-test and pairwise gives

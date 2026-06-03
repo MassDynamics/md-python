@@ -64,7 +64,7 @@ def run_pairwise_comparison(
     apeglm_seed: int = 1,
     control_variables: Optional[List[Dict[str, str]]] = None,
 ) -> str:
-    """Run a pairwise differential abundance analysis using limma.
+    """Run a pairwise differential abundance analysis (limma; or edgeR/DESeq2 for genes).
 
     Returns: prose. Exact string "Pairwise comparison pipeline started.
     Dataset ID: <uuid>" on success. The "Dataset ID:" sentinel is stable
@@ -78,10 +78,12 @@ def run_pairwise_comparison(
     conditions (use run_anova); when processing many uploads (use
     run_pairwise_comparison_bulk).
 
-    entity_type="gene" is supported via the limma path (mdFlexiComparisons
-    runDiscovery.R, de_method="limma"). The count-data engines (edgeR /
-    DESeq2) are NOT exposed by this MCP — gene + limma is the only gene
-    pairwise path available here.
+    entity_type="gene" supports THREE DE engines via de_method: "limma"
+    (default), "edgeR", and "DESeq2" (gate: MDFlexiComparisons process_r.py
+    de_method_gene; see the de_method row below). protein/peptide/metabolite/
+    ptm are limma-only. The engine determines the input dataset: limma takes
+    pre-normalised values (e.g. a CPM dataset), while edgeR/DESeq2 take RAW
+    integer counts and normalise + low-count-filter internally.
 
     Parameter defaults are cited to
     tmp/audit_refs/data-set-service/flows/pairwise_comparison/pairwise_comparison_params.py:
@@ -163,10 +165,9 @@ def run_pairwise_comparison(
       "ptm". Must match the entity type in the upstream intensity dataset.
       Wire format is lowercase (the UI shows "PTM" / "Metabolite" but the
       backend stores them lowercase — confirmed against live job_run_params
-      2026-05-27). Gene / metabolite / ptm pairwise runs through limma
-      (mdFlexiComparisons runDiscovery, de_method="limma"). edgeR / DESeq2
-      are NOT exposed by this MCP — those count-data engines remain out of
-      scope this round.
+      2026-05-27). Gene pairwise supports limma (default), edgeR, and DESeq2
+      via de_method (see the de_method row above); edgeR/DESeq2 are gene-only
+      and take raw integer counts. Metabolite / ptm are limma-only.
 
     filter_valid_values_logic controls which proteins/peptides/genes pass the
       completeness filter before modelling:
