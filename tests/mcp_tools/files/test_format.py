@@ -2,9 +2,50 @@
 
 import json
 
-from mcp_tools.files import get_md_format_spec, plan_wide_to_md_format
+from mcp_tools.files import (
+    get_md_format_spec,
+    plan_wide_to_md_format,
+    validate_md_format_ids,
+)
 
 from .conftest import write_tsv
+
+
+class TestValidateMdFormatIds:
+    def test_uniprot_accessions_pass(self, cleanup):
+        path = write_tsv(
+            [
+                ["ProteinGroup", "GeneNames", "SampleName", "ProteinIntensity", "Imputed"],
+                ["P84085", "ARF5", "s1", "25.1", "0"],
+                ["P13569", "CFTR", "s1", "22.0", "0"],
+                ["Q02790;P11474", "FKBP4", "s1", "20.5", "0"],
+            ]
+        )
+        result = validate_md_format_ids(path)
+        assert result.startswith("OK")
+
+    def test_ensembl_ids_warn(self, cleanup):
+        path = write_tsv(
+            [
+                ["ProteinGroup", "GeneNames", "SampleName", "ProteinIntensity", "Imputed"],
+                ["ENSP00000000233.5", "ARF5", "s1", "25.1", "0"],
+                ["ENSP00000000412.3", "M6PR", "s1", "22.0", "0"],
+            ]
+        )
+        result = validate_md_format_ids(path)
+        assert result.startswith("WARNING")
+        assert "Ensembl" in result
+        assert "UniProt" in result
+
+    def test_missing_proteingroup_errors(self, cleanup):
+        path = write_tsv(
+            [
+                ["GeneId", "SampleName", "GeneExpression"],
+                ["ENSG00000123", "s1", "5.2"],
+            ]
+        )
+        result = validate_md_format_ids(path)
+        assert result.startswith("Error")
 
 
 class TestPlanWideToMdFormat:
@@ -218,12 +259,27 @@ class TestGetMdFormatSpec:
         for col in (
             "ModifiedSequence",
             "StrippedSequence",
+            "Unique",
             "ProteinGroup",
+            "ProteinGroupId",
             "SampleName",
             "PeptideIntensity",
             "Imputed",
         ):
             assert col in spec
+
+    def test_peptide_spec_documents_dual_file_and_unique(self):
+        result = json.loads(get_md_format_spec("peptide"))
+        notes = " ".join(result["notes"]).lower()
+        # dual-file requirement and the cross-table id rule must be surfaced
+        assert "dual-file" in notes or "protein-level" in notes
+        assert "unique" in notes
+        assert "identical" in notes or "do not factorize" in notes
+        # the conversion template must emit Unique and derive ids from the
+        # protein companion (not an independent factorize)
+        template = result["conversion_template"]
+        assert "Unique" in template
+        assert "pg_to_id" in template
 
     def test_default_is_protein(self):
         default = json.loads(get_md_format_spec())

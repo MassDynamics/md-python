@@ -72,11 +72,24 @@ def create_upload(
                             with columns R.FileName, PG.GroupLabel,
                             PG.ProteinGroups, PG.ProteinAccessions,
                             PG.Quantity (readers/spectronaut/reader.py:576).
-          "md_format"       MD long-format TSV with columns ProteinGroupId,
-                            ProteinGroup, GeneNames, SampleName,
+          "md_format"       MD long-format TSV. PROTEIN-level columns:
+                            ProteinGroupId, ProteinGroup, GeneNames, SampleName,
                             ProteinIntensity, Imputed
                             (readers/md_format/reader.py:288). Every row
                             with ProteinIntensity=0 MUST have Imputed=1.
+                            PEPTIDE-level (PTM) is a DUAL-FILE upload under this
+                            same source: pass BOTH a peptide file AND a protein
+                            file in filenames=. A peptide file alone fails with
+                            "Protein data file not found" (reader.py:47).
+                            Peptide columns: ModifiedSequence, StrippedSequence,
+                            Unique, ProteinGroup, ProteinGroupId, GeneNames,
+                            SampleName, PeptideIntensity, Imputed (optional:
+                            OtherProteinGroupIds, ProteinNames, Description).
+                            Unique is a REQUIRED boolean. ProteinGroupId and
+                            ProteinGroup MUST use the IDENTICAL mapping in both
+                            files (do NOT factorize the two files independently).
+                            Call get_md_format_spec("peptide") for the full
+                            schema + a dual-file conversion template.
           "md_format_gene"  MD gene-level TSV with columns GeneId,
                             GeneExpression, SampleName
                             (readers/md_format_gene/reader.py:8).

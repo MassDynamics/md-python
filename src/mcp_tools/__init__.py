@@ -86,7 +86,8 @@ Every tool returns ONE of:
 
 TOOL CATEGORIES — use roughly in this order:
   1. File tools    : read_csv_preview, load_metadata_from_csv,
-                     get_md_format_spec, plan_wide_to_md_format
+                     get_md_format_spec, plan_wide_to_md_format,
+                     validate_md_format_ids
   2. Upload tools  : validate_upload_inputs, create_upload_from_csv
                      (PREFERRED for local files), create_upload,
                      wait_for_upload, get_upload, get_upload_sample_metadata,
