@@ -133,6 +133,25 @@ _DE_METHODS_PER_ENTITY: Dict[str, frozenset[str]] = {
     "ptm": frozenset({"limma"}),
 }
 
+# Companion-parameter vocabularies for the gene DE engines — the allowed values
+# edgeR / DESeq2 accept. Mirror of MDFlexiComparisons process_r.py on
+# 2026-05-27: the ``edger_norm_method`` / ``deseq2_lfc_shrinkage`` Literals and
+# the ``deseq2_alpha`` / ``apeglm_seed`` numberrange ge/le bounds.
+#
+# These are the SINGLE source for the allowed values, so a sync check only has
+# to compare this file against process_r.py. The per-tool gating in
+# ``pairwise.py`` and ``anova.py`` reads these constants but keeps its own
+# validation block — the two tools can validate differently or be updated in
+# different orders without coupling.
+_EDGER_NORM_METHODS: frozenset[str] = frozenset(
+    {"TMM", "RLE", "upperquartile", "none"}
+)
+_DESEQ2_LFC_SHRINKAGE: frozenset[str] = frozenset(
+    {"none", "apeglm", "ashr", "normal"}
+)
+_DESEQ2_ALPHA_RANGE: tuple[float, float] = (0.0, 1.0)  # (ge, le)
+_APEGLM_SEED_RANGE: tuple[int, int] = (0, 2147483647)  # (ge, le)
+
 
 def _de_method_key(entity_type: str) -> str:
     """Wire-format key for the per-entity de_method field.

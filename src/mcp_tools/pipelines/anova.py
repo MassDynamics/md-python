@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Optional
 
 from md_python.models.dataset_builders import MinimalDataset
 from md_python.models.dataset_builders._methods import (
+    _APEGLM_SEED_RANGE,
     _DE_METHODS_PER_ENTITY,
+    _DESEQ2_ALPHA_RANGE,
+    _DESEQ2_LFC_SHRINKAGE,
+    _EDGER_NORM_METHODS,
     _ENTITY_TYPES,
     _de_method_key,
 )
@@ -196,26 +200,28 @@ def run_anova(
             f"Allowed: {sorted(allowed_de)}"
         )
     if de_method == "edgeR":
-        if edger_norm_method not in {"TMM", "RLE", "upperquartile", "none"}:
+        if edger_norm_method not in _EDGER_NORM_METHODS:
             raise ValueError(
-                "edger_norm_method must be one of: TMM, RLE, upperquartile, none "
-                f"(got '{edger_norm_method}')"
+                "edger_norm_method must be one of: "
+                f"{sorted(_EDGER_NORM_METHODS)} (got '{edger_norm_method}')"
             )
     if de_method == "DESeq2":
-        if deseq2_lfc_shrinkage not in {"none", "apeglm", "ashr", "normal"}:
+        if deseq2_lfc_shrinkage not in _DESEQ2_LFC_SHRINKAGE:
             raise ValueError(
-                "deseq2_lfc_shrinkage must be one of: none, apeglm, ashr, normal "
-                f"(got '{deseq2_lfc_shrinkage}')"
+                "deseq2_lfc_shrinkage must be one of: "
+                f"{sorted(_DESEQ2_LFC_SHRINKAGE)} (got '{deseq2_lfc_shrinkage}')"
             )
-        if not 0.0 <= deseq2_alpha <= 1.0:
+        _alpha_lo, _alpha_hi = _DESEQ2_ALPHA_RANGE
+        if not _alpha_lo <= deseq2_alpha <= _alpha_hi:
             raise ValueError(
-                "deseq2_alpha must be between 0 and 1 "
+                f"deseq2_alpha must be between {_alpha_lo} and {_alpha_hi} "
                 f"(got {deseq2_alpha})"
             )
         if deseq2_lfc_shrinkage == "apeglm":
-            if not 0 <= apeglm_seed <= 2147483647:
+            _seed_lo, _seed_hi = _APEGLM_SEED_RANGE
+            if not _seed_lo <= apeglm_seed <= _seed_hi:
                 raise ValueError(
-                    "apeglm_seed must be between 0 and 2147483647 "
+                    f"apeglm_seed must be between {_seed_lo} and {_seed_hi} "
                     f"(got {apeglm_seed})"
                 )
 
