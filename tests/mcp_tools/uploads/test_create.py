@@ -3,8 +3,17 @@
 from unittest.mock import MagicMock, patch
 
 from mcp_tools.uploads import create_upload, create_upload_from_csv
+from mcp_tools.uploads.create import _check_md_format_composition
 
 from .conftest import DESIGN, METADATA
+
+_PROTEIN_HEADER = (
+    "ProteinGroupId\tProteinGroup\tGeneNames\tSampleName\tProteinIntensity\tImputed\n"
+)
+_PEPTIDE_HEADER = (
+    "ModifiedSequence\tStrippedSequence\tUnique\tProteinGroup\tProteinGroupId\t"
+    "GeneNames\tSampleName\tPeptideIntensity\tImputed\n"
+)
 
 
 class TestCreateUpload:
@@ -169,3 +178,77 @@ class TestCreateUploadFromCsv:
         assert "queued" not in result
         _, kwargs = mock_client.uploads.create.call_args
         assert kwargs.get("executor") is None
+
+
+class TestMdFormatCompositionGuard:
+    """A peptide-only md_format upload must be rejected before transfer
+    (the code-level guard deferred by the get_md_format_spec peptide docs)."""
+
+    def test_helper_rejects_peptide_only(self, tmp_path):
+        (tmp_path / "peptide.tsv").write_text(_PEPTIDE_HEADER + "PEPT(UniMod:21)IDE\t")
+        err = _check_md_format_composition("md_format", str(tmp_path), ["peptide.tsv"])
+        assert err is not None
+        assert "peptide-only" in err
+        assert "protein" in err.lower()
+
+    def test_helper_allows_protein_plus_peptide(self, tmp_path):
+        (tmp_path / "protein.tsv").write_text(_PROTEIN_HEADER + "1\tP12345\t")
+        (tmp_path / "peptide.tsv").write_text(_PEPTIDE_HEADER + "PEPT(UniMod:21)IDE\t")
+        err = _check_md_format_composition(
+            "md_format", str(tmp_path), ["protein.tsv", "peptide.tsv"]
+        )
+        assert err is None
+
+    def test_helper_allows_protein_only(self, tmp_path):
+        (tmp_path / "protein.tsv").write_text(_PROTEIN_HEADER + "1\tP12345\t")
+        err = _check_md_format_composition("md_format", str(tmp_path), ["protein.tsv"])
+        assert err is None
+
+    def test_helper_skips_non_md_format_source(self, tmp_path):
+        # A DIA-NN pr_matrix has peptide-ish columns but is NOT md_format —
+        # the guard must not fire for it.
+        (tmp_path / "peptide.tsv").write_text(_PEPTIDE_HEADER)
+        err = _check_md_format_composition(
+            "diann_tabular", str(tmp_path), ["peptide.tsv"]
+        )
+        assert err is None
+
+    def test_helper_skips_s3_upload(self):
+        # No local file_location → cannot read headers → not applicable.
+        err = _check_md_format_composition("md_format", None, ["peptide.tsv"])
+        assert err is None
+
+    def test_create_upload_from_csv_rejects_peptide_only(self, tmp_path):
+        csv = tmp_path / "metadata.csv"
+        csv.write_text("filename,sample_name,condition\npeptide.tsv,s1,ctrl\n")
+        (tmp_path / "peptide.tsv").write_text(_PEPTIDE_HEADER + "PEPT(UniMod:21)IDE\t")
+        mock_client = MagicMock()
+
+        with patch("mcp_tools.uploads.create.get_client", return_value=mock_client):
+            result = create_upload_from_csv(
+                name="Peptide only",
+                source="md_format",
+                metadata_csv_path=str(csv),
+                file_location=str(tmp_path),
+                filenames=["peptide.tsv"],
+            )
+
+        assert "peptide-only" in result
+        mock_client.uploads.create.assert_not_called()
+
+    def test_create_upload_rejects_peptide_only(self, tmp_path):
+        (tmp_path / "peptide.tsv").write_text(_PEPTIDE_HEADER + "PEPT(UniMod:21)IDE\t")
+        mock_client = MagicMock()
+
+        with patch("mcp_tools.uploads.create.get_client", return_value=mock_client):
+            result = create_upload(
+                name="Peptide only",
+                source="md_format",
+                experiment_design=DESIGN,
+                sample_metadata=METADATA,
+                file_location=str(tmp_path),
+                filenames=["peptide.tsv"],
+            )
+
+        assert "peptide-only" in result
+        mock_client.uploads.create.assert_not_called()

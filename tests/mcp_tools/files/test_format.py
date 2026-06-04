@@ -15,7 +15,13 @@ class TestValidateMdFormatIds:
     def test_uniprot_accessions_pass(self, cleanup):
         path = write_tsv(
             [
-                ["ProteinGroup", "GeneNames", "SampleName", "ProteinIntensity", "Imputed"],
+                [
+                    "ProteinGroup",
+                    "GeneNames",
+                    "SampleName",
+                    "ProteinIntensity",
+                    "Imputed",
+                ],
                 ["P84085", "ARF5", "s1", "25.1", "0"],
                 ["P13569", "CFTR", "s1", "22.0", "0"],
                 ["Q02790;P11474", "FKBP4", "s1", "20.5", "0"],
@@ -27,7 +33,13 @@ class TestValidateMdFormatIds:
     def test_ensembl_ids_warn(self, cleanup):
         path = write_tsv(
             [
-                ["ProteinGroup", "GeneNames", "SampleName", "ProteinIntensity", "Imputed"],
+                [
+                    "ProteinGroup",
+                    "GeneNames",
+                    "SampleName",
+                    "ProteinIntensity",
+                    "Imputed",
+                ],
                 ["ENSP00000000233.5", "ARF5", "s1", "25.1", "0"],
                 ["ENSP00000000412.3", "M6PR", "s1", "22.0", "0"],
             ]
@@ -280,6 +292,18 @@ class TestGetMdFormatSpec:
         template = result["conversion_template"]
         assert "Unique" in template
         assert "pg_to_id" in template
+
+    def test_peptide_notes_cover_inline_unimod_and_unlocalised(self):
+        result = json.loads(get_md_format_spec("peptide"))
+        notes = " ".join(result["notes"]).lower()
+        # ModifiedSequence must be inline UniMod, not a tool's native annotation
+        assert "inline unimod" in notes
+        assert "proteome discoverer" in notes
+        # unlocalised-mod disclaimer must be put to the user (drop vs first-available)
+        assert "unlocalised" in notes or "unlocalized" in notes
+        assert "first candidate" in notes or "drop the unlocalised" in notes
+        # must NOT have re-introduced the reverted {p} probability suffix
+        assert "{0.01}" not in notes and "{p}" not in notes
 
     def test_default_is_protein(self):
         default = json.loads(get_md_format_spec())

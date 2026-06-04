@@ -645,6 +645,21 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
                 "(Ensembl_Protein→UniProtKB) if needed. Also resolve ';'-joined "
                 "ambiguous peptide forms (e.g. 'PEPTIDEK;EPTIDEK') to a single "
                 "sequence — joined forms never match a sequence.",
+                "MODIFIEDSEQUENCE MUST BE INLINE UNIMOD: residue then (UniMod:NN) "
+                "(N-term mods before residue 1, e.g. (UniMod:2016)PEPTIDE); NOT a "
+                "tool's native annotation. Proteome Discoverer exports it as "
+                "'[K].PEPT.[V] | 1xPhospho [T4]' which is NOT ingestible and must be "
+                "converted (Phospho->21, Oxidation->35, Carbamidomethyl->4, Acetyl->1, "
+                "TMTpro->2016, Met-loss->765, Met-loss+Acetyl->766; honour the Nx "
+                "multiplier). VALIDATE: stripping every (UniMod:NN) must reproduce "
+                "StrippedSequence exactly. ~15% of PD rows carry an UNLOCALISED "
+                "modification ([S/Y], [S/T], bare [S]) with no defined residue; inline "
+                "UniMod needs a specific site, so this is a SCIENTIFIC choice you MUST "
+                "put to the user — never auto-decide. Offer at minimum: (a) assign to "
+                "the first candidate residue of an allowed type (site inferred — can "
+                "collapse distinct precursors), or (b) drop the unlocalised rows; "
+                "optionally (c) assign-to-first plus a sidecar flagging inferred sites. "
+                "See the md-mcp-ops skill's pd_to_md_format recipe + pd_to_md_peptide.py.",
             ]
 
     notes.insert(
@@ -677,7 +692,7 @@ def plan_wide_to_md_format(
     delimiter: Optional[str] = None,
     transpose: bool = False,
 ) -> str:
-    """Generate a Python/pandas conversion script for a wide-format file → md_format or md_format_gene.
+    """Generate a Python/pandas conversion script for a wide-format file → md_format, md_format_gene, or md_format_metabolite.
 
     Works for any wide-format intensity matrix — DIA-NN, MaxQuant, Spectronaut,
     or a generic CSV/TSV. The standard orientation is entities (proteins, genes)
@@ -934,8 +949,7 @@ def plan_wide_to_md_format(
 _ENSEMBL_RE = re.compile(r"^ENS[A-Z]*[GPT]\d{6,}", re.IGNORECASE)
 # UniProt accession formats (Swiss-Prot 6-char + newer 10-char; allow isoform -N).
 _UNIPROT_RE = re.compile(
-    r"^[OPQ][0-9][A-Z0-9]{3}[0-9]"
-    r"|^[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}",
+    r"^[OPQ][0-9][A-Z0-9]{3}[0-9]" r"|^[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}",
     re.IGNORECASE,
 )
 

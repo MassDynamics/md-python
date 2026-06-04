@@ -10,8 +10,69 @@ from md_python.models.upload import Upload
 from .. import mcp
 from .._client import get_client
 from ..files import load_metadata_from_csv
+from ..files._io import _read_header_only, _sniff_delimiter
 from ._executor import _LARGE_UPLOAD_THRESHOLD_BYTES, _get_executor
 from .validate import validate_upload_inputs
+
+# Tabular extensions md-converter's md_format reader will inspect.
+_MD_FORMAT_TABULAR_EXTS = (".tsv", ".txt", ".csv")
+
+
+def _check_md_format_composition(
+    source: Optional[str],
+    file_location: Optional[str],
+    filenames: Optional[List[str]],
+) -> Optional[str]:
+    """Reject a peptide-only md_format upload.
+
+    md_format PTM uploads pair a REQUIRED protein table with an OPTIONAL
+    peptide table. md-converter always builds the protein output first and
+    raises FileNotFoundError if it is absent (md_format/runner.py:27,38,
+    reader.py:46-48), so a peptide-only upload fails ingestion. Catch it here
+    with a clear message instead. (The get_md_format_spec("peptide") docs
+    state the dual-file rule; this is the code-level guard.)
+
+    Bounded header read only (one row per file via _read_header_only) — stays
+    inside the ENTITY-DATA BOUNDARY. Returns an error string when the upload is
+    peptide-only, or None when it is fine / not applicable (non-md_format
+    source, S3-backed upload with no local files, or unreadable headers).
+    """
+    if source != "md_format" or not file_location or not filenames:
+        return None
+
+    peptide_files: List[str] = []
+    protein_files: List[str] = []
+    for fn in filenames:
+        path = os.path.join(file_location, fn)
+        if not os.path.isfile(path):
+            continue
+        if os.path.splitext(fn)[1].lower() not in _MD_FORMAT_TABULAR_EXTS:
+            continue
+        try:
+            header = {
+                h.strip() for h in _read_header_only(path, _sniff_delimiter(path))
+            }
+        except Exception:
+            continue  # unreadable header — let the server be the judge
+        is_peptide = "ModifiedSequence" in header or "StrippedSequence" in header
+        if is_peptide:
+            peptide_files.append(fn)
+        elif "ProteinIntensity" in header:
+            protein_files.append(fn)
+
+    if peptide_files and not protein_files:
+        return (
+            "Error: peptide-only md_format upload rejected. "
+            f"The peptide-level file(s) {peptide_files} have no companion "
+            "protein-level md_format file (one with a ProteinIntensity column). "
+            "For an md_format PTM/phospho experiment the PROTEIN table is the "
+            "REQUIRED base and the peptide table is an OPTIONAL companion — both "
+            "must be uploaded together via filenames=[protein_file, peptide_file]. "
+            "md-converter builds the protein output first and will fail with "
+            "FileNotFoundError('Protein data file not found') on a peptide-only "
+            "upload. Add the protein md_format table and retry."
+        )
+    return None
 
 
 @mcp.tool()
@@ -47,6 +108,20 @@ def create_upload(
       3. Only then call create_upload.
     NEVER hand-construct experiment_design or sample_metadata — sample names
     must match the source files exactly.
+
+    MD_FORMAT ID-SHAPE PREFLIGHT (md_format / md_format_metabolite only) —
+    a BOUNDED, REQUIRED exception to "never read proteomics data files":
+    before an md_format* upload, read the HEADER + first ~5 data rows of each
+    data file and confirm the primary-ID columns have the expected shape —
+    peptide ModifiedSequence is INLINE UniMod (PEPT(UniMod:21)IDE), NOT a tool's
+    native annotation like PD's "[K].PEPT.[V] | 1xPhospho [T4]"; protein
+    ProteinGroup is UniProt accession(s); SampleName matches experiment_design.
+    This is an ID-shape check on a few lines, distinct from ingesting the full
+    table (read_csv_preview stays within this boundary). If the IDs look like
+    another tool's native output, STOP — name the tool the format resembles and
+    what is wrong — instead of uploading malformed data. (A peptide-only
+    md_format upload is additionally rejected by this client; see the md_format
+    source note below.)
 
     Args (required):
       name: human-readable experiment name. Must be unique within the
@@ -148,6 +223,9 @@ def create_upload(
             for f in os.listdir(file_location)
             if os.path.isfile(os.path.join(file_location, f))
         )
+    composition_error = _check_md_format_composition(source, file_location, filenames)
+    if composition_error:
+        return composition_error
     upload = Upload(
         name=name,
         source=source,
@@ -202,10 +280,14 @@ def create_upload_from_csv(
     source — proteomics software that produced the data files. EXACTLY one
       of (any other value is rejected client-side and server-side):
         maxquant, diann_tabular, tims_diann, spectronaut,
-        md_format, md_format_gene
+        md_format, md_format_gene, md_format_metabolite
       Prefer diann_tabular for DIA-NN pg_matrix (+ optional pr_matrix)
       uploads; use tims_diann for report.tsv + DIA-NN log. Full per-format
       file expectations live in create_upload's docstring.
+
+    md_format peptide is a DUAL-FILE upload (protein + peptide companion in
+    filenames=); a peptide-only md_format upload is rejected before transfer.
+    Run the md_format ID-SHAPE PREFLIGHT first (see create_upload's docstring).
 
     Returns: prose. Starts with "Upload record created. ID: <uuid>" on
     success, or "Error: ..." / "Metadata validation failed: ..." on
@@ -248,6 +330,11 @@ def create_upload_from_csv(
         )
         if not filenames:
             return f"Error: no files found in file_location: {file_location}"
+
+    # Reject a peptide-only md_format upload before transferring anything.
+    composition_error = _check_md_format_composition(source, file_location, filenames)
+    if composition_error:
+        return composition_error
 
     # Check total file size to decide whether to use the sequential executor.
     # Large transfers are routed through a single-threaded executor to prevent
