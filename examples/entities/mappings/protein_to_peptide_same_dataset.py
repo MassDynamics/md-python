@@ -13,7 +13,7 @@ def protein_to_peptide_same_dataset_example():
     client = MDClientV2(api_token=os.getenv("API_TOKEN"))
 
     result = client.entities.mappings.protein_to_peptide_same_dataset(
-        dataset_id="21fd98a9-f083-47ed-12db-7c2ccea9f45d",
+        dataset_ids=["37fd98a9-f083-47ed-96db-7c2ccea9f45d"],
         entity_ids=[
             "P47757",
             "Q14696;H0YLI4;Q14696",

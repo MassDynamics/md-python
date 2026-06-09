@@ -3,17 +3,17 @@ from unittest.mock import Mock
 import pytest
 
 from md_python.client_v2 import MDClientV2
-from md_python.resources.v2.entities_mappings import EntitiesMappings
+from md_python.resources.v2.entity_map import EntityMap
 
 
-class TestV2EntitiesMappings:
+class TestV2EntityMap:
     @pytest.fixture
     def mock_client(self):
         return Mock(spec=MDClientV2)
 
     @pytest.fixture
     def mappings(self, mock_client):
-        return EntitiesMappings(mock_client)
+        return EntityMap(mock_client)
 
     def test_protein_to_protein_success(self, mappings, mock_client):
         mock_response = Mock()
@@ -98,6 +98,7 @@ class TestV2EntitiesMappings:
     def test_protein_to_peptide_same_dataset_success(self, mappings, mock_client):
         mock_response = Mock()
         mock_response.status_code = 200
+
         mock_response.json.return_value = {
             "nodes": [
                 {"~id": "protein_group:10"},
@@ -105,10 +106,11 @@ class TestV2EntitiesMappings:
             ],
             "edges": [{"~id": "e1"}],
         }
+
         mock_client._make_request.return_value = mock_response
 
         result = mappings.protein_to_peptide_same_dataset(
-            dataset_id="abc-123", entity_ids=["P12345;Q67890"]
+            dataset_ids=["abc-123"], entity_ids=["P12345;Q67890"]
         )
 
         assert result == {
@@ -122,7 +124,7 @@ class TestV2EntitiesMappings:
         assert mock_client._make_request.call_args.kwargs == {
             "method": "POST",
             "endpoint": "/entities/mappings/protein_to_peptide/same_dataset",
-            "json": {"dataset_id": "abc-123", "entity_ids": ["P12345;Q67890"]},
+            "json": {"dataset_ids": ["abc-123"], "entity_ids": ["P12345;Q67890"]},
             "headers": {"Content-Type": "application/json"},
         }
 
@@ -136,12 +138,13 @@ class TestV2EntitiesMappings:
             Exception, match="Failed to map protein_to_peptide_same_dataset: 502"
         ):
             mappings.protein_to_peptide_same_dataset(
-                dataset_id="abc-123", entity_ids=["P12345"]
+                dataset_ids=["abc-123"], entity_ids=["P12345"]
             )
 
     def test_peptide_to_protein_same_dataset_success(self, mappings, mock_client):
         mock_response = Mock()
         mock_response.status_code = 200
+
         mock_response.json.return_value = {
             "nodes": [
                 {"~id": "peptide:aas"},
@@ -149,10 +152,11 @@ class TestV2EntitiesMappings:
             ],
             "edges": [{"~id": "e1"}],
         }
+
         mock_client._make_request.return_value = mock_response
 
         result = mappings.peptide_to_protein_same_dataset(
-            dataset_id="abc-123", entity_ids=["AAS(UniMod:21)PEK"]
+            dataset_ids=["abc-123"], entity_ids=["AAS(UniMod:21)PEK"]
         )
 
         assert result == {
@@ -166,7 +170,7 @@ class TestV2EntitiesMappings:
         assert mock_client._make_request.call_args.kwargs == {
             "method": "POST",
             "endpoint": "/entities/mappings/peptide_to_protein/same_dataset",
-            "json": {"dataset_id": "abc-123", "entity_ids": ["AAS(UniMod:21)PEK"]},
+            "json": {"dataset_ids": ["abc-123"], "entity_ids": ["AAS(UniMod:21)PEK"]},
             "headers": {"Content-Type": "application/json"},
         }
 
@@ -180,5 +184,5 @@ class TestV2EntitiesMappings:
             Exception, match="Failed to map peptide_to_protein_same_dataset: 502"
         ):
             mappings.peptide_to_protein_same_dataset(
-                dataset_id="abc-123", entity_ids=["AAS(UniMod:21)PEK"]
+                dataset_ids=["abc-123"], entity_ids=["AAS(UniMod:21)PEK"]
             )

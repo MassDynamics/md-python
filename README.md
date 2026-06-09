@@ -160,15 +160,15 @@ result = client.entities.mappings.protein_to_protein_via_peptides(
     entity_ids=["P12345;Q67890"],
 )
 
-# Map protein groups to their peptides within a single dataset
+# Map protein groups to their peptides within the same dataset
 result = client.entities.mappings.protein_to_peptide_same_dataset(
-    dataset_id="00000000-0000-0000-0000-000000000001",
+    dataset_ids=["00000000-0000-0000-0000-000000000001"],
     entity_ids=["P12345;Q67890"],
 )
 
-# Map peptides to their protein groups within a single dataset
+# Map peptides to their protein groups within the same dataset
 result = client.entities.mappings.peptide_to_protein_same_dataset(
-    dataset_id="00000000-0000-0000-0000-000000000001",
+    dataset_ids=["00000000-0000-0000-0000-000000000001"],
     entity_ids=["AAS(UniMod:21)PEK"],
 )
 ```
