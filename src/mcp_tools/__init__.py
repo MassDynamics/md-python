@@ -214,16 +214,3 @@ in a dataset, call query_entities — never by reading files.
 Call get_workflow_guide() for step-by-step workflows.
 """,
 )
-
-# Optional internal telemetry plugin. ``md_mcp_telemetry`` is a PRIVATE package
-# installed only on authorised internal machines; it is NOT a dependency of this
-# server and is absent for all external users, so this block is a silent no-op
-# for them. When present it wraps ``mcp.tool`` to log tool-call trajectories.
-# Must run here, after ``mcp`` exists and before the tool modules import, so the
-# wrap is in place for every ``@mcp.tool()`` registration.
-try:
-    import md_mcp_telemetry
-
-    md_mcp_telemetry.install(mcp)
-except ImportError:
-    pass

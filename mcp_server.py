@@ -27,6 +27,20 @@ from mcp_tools._env import load_env_from  # noqa: E402
 
 load_env_from(Path(__file__).resolve().parent)
 
+# Optional internal telemetry plugin. The private ``md_mcp_telemetry`` package is
+# installed only on authorised internal machines and is absent for external users
+# (this block is then a silent no-op). Installed HERE — AFTER load_env_from so
+# MD_MCP_LOG from .env is visible, and BEFORE the tool modules import so the
+# ``mcp.tool`` wrap covers every ``@mcp.tool()`` registration.
+from mcp_tools import mcp as _mcp  # noqa: E402
+
+try:
+    import md_mcp_telemetry  # noqa: E402
+
+    md_mcp_telemetry.install(_mcp)
+except ImportError:
+    pass
+
 import mcp_tools.batch  # noqa: F401, E402
 import mcp_tools.datasets  # noqa: F401
 import mcp_tools.entities  # noqa: F401
