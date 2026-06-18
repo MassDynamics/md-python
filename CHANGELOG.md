@@ -5,6 +5,11 @@ All notable changes to `md-python` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project loosely adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.4]
+
+- Updated `client.entities.mappings.peptide_to_protein_same_dataset` and `client.entities.mappings.protein_to_protein_via_peptides` to accept a list of datasets instead of a single dataset.
+
+
 ## [0.3.3]
 
 - `client.entities.mappings.protein_to_protein_via_peptides` map protein groups to protein groups through their shared peptides across datasets.

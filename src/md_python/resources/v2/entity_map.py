@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from ...base_client import BaseMDClient
 
 
-class EntitiesMappings:
+class EntityMap:
     """V2 entities mappings sub-resource"""
 
     def __init__(self, client: "BaseMDClient"):
@@ -69,7 +69,7 @@ class EntitiesMappings:
             )
 
     def protein_to_peptide_same_dataset(
-        self, dataset_id: str, entity_ids: List[str]
+        self, dataset_ids: List[str], entity_ids: List[str]
     ) -> Dict[str, Any]:
         """Map protein groups to their peptides within a single dataset.
 
@@ -83,7 +83,7 @@ class EntitiesMappings:
         response = self._client._make_request(
             method="POST",
             endpoint="/entities/mappings/protein_to_peptide/same_dataset",
-            json={"dataset_id": dataset_id, "entity_ids": entity_ids},
+            json={"dataset_ids": dataset_ids, "entity_ids": entity_ids},
             headers={"Content-Type": "application/json"},
         )
 
@@ -96,7 +96,7 @@ class EntitiesMappings:
             )
 
     def peptide_to_protein_same_dataset(
-        self, dataset_id: str, entity_ids: List[str]
+        self, dataset_ids: List[str], entity_ids: List[str]
     ) -> Dict[str, Any]:
         """Map peptides to their protein groups within a single dataset.
 
@@ -110,7 +110,7 @@ class EntitiesMappings:
         response = self._client._make_request(
             method="POST",
             endpoint="/entities/mappings/peptide_to_protein/same_dataset",
-            json={"dataset_id": dataset_id, "entity_ids": entity_ids},
+            json={"dataset_ids": dataset_ids, "entity_ids": entity_ids},
             headers={"Content-Type": "application/json"},
         )
 
