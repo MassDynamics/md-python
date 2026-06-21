@@ -76,7 +76,7 @@ def describe(module: RegisteredModule) -> Dict[str, Any]:
         # and for the add_module_to_tab tool to validate against.
         "dataset_input": dataset_input_for(module),
         # Top-level summary of the module's entity_type binding (if any).
-        # Most plot modules need entity_type ∈ {protein, peptide, gene}
-        # and there is no default — the LLM MUST supply a value.
+        # Most plot modules need entity_type ∈ {protein, peptide, gene,
+        # metabolite} and there is no default — the LLM MUST supply a value.
         "entity_type_input": entity_type_input_for(module),
     }

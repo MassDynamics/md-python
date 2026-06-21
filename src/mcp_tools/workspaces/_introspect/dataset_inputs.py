@@ -19,10 +19,17 @@ def entity_type_input_for(module: RegisteredModule) -> Optional[Dict[str, Any]]:
     """Find the EntityType-typed parameter on a module, if any.
 
     Most plot modules carry an ``entityType`` field that says whether the
-    dataset is being interpreted as protein, peptide, or gene level. This
-    is required-no-default for almost every plot — the LLM has to supply
-    it. Returns the structured block for the tool layer or None when the
-    module has no EntityType field.
+    dataset is being interpreted as protein, peptide, gene, or metabolite
+    level. This is required-no-default for almost every plot — the LLM has
+    to supply it. Returns the structured block for the tool layer or None
+    when the module has no EntityType field.
+
+    The registry does NOT enumerate which entity types a given module
+    accepts (the EntityType field carries ``options: null`` server-side —
+    the value-space is resolved from the chosen dataset at render time).
+    So ``valid_values`` is the full client-side vocabulary; vis-service is
+    the final arbiter and will reject an unsupported entity_type at
+    render_module_visualisation time.
     """
     schema = module.input_settings
     if not schema:
@@ -40,7 +47,7 @@ def entity_type_input_for(module: RegisteredModule) -> Optional[Dict[str, Any]]:
         return {
             "settings_key": key,
             "required": _is_required(spec),
-            "valid_values": ["protein", "peptide", "gene"],
+            "valid_values": ["protein", "peptide", "gene", "metabolite"],
             "tool_arg": "entity_type",
         }
     return None

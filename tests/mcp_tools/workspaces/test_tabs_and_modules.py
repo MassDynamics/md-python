@@ -383,10 +383,39 @@ class TestAddModuleSingleDataset:
                 height=12,
                 dataset_id=self.DATASET_ID,
                 upload_id=self.UPLOAD_ID,
-                entity_type="metabolite",  # not a valid value
+                entity_type="lipid",  # not a valid value
             )
         assert result.startswith("Error:")
-        assert "metabolite" in result
+        assert "lipid" in result
+
+    def test_metabolite_entity_type_accepted(self, mock_client):
+        # metabolite is a first-class viz entity_type — a metabolite
+        # INTENSITY dataset placed on a plot must validate and persist
+        # entityType="metabolite" (vis-service is the final arbiter).
+        mock_client.module_registry.get.return_value = PCA_REG
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(
+            self.DATASET_ID, name="Metabolite Dataset", type="INTENSITY"
+        )
+        mock_client.workspaces.modules.create_with_defaults.return_value = _module(
+            item_id="dimensionality_reduction_plot"
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "dimensionality_reduction_plot",
+                x=0,
+                y=0,
+                width=12,
+                height=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="metabolite",
+            )
+        call_kwargs = (
+            mock_client.workspaces.modules.create_with_defaults.call_args.kwargs
+        )
+        assert call_kwargs["settings"]["entityType"] == "metabolite"
 
     def test_entity_type_on_dataset_free_module_rejected(self, mock_client):
         # heading has no EntityType field — passing entity_type must fail.

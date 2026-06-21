@@ -163,15 +163,18 @@ def add_module_to_tab(
         both, or list_datasets(upload_id)).
       upload_ids: Required companion to dataset_ids. Same length and
         order as dataset_ids — one upload_id per dataset.
-      entity_type: One of ``"protein"``, ``"peptide"``, ``"gene"``.
-        Required for any module that has an EntityType field — that
-        is, almost every plot module. The dataset payload does NOT
-        carry the entity type, so the LLM MUST supply it:
+      entity_type: One of ``"protein"``, ``"peptide"``, ``"gene"``,
+        ``"metabolite"``. Required for any module that has an EntityType
+        field — that is, almost every plot module. The dataset payload
+        does NOT carry the entity type, so the LLM MUST supply it:
           * md_format / DIA-NN / MaxQuant / Spectronaut uploads ->
             "protein" or "peptide"
           * md_format_gene uploads -> "gene"
+          * md_format_metabolite uploads -> "metabolite"
         Confirm with the user when uncertain. Modules without an
         EntityType field (heading, page_break, text) reject this arg.
+        vis-service is the final arbiter — a module that does not yet
+        support metabolite will reject it at render time.
       settings: Per-parameter values for everything OTHER than the
         dataset binding and entity_type. Keys override registry
         defaults; the dataset envelope and entity_type this tool

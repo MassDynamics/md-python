@@ -11,7 +11,7 @@ Subpackages:
     workspaces.tabs   — tab CRUD tools
     workspaces.modules — module CRUD + create_with_defaults
     workspaces.registry — list_module_types / describe_module_type
-    workspaces.entity_lists — create/get named protein/peptide/gene lists
+    workspaces.entity_lists — create/get named protein/peptide/gene/metabolite lists
     workspaces._introspect — per-module parameter introspection helpers
     workspaces._mandates  — visualisation behavioural mandate fragment
 """

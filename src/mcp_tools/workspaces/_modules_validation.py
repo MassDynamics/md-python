@@ -27,7 +27,7 @@ def _module_to_dict(m: TabModule) -> Dict[str, Any]:
     }
 
 
-_VALID_ENTITY_TYPES = ("protein", "peptide", "gene")
+_VALID_ENTITY_TYPES = ("protein", "peptide", "gene", "metabolite")
 
 
 def _check_dataset_type(
@@ -72,7 +72,8 @@ def _resolve_entity_type_settings(
 
     Returns an empty dict when the module has no EntityType field.
     Fails-fast when the field is required and the LLM did not supply a
-    value, or when the supplied value is not in {protein, peptide, gene}.
+    value, or when the supplied value is not in
+    {protein, peptide, gene, metabolite}.
     """
     eti = _introspect.entity_type_input_for(module)
     if eti is None:
@@ -90,7 +91,8 @@ def _resolve_entity_type_settings(
                 f"{eti['valid_values']}. The dataset payload does NOT "
                 "carry the entity type, so the LLM must supply it: "
                 "protein/peptide for md_format / DIA-NN / MaxQuant / "
-                "Spectronaut uploads, gene for md_format_gene uploads. "
+                "Spectronaut uploads, gene for md_format_gene uploads, "
+                "metabolite for md_format_metabolite uploads. "
                 "Confirm with the user when uncertain."
             )
         return {}

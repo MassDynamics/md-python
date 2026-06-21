@@ -37,16 +37,17 @@ _FIELD_TYPE_PROFILES: Dict[str, Dict[str, Any]] = {
     "EntityType": {
         "value_kind": "entity_type",
         "value_description": (
-            "The entity type for the chosen dataset — protein, peptide, or "
-            "gene. The valid choice depends on what was uploaded; resolve "
-            "via the dataset referenced by parameters.datasetsSearch.ref."
+            "The entity type for the chosen dataset — protein, peptide, "
+            "gene, or metabolite. The valid choice depends on what was "
+            "uploaded; resolve via the dataset referenced by "
+            "parameters.datasetsSearch.ref."
         ),
         "data_dependencies": [
             "the chosen dataset (referenced in parameters.datasetsSearch.ref)",
             "the dataset's entity_type — get it via list_datasets / "
             "find_initial_dataset → Dataset.type, OR by inspecting the "
-            "upload source (md_format_gene → gene; md_format → protein/"
-            "peptide; etc.)",
+            "upload source (md_format_gene → gene; md_format_metabolite → "
+            "metabolite; md_format → protein/peptide; etc.)",
         ],
         "fillable_by_llm": False,
     },
