@@ -542,3 +542,88 @@ class TestFieldTypeFallbackWireShape:
         )
         out = field_type_fallbacks(mod)
         assert out == {"sampleNames": []}
+
+
+class TestConditionComparison:
+    """Resolving the pairwise volcano's ConditionComparison field from the
+    dataset's job_run_params."""
+
+    def test_input_detected_by_field_type(self):
+        from mcp_tools.workspaces._introspect import condition_comparison_input_for
+
+        mod = _module(
+            {
+                "experimentAndConditionComparison": {
+                    "fieldType": "ConditionComparison",
+                    "default": None,
+                    "rules": [{"name": "is_required"}],
+                }
+            }
+        )
+        info = condition_comparison_input_for(mod)
+        assert info == {
+            "settings_key": "experimentAndConditionComparison",
+            "required": True,
+        }
+
+    def test_input_none_when_absent(self):
+        from mcp_tools.workspaces._introspect import condition_comparison_input_for
+
+        mod = _module({"scalingMethod": {"fieldType": "String"}})
+        assert condition_comparison_input_for(mod) is None
+
+    def test_pairs_extracted_from_job_run_params(self):
+        from mcp_tools.workspaces._introspect import _condition_comparison_pairs
+
+        jrp = {
+            "condition_comparisons": {
+                "condition_comparison_pairs": [["A", "B"], ["C", "D"]]
+            }
+        }
+        assert _condition_comparison_pairs(jrp) == [["A", "B"], ["C", "D"]]
+
+    def test_pairs_empty_when_structure_missing(self):
+        from mcp_tools.workspaces._introspect import _condition_comparison_pairs
+
+        assert _condition_comparison_pairs({}) == []
+        assert _condition_comparison_pairs({"condition_comparisons": {}}) == []
+        assert _condition_comparison_pairs(None) == []
+
+    def test_build_defaults_to_first_pair_case_control(self):
+        from mcp_tools.workspaces._introspect import build_condition_comparison
+
+        out = build_condition_comparison([["Stage 3", "Stage 1"], ["A", "B"]])
+        assert out == {
+            "comparison": {
+                "conditionPair": "Stage 3 - Stage 1",
+                "left": "Stage 3",
+                "right": "Stage 1",
+            }
+        }
+
+    def test_build_honours_caller_orientation(self):
+        from mcp_tools.workspaces._introspect import build_condition_comparison
+
+        out = build_condition_comparison(
+            [["Stage 3", "Stage 1"]], ["Stage 1", "Stage 3"]
+        )
+        # conditionPair stays in stored case-control order.
+        assert out["comparison"]["conditionPair"] == "Stage 3 - Stage 1"
+        assert out["comparison"]["left"] == "Stage 1"
+        assert out["comparison"]["right"] == "Stage 3"
+
+    def test_build_raises_on_no_pairs(self):
+        import pytest
+
+        from mcp_tools.workspaces._introspect import build_condition_comparison
+
+        with pytest.raises(ValueError, match="condition_comparison"):
+            build_condition_comparison([])
+
+    def test_build_raises_on_unknown_pair(self):
+        import pytest
+
+        from mcp_tools.workspaces._introspect import build_condition_comparison
+
+        with pytest.raises(ValueError, match="does not match"):
+            build_condition_comparison([["A", "B"]], ["A", "C"])

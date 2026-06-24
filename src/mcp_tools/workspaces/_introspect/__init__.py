@@ -22,8 +22,11 @@ some tests assert against) is re-exported here so the historical
 
 from .dataset_inputs import (
     _FIELD_TYPE_FALLBACKS,
+    _condition_comparison_pairs,
+    build_condition_comparison,
     build_dataset_envelope,
     build_dataset_envelope_multi,
+    condition_comparison_input_for,
     dataset_input_for,
     entity_type_input_for,
     field_type_fallbacks,
@@ -49,7 +52,9 @@ __all__ = [
     "parameters_for",
     "entity_type_input_for",
     "dataset_input_for",
+    "condition_comparison_input_for",
     "build_dataset_envelope",
     "build_dataset_envelope_multi",
+    "build_condition_comparison",
     "field_type_fallbacks",
 ]

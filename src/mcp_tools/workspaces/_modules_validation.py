@@ -112,6 +112,7 @@ def resolve_dataset_settings(
     upload_id: Optional[str],
     upload_ids: Optional[List[str]],
     entity_type: Optional[str],
+    comparison: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Validate dataset + entity_type args against the module's spec and
     return a settings overlay ready to merge into ``settings``.
@@ -143,6 +144,20 @@ def resolve_dataset_settings(
     overlay.update(_resolve_entity_type_settings(item_id, entity_type, module))
 
     di = _introspect.dataset_input_for(module)
+
+    # Pairwise modules (volcano) carry a ConditionComparison field that
+    # selects which case-vs-control pair to plot and which side is left /
+    # right of the log2 ratio. It is required-no-default, so we resolve it
+    # from the chosen PAIRWISE dataset's job_run_params below. Detect it
+    # up-front so we can reject a `comparison` arg on a module that has no
+    # such field.
+    cci = _introspect.condition_comparison_input_for(module)
+    if comparison is not None and cci is None:
+        raise ValueError(
+            f"module {item_id!r} does not accept a comparison (no "
+            "ConditionComparison-typed parameter in its registry spec); "
+            "drop comparison"
+        )
 
     # Module has no Datasets field (heading, page_break, text, …).
     if di is None:
@@ -215,6 +230,15 @@ def resolve_dataset_settings(
             dataset_type=di["dataset_type"],
         )
         overlay[di["settings_key"]] = envelope
+
+        # Resolve the pairwise comparison from the same dataset so the
+        # volcano renders with the correct conditionPair + left/right
+        # groups instead of an empty default.
+        if cci is not None:
+            pairs = _introspect._condition_comparison_pairs(ds.job_run_params)
+            overlay[cci["settings_key"]] = _introspect.build_condition_comparison(
+                pairs, comparison
+            )
         return overlay
 
     # arity == "multiple"

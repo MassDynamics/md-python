@@ -112,15 +112,56 @@ DR_REG = RegisteredModule(
 )
 
 
+# Pairwise volcano — single PAIRWISE dataset + EntityType + a
+# ConditionComparison field (keyed as in the live registry). The
+# ConditionComparison is required-no-default; the tool must resolve it
+# from the dataset's job_run_params.
+VOLCANO_REG = RegisteredModule(
+    id="pairwise_volcano_plot",
+    name="Pairwise Volcano Plot",
+    group="Pairwise",
+    icon="x",
+    input_settings={
+        "datasetsSearch": {
+            "fieldType": "Datasets",
+            "parameters": {"type": "PAIRWISE", "multiple": False},
+            "rules": [{"name": "is_required"}],
+        },
+        "experimentAndConditionComparison": {
+            "fieldType": "ConditionComparison",
+            "default": None,
+            "rules": [{"name": "is_required"}],
+        },
+        "entityType": {
+            "fieldType": "EntityType",
+            "rules": [{"name": "is_required"}],
+        },
+    },
+)
+
+# job_run_params shape a completed pairwise dataset carries.
+_PAIRWISE_JRP = {
+    "condition_comparisons": {
+        "condition_comparison_pairs": [
+            ["Stage 3", "Stage 1"],
+            ["Control", "Stage 5"],
+        ]
+    }
+}
+
+
 def _stub_dataset(
-    uid: str, name: str = "Demo Dataset", type: str = "INTENSITY"
+    uid: str,
+    name: str = "Demo Dataset",
+    type: str = "INTENSITY",
+    job_run_params: dict | None = None,
 ) -> Dataset:
     return Dataset(
         id=UUID(uid),
         input_dataset_ids=[],
         name=name,
         job_slug="demo",
-        job_run_params={},
+        job_run_params=job_run_params or {},
         type=type,
     )
 
@@ -417,6 +458,34 @@ class TestAddModuleSingleDataset:
         )
         assert call_kwargs["settings"]["entityType"] == "metabolite"
 
+    def test_height_defaults_to_16_when_omitted(self, mock_client):
+        # height is optional and defaults to 16 — a plot placed without an
+        # explicit height must render at full size, not crop.
+        mock_client.module_registry.get.return_value = PCA_REG
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(
+            self.DATASET_ID, type="INTENSITY"
+        )
+        mock_client.workspaces.modules.create_with_defaults.return_value = _module(
+            item_id="dimensionality_reduction_plot"
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "dimensionality_reduction_plot",
+                x=0,
+                y=0,
+                width=6,
+                # height omitted -> default 16
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="protein",
+            )
+        call_kwargs = (
+            mock_client.workspaces.modules.create_with_defaults.call_args.kwargs
+        )
+        assert call_kwargs["height"] == 16
+
     def test_entity_type_on_dataset_free_module_rejected(self, mock_client):
         # heading has no EntityType field — passing entity_type must fail.
         mock_client.module_registry.get.return_value = HEADING_REG
@@ -491,6 +560,130 @@ class TestAddModuleSingleDataset:
             )
         assert result.startswith("Error:")
         assert "dataset" in result.lower()
+        mock_client.workspaces.modules.create_with_defaults.assert_not_called()
+
+
+class TestAddModulePairwiseComparison:
+    """Pairwise modules with a ConditionComparison field (volcano).
+
+    The tool must resolve the comparison (conditionPair + left/right
+    groups) from the chosen PAIRWISE dataset's job_run_params so the
+    rendered volcano carries a real comparison shape — not an empty
+    default.
+    """
+
+    DATASET_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    UPLOAD_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+    def _place(self, mock_client, **kwargs):
+        mock_client.module_registry.get.return_value = VOLCANO_REG
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(
+            self.DATASET_ID,
+            name="Spike-in pairwise",
+            type="PAIRWISE",
+            job_run_params=_PAIRWISE_JRP,
+        )
+        mock_client.workspaces.modules.create_with_defaults.return_value = _module(
+            item_id="pairwise_volcano_plot"
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            return add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "pairwise_volcano_plot",
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="protein",
+                **kwargs,
+            )
+
+    def test_comparison_autofilled_from_first_pair(self, mock_client):
+        self._place(mock_client)
+        settings = (
+            mock_client.workspaces.modules.create_with_defaults.call_args.kwargs[
+                "settings"
+            ]
+        )
+        cmp = settings["experimentAndConditionComparison"]["comparison"]
+        # First pair, oriented case-vs-control.
+        assert cmp["conditionPair"] == "Stage 3 - Stage 1"
+        assert cmp["left"] == "Stage 3"
+        assert cmp["right"] == "Stage 1"
+
+    def test_explicit_comparison_sets_left_right(self, mock_client):
+        # Caller flips orientation: left=Stage 1, right=Stage 3.
+        self._place(mock_client, comparison=["Stage 1", "Stage 3"])
+        cmp = mock_client.workspaces.modules.create_with_defaults.call_args.kwargs[
+            "settings"
+        ]["experimentAndConditionComparison"]["comparison"]
+        # conditionPair stays in stored case-control order; left/right honour
+        # the caller's chosen orientation.
+        assert cmp["conditionPair"] == "Stage 3 - Stage 1"
+        assert cmp["left"] == "Stage 1"
+        assert cmp["right"] == "Stage 3"
+
+    def test_explicit_comparison_picks_other_pair(self, mock_client):
+        self._place(mock_client, comparison=["Control", "Stage 5"])
+        cmp = mock_client.workspaces.modules.create_with_defaults.call_args.kwargs[
+            "settings"
+        ]["experimentAndConditionComparison"]["comparison"]
+        assert cmp["conditionPair"] == "Control - Stage 5"
+        assert cmp["left"] == "Control"
+        assert cmp["right"] == "Stage 5"
+
+    def test_unknown_comparison_fails_fast(self, mock_client):
+        result = self._place(mock_client, comparison=["Stage 1", "Stage 5"])
+        assert result.startswith("Error:")
+        # Lists the comparisons the dataset actually carries.
+        assert "Stage 3 - Stage 1" in result
+        assert "Control - Stage 5" in result
+        mock_client.workspaces.modules.create_with_defaults.assert_not_called()
+
+    def test_missing_pairs_in_job_run_params_fails_fast(self, mock_client):
+        mock_client.module_registry.get.return_value = VOLCANO_REG
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(
+            self.DATASET_ID, type="PAIRWISE", job_run_params={}
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "pairwise_volcano_plot",
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="protein",
+            )
+        assert result.startswith("Error:")
+        assert "condition_comparison" in result
+        mock_client.workspaces.modules.create_with_defaults.assert_not_called()
+
+    def test_comparison_rejected_on_non_pairwise_module(self, mock_client):
+        # PCA has no ConditionComparison field — passing comparison errors.
+        mock_client.module_registry.get.return_value = PCA_REG
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(
+            self.DATASET_ID, type="INTENSITY"
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "dimensionality_reduction_plot",
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="protein",
+                comparison=["A", "B"],
+            )
+        assert result.startswith("Error:")
+        assert "does not accept a comparison" in result
         mock_client.workspaces.modules.create_with_defaults.assert_not_called()
 
 

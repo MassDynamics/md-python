@@ -70,12 +70,13 @@ def add_module_to_tab(
     x: int,
     y: int,
     width: int,
-    height: int,
+    height: int = 16,
     dataset_id: Optional[str] = None,
     dataset_ids: Optional[List[str]] = None,
     upload_id: Optional[str] = None,
     upload_ids: Optional[List[str]] = None,
     entity_type: Optional[str] = None,
+    comparison: Optional[List[str]] = None,
     settings: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Place a dashboard module on a tab's grid.
@@ -137,16 +138,20 @@ def add_module_to_tab(
         describe_module_type to discover and inspect).
       x, y: Grid coordinates of the top-left corner. The canvas is 12
         columns wide; rows have no hard cap. (0, 0) is top-left.
-      width, height: Size in grid units (NOT pixels).
+      width, height: Size in grid units (NOT pixels). ``height``
+        defaults to 16 — leave it unset unless the user asks for a
+        specific size. A defaulted 16 reliably fits the render; smaller
+        values tend to crop plots.
         * Heading / text / page_break: 12x1 typical (full-width, single
-          row).
+          row) — pass height=1 explicitly for these.
         * PLOT modules (volcano, heatmap, PCA, dose-response, box plot,
           all the Quality control plots, etc.): height MUST be at least
-          12. Smaller heights crop the rendered visualisation and the
-          legend / axis labels collapse on top of the data. Width is
-          typically 6 (half-canvas, two side-by-side) or 12 (full-width).
+          16 (the default). Smaller heights crop the rendered
+          visualisation and the legend / axis labels collapse on top of
+          the data. Width is typically 6 (half-canvas, two side-by-side)
+          or 12 (full-width).
         * Tables (dataset_table, list_table, qc_summary_table): height
-          12+ as well; the table renders its own scrollbar but needs
+          16+ as well; the table renders its own scrollbar but needs
           vertical room for the header + at least a few rows.
       dataset_id: Single-dataset modules — UUID of the dataset to
         visualise. Must be of the type required by
@@ -175,6 +180,17 @@ def add_module_to_tab(
         EntityType field (heading, page_break, text) reject this arg.
         vis-service is the final arbiter — a module that does not yet
         support metabolite will reject it at render time.
+      comparison: PAIRWISE modules only (e.g. ``pairwise_volcano_plot``).
+        The ``[left, right]`` case/control pair to plot, as two condition
+        names — positive log2FC means ``left`` is more abundant than
+        ``right``. The two names must match (in either order) one of the
+        comparisons the dataset was actually run with
+        (``job_run_params.condition_comparisons``; inspect via
+        get_dataset). When omitted, this tool auto-fills the FIRST
+        comparison the dataset carries, oriented case-vs-control — so the
+        volcano always renders with a real comparison shape rather than an
+        empty default. Requires dataset_id to resolve; rejected for
+        modules with no ConditionComparison field.
       settings: Per-parameter values for everything OTHER than the
         dataset binding and entity_type. Keys override registry
         defaults; the dataset envelope and entity_type this tool
@@ -207,6 +223,7 @@ def add_module_to_tab(
             upload_id=upload_id,
             upload_ids=upload_ids,
             entity_type=entity_type,
+            comparison=comparison,
         )
     except ValueError as e:
         return f"Error: {e}"
@@ -310,7 +327,7 @@ def update_tab_module(
     Args:
       item_id: REQUIRED — the original module's item_id (see contract 1).
       x, y, width, height: New grid coordinates (omit to keep current).
-        Note: plot modules need height >= 12 to render properly; smaller
+        Note: plot modules need height >= 16 to render properly; smaller
         heights crop the visualisation. See add_module_to_tab for the
         full sizing guidance.
       settings: Full settings hash (see contract 2).

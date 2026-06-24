@@ -149,12 +149,18 @@ _FIELD_TYPE_PROFILES: Dict[str, Dict[str, Any]] = {
         "fillable_by_llm": False,
     },
     "ConditionComparison": {
-        "value_kind": "{experimentId, conditionPair} envelope",
+        "value_kind": "{comparison: {conditionPair, left, right}} envelope",
         "value_description": (
             "A specific case-vs-control pair from a PAIRWISE-typed "
-            "dataset. The valid pairs are stored on the dataset itself "
+            "dataset, plus which side is left/right of the log2 ratio. The "
+            "valid pairs are stored on the dataset itself "
             "(dataset.job_run_params.condition_comparisons) and depend on "
-            "what the user ran in run_pairwise_comparison."
+            "what the user ran in run_pairwise_comparison. add_module_to_tab "
+            "AUTO-RESOLVES this from the chosen dataset — by default the "
+            "first comparison, oriented case-vs-control. To pick a "
+            "different pair or flip left/right, pass the tool's "
+            "``comparison=[left, right]`` argument (NOT settings); positive "
+            "log2FC means left is more abundant than right."
         ),
         "data_dependencies": [
             "the PAIRWISE dataset chosen in datasetsSearch",

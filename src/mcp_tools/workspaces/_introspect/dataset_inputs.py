@@ -53,6 +53,138 @@ def entity_type_input_for(module: RegisteredModule) -> Optional[Dict[str, Any]]:
     return None
 
 
+def condition_comparison_input_for(
+    module: RegisteredModule,
+) -> Optional[Dict[str, Any]]:
+    """Find the ConditionComparison-typed parameter on a module, if any.
+
+    The pairwise volcano plot (and a handful of other pairwise modules)
+    carry a single ``ConditionComparison`` field — keyed
+    ``experimentAndConditionComparison`` on the volcano — that selects
+    *which* case-vs-control pair to plot and which side is on the left vs
+    right of the log2 ratio. It is required-no-registry-default (``default:
+    null``), so without an explicit value the rendered widget has no
+    comparison to draw and the volcano comes up empty / mis-shaped.
+
+    Unlike EntityType, the valid pairs are NOT free vocabulary — they are
+    the ``condition_comparison_pairs`` the user actually ran, stored on the
+    PAIRWISE dataset's ``job_run_params``. So the tool layer resolves this
+    field from the chosen dataset (see ``build_condition_comparison``).
+
+    Returns ``{settings_key, required}`` or None when the module has no
+    ConditionComparison field.
+    """
+    schema = module.input_settings
+    if not schema:
+        return None
+    if isinstance(schema, dict):
+        items = list(schema.items())
+    else:
+        items = [(str(s.get("key")), s) for s in schema if isinstance(s, dict)]
+    for key, spec in items:
+        if not isinstance(spec, dict):
+            continue
+        field_type = spec.get("fieldType") or spec.get("type")
+        if field_type != "ConditionComparison":
+            continue
+        return {
+            "settings_key": key,
+            "required": _is_required(spec),
+        }
+    return None
+
+
+def _condition_comparison_pairs(job_run_params: Any) -> list:
+    """Extract the list of ``[case, control]`` pairs a PAIRWISE dataset was
+    run with, from its ``job_run_params``.
+
+    Mirrors the path the workflow webapp reads
+    (``dataset.job_run_params.condition_comparisons.condition_comparison_pairs``
+    — DatasetConditionSelectForm.vue). Returns ``[]`` when the structure is
+    absent or malformed so callers can fail with a clear message.
+    """
+    if not isinstance(job_run_params, dict):
+        return []
+    cc = job_run_params.get("condition_comparisons")
+    if not isinstance(cc, dict):
+        return []
+    pairs = cc.get("condition_comparison_pairs")
+    if not isinstance(pairs, list):
+        return []
+    return [p for p in pairs if isinstance(p, (list, tuple)) and len(p) == 2]
+
+
+def build_condition_comparison(
+    pairs: Sequence[Sequence[str]],
+    comparison: Optional[Sequence[str]] = None,
+) -> Dict[str, Any]:
+    """Build the persisted ConditionComparison value for a pairwise module.
+
+    The wire shape mirrors what the webapp's DatasetConditionSelectForm
+    emits and ModulePairwiseVolcanoPlot reads::
+
+        {"comparison": {"conditionPair": "<case> - <control>",
+                        "left": "<condition>", "right": "<condition>"}}
+
+    ``conditionPair`` is always the stored pair joined in ``[case, control]``
+    order (the webapp keys its option map that way). ``left`` / ``right``
+    carry the user-chosen orientation of the log2 ratio — positive log2FC
+    means ``left`` is more abundant than ``right``.
+
+    Args:
+      pairs: the ``[case, control]`` pairs the dataset was run with.
+      comparison: optional ``[left, right]`` the caller wants plotted. The
+        two conditions must (in either order) match one stored pair. When
+        omitted, defaults to the first stored pair with ``left=case``,
+        ``right=control`` — the webapp's own default.
+
+    Raises ValueError when there are no pairs, or when ``comparison`` does
+    not match any stored pair.
+    """
+    norm = [[str(p[0]), str(p[1])] for p in pairs]
+    if not norm:
+        raise ValueError(
+            "the chosen PAIRWISE dataset has no "
+            "job_run_params.condition_comparisons.condition_comparison_pairs "
+            "— cannot resolve the volcano's comparison. Check the dataset "
+            "is a completed pairwise result (get_dataset to inspect)."
+        )
+
+    if comparison is None:
+        case, control = norm[0]
+        return {
+            "comparison": {
+                "conditionPair": f"{case} - {control}",
+                "left": case,
+                "right": control,
+            }
+        }
+
+    if len(comparison) != 2:
+        raise ValueError(
+            f"comparison must be a [left, right] pair of condition names, "
+            f"got {list(comparison)!r}"
+        )
+    left, right = str(comparison[0]), str(comparison[1])
+    for case, control in norm:
+        if {left, right} == {case, control}:
+            return {
+                "comparison": {
+                    "conditionPair": f"{case} - {control}",
+                    "left": left,
+                    "right": right,
+                }
+            }
+    available = ", ".join(f"[{c} - {ctrl}]" for c, ctrl in norm)
+    raise ValueError(
+        f"comparison {[left, right]!r} does not match any comparison the "
+        f"dataset was run with. Available pairs (case - control): "
+        f"{available}. Pass the two condition names from one of these "
+        "pairs (left/right order is yours to choose — it sets the log2 "
+        "ratio direction)."
+    )
+
+
 def dataset_input_for(module: RegisteredModule) -> Optional[Dict[str, Any]]:
     """Find the Datasets-typed parameter on a module, if any.
 
