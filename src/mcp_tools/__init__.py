@@ -59,7 +59,8 @@ Every tool returns ONE of:
     map_peptide_to_protein,
     get_upload_sample_metadata,
     list_uploads_status, find_initial_datasets, wait_for_datasets_bulk,
-    download_dataset_table, run_normalisation_imputation_bulk,
+    download_dataset_table, list_dataset_tables,
+    run_normalisation_imputation_bulk,
     run_pairwise_comparison_bulk, run_dose_response_bulk,
     list_workspaces, get_workspace, list_tabs, get_tab,
     list_tab_modules, get_tab_module, list_entity_lists, get_entity_list,
@@ -98,6 +99,7 @@ TOOL CATEGORIES — use roughly in this order:
                      wait_for_dataset,
                      wait_for_datasets_bulk, retry_dataset, delete_dataset,
                      cancel_dataset, query_datasets, download_dataset_table,
+                     list_dataset_tables,
                      query_entities, map_protein_to_protein,
                      map_gene_to_protein, map_protein_to_gene,
                      map_protein_to_peptide, map_peptide_to_protein
@@ -107,7 +109,8 @@ TOOL CATEGORIES — use roughly in this order:
                      generate_pairwise_comparisons, run_pairwise_comparison,
                      run_pairwise_comparison_bulk, run_anova,
                      run_dose_response, run_dose_response_from_upload,
-                     run_dose_response_bulk, run_mofa
+                     run_dose_response_bulk, run_mofa, run_ora, run_gsea,
+                     run_wgcna
   5. Visualise tools: list_module_types, describe_module_type,
                      create_workspace, list_workspaces, get_workspace,
                      update_workspace, delete_workspace,

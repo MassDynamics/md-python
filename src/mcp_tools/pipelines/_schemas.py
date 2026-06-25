@@ -38,7 +38,10 @@ AVAILABLE_JOB_SLUGS: Dict[str, str] = {
     "anova": "* ANOVA differential abundance across 3+ conditions (limma)",
     "dose_response": "* Dose-response curve fitting (4PL log-logistic)",
     "dose_response_aggregate": "Aggregate multiple dose-response results into a summary table",
-    "camera_gsea": "Gene-set enrichment analysis (CAMERA)",
+    "mofa": "* MOFA+ multi-omics factor analysis (integrate 2+ INTENSITY views)",
+    "ora": "* Over-Representation Analysis of a foreground entity list (hypergeometric)",
+    "camera_gsea": "* Gene-set enrichment analysis (CAMERA, competitive test)",
+    "wgcna": "* WGCNA weighted co-expression network + module-trait correlation",
     "knn_tn_imputation": "Custom KNN-TN (truncated normal) imputation",
     "intensity": "Internal: raw intensity ingestion",
     "initial_job": "Internal: initial dataset creation",
@@ -998,6 +1001,349 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
                     "Pass only the list; the MCP wraps it as "
                     "{'control_variables': [...]} on the wire."
                 ),
+            },
+        },
+    },
+    "ora": {
+        "description": (
+            "Over-Representation Analysis (ORA). Tests whether a user-supplied "
+            "foreground entity list is enriched for any pathway / gene-set in the "
+            "chosen database, using the hypergeometric test with Benjamini-Hochberg "
+            "correction (clusterProfiler, Wu et al. 2021). Output dataset type 'ORA'. "
+            "Source-of-truth: live /jobs catalogue, slug 'ora', MDORAParamsProperties."
+        ),
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "foreground_ids",
+            "species",
+        ],
+        "guidance": "Always ask the user which parameters to use before calling this tool.",
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Exactly one INTENSITY dataset UUID.",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output ORA dataset.",
+            },
+            "foreground_ids": {
+                "type": "List[str]",
+                "description": (
+                    "Entity IDs (of the chosen entity_type) forming the foreground "
+                    "tested for over-representation."
+                ),
+            },
+            "species": {
+                "type": "str",
+                "required": True,
+                "valid_values": ["human", "mouse", "yeast", "chinese_hamster"],
+                "description": "Organism for the chosen gene-set database.",
+            },
+            "entity_type": {
+                "type": "str",
+                "default": "protein",
+                "valid_values": ["protein", "gene"],
+                "description": "Entity type the foreground list contains.",
+            },
+            "database": {
+                "type": "str",
+                "default": "GO - Biological Process",
+                "description": (
+                    "Pathway / gene-set collection. Options depend on species "
+                    "(Reactome, GO BP/CC/MF, MSigDB collections)."
+                ),
+            },
+            "background": {
+                "type": "str",
+                "default": "Detected features in this dataset",
+                "valid_values": [
+                    "Detected features in this dataset",
+                    "Custom Background List",
+                    "Selected Database",
+                ],
+                "description": (
+                    "Reference universe the foreground is tested against. "
+                    "'Detected features in this dataset' is recommended."
+                ),
+            },
+            "custom_background_ids": {
+                "type": "Optional[List[str]]",
+                "required": "when background='Custom Background List'",
+                "default": None,
+                "description": (
+                    "Entity IDs forming the background universe. Required only when "
+                    "background='Custom Background List'."
+                ),
+            },
+            "min_gene_set_size": {
+                "type": "int",
+                "default": 5,
+                "range": ">= 1",
+                "description": "Sets with fewer members in the background are dropped.",
+            },
+            "max_gene_set_size": {
+                "type": "int",
+                "default": 500,
+                "range": ">= 1",
+                "description": "Sets with more members in the background are dropped.",
+            },
+        },
+    },
+    "camera_gsea": {
+        "description": (
+            "CAMERA gene-set enrichment analysis (Wu & Smyth 2012). Competitive "
+            "gene-set test accounting for inter-gene correlation; tests whether genes "
+            "in a set are differentially expressed relative to genes outside it, for "
+            "each pairwise comparison. Output dataset type 'ENRICHMENT'. "
+            "Source-of-truth: live /jobs catalogue, slug 'camera_gsea', "
+            "EnrichmentParamsProperties."
+        ),
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+            "sample_metadata",
+            "condition_column",
+            "condition_comparisons",
+            "species",
+        ],
+        "guidance": "Always ask the user which parameters to use before calling this tool.",
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Exactly one INTENSITY dataset UUID.",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output ENRICHMENT dataset.",
+            },
+            "sample_metadata": {
+                "type": "List[List[str]]",
+                "description": "2D array with header row. Must include sample_name and condition_column.",
+            },
+            "condition_column": {
+                "type": "str",
+                "description": "Column in sample_metadata defining groups to compare.",
+            },
+            "condition_comparisons": {
+                "type": "List[List[str]]",
+                "description": "List of [case, control] pairs.",
+            },
+            "species": {
+                "type": "str",
+                "required": True,
+                "valid_values": ["Human", "Mouse", "Chinese hamster", "Yeast"],
+                "description": "Species of the dataset (title-cased on the wire).",
+            },
+            "entity_type": {
+                "type": "str",
+                "default": "protein",
+                "valid_values": ["gene", "protein"],
+                "description": "Entity type of the intensity dataset to run enrichment on.",
+            },
+            "sets": {
+                "type": "Optional[List[str]]",
+                "default": [
+                    "GO - Biological Process",
+                    "GO - Cellular Component",
+                    "GO - Molecular Function",
+                ],
+                "description": (
+                    "Knowledge bases for enrichment. Multiple may be selected. "
+                    "Options depend on species."
+                ),
+            },
+            "filter_method": {
+                "type": "str",
+                "default": "percentage",
+                "valid_values": ["percentage", "count"],
+                "description": (
+                    "Completeness criterion: 'percentage' uses "
+                    "filter_threshold_percentage; 'count' uses filter_threshold_count."
+                ),
+            },
+            "filter_threshold_percentage": {
+                "type": "float",
+                "default": 0.5,
+                "range": "0.0-1.0",
+                "description": "Minimum fraction of valid values (when filter_method='percentage').",
+            },
+            "filter_threshold_count": {
+                "type": "Optional[int]",
+                "required": "when filter_method='count'",
+                "default": None,
+                "range": ">= 1",
+                "description": "Minimum count of valid values (when filter_method='count').",
+            },
+            "filter_valid_values_logic": {
+                "type": "str",
+                "default": "at least one condition",
+                "valid_values": [
+                    "all conditions",
+                    "at least one condition",
+                    "full experiment",
+                ],
+                "description": "Logic for applying the valid-value filter across conditions.",
+            },
+            "limma_trend": {
+                "type": "bool",
+                "default": True,
+                "description": "Allow intensity-dependent trend for prior variances (Law et al. 2014).",
+            },
+            "robust_empirical_bayes": {
+                "type": "bool",
+                "default": True,
+                "description": "Robust empirical Bayes moderation (Phipson et al. 2016).",
+            },
+            "fit_separate_models": {
+                "type": "bool",
+                "default": True,
+                "description": "Fit a separate limma model per pairwise comparison.",
+            },
+            "control_variables": {
+                "type": "Optional[List[Dict[str, str]]]",
+                "default": None,
+                "description": (
+                    "Covariates to include in the model (e.g. batch, age). Each item: "
+                    "{'column': str, 'type': 'categorical'|'numerical'}. Wrapped on the "
+                    "wire as {'control_variables': [...]}."
+                ),
+            },
+        },
+    },
+    "wgcna": {
+        "description": (
+            "WGCNA weighted co-expression network analysis (PyWGCNA, Rezaie et al. "
+            "2023). Builds a weighted correlation network over entities, detects "
+            "co-expression modules, summarises each with an eigenentity, and "
+            "correlates module eigenentities with sample-metadata trait columns. "
+            "Output dataset type 'WGCNA'. Requires complete numeric input — run "
+            "Normalisation & Imputation first. Source-of-truth: live /jobs catalogue, "
+            "slug 'wgcna', WGCNAParams."
+        ),
+        "required": [
+            "input_dataset_ids",
+            "dataset_name",
+        ],
+        "guidance": "Always ask the user which parameters to use before calling this tool.",
+        "parameters": {
+            "input_dataset_ids": {
+                "type": "List[str]",
+                "description": "Exactly one INTENSITY dataset UUID (complete / imputed).",
+            },
+            "dataset_name": {
+                "type": "str",
+                "description": "Name for the output WGCNA dataset.",
+            },
+            "sample_metadata": {
+                "type": "Optional[List[List[str]]]",
+                "default": None,
+                "description": (
+                    "2D array with header row. Optional; needed only for "
+                    "module-trait correlations against trait_columns."
+                ),
+            },
+            "trait_columns": {
+                "type": "Optional[List[str]]",
+                "default": None,
+                "description": "Sample-metadata columns to correlate module eigengenes against.",
+            },
+            "entity_type": {
+                "type": "str",
+                "default": "protein",
+                "valid_values": ["protein", "peptide", "gene"],
+                "description": "Entity level of the input dataset.",
+            },
+            "log_transform": {
+                "type": "bool",
+                "default": True,
+                "description": "Apply log2(intensity) before building the network.",
+            },
+            "network_type": {
+                "type": "str",
+                "default": "signed",
+                "valid_values": ["unsigned", "signed", "signed hybrid"],
+                "description": "How correlations become edge weights. 'signed' recommended.",
+            },
+            "min_module_size": {
+                "type": "int",
+                "default": 30,
+                "range": ">= 2",
+                "description": "Smallest module kept by dynamic tree cut.",
+            },
+            "merge_cut_height": {
+                "type": "float",
+                "default": 0.25,
+                "range": "0.0-1.0",
+                "description": "Eigengene-dissimilarity threshold below which modules merge.",
+            },
+            "soft_power": {
+                "type": "Optional[int]",
+                "default": None,
+                "range": "1-30 or None",
+                "description": (
+                    "Manually pin the soft-thresholding power β. None auto-selects "
+                    "the lowest power meeting rsquared_cut and mean_connectivity_cut."
+                ),
+            },
+            "rsquared_cut": {
+                "type": "float",
+                "default": 0.9,
+                "range": "0.0-1.0",
+                "description": "Minimum scale-free topology fit R² used during auto-β selection.",
+            },
+            "mean_connectivity_cut": {
+                "type": "int",
+                "default": 100,
+                "range": ">= 1",
+                "description": "Upper bound on mean network connectivity at the chosen β.",
+            },
+            "deep_split": {
+                "type": "int",
+                "default": 2,
+                "range": "0-4",
+                "description": "Sensitivity of dynamic tree cut. Higher = more, smaller modules.",
+            },
+            "filter_method": {
+                "type": "Optional[str]",
+                "default": None,
+                "valid_values": [None, "goodSamplesGenes"],
+                "description": (
+                    "Iterative good-samples/genes filter. None skips it. When set to "
+                    "'goodSamplesGenes', the min_fraction / min_n_samples / min_n_genes "
+                    "/ min_relative_weight / tol sub-params apply."
+                ),
+            },
+            "min_fraction": {
+                "type": "float",
+                "default": 0.5,
+                "range": "0.0-1.0",
+                "description": "Min fraction of non-missing samples (goodSamplesGenes only).",
+            },
+            "min_n_samples": {
+                "type": "int",
+                "default": 4,
+                "range": ">= 1",
+                "description": "Min samples an entity must be observed in (goodSamplesGenes only).",
+            },
+            "min_n_genes": {
+                "type": "int",
+                "default": 4,
+                "range": ">= 1",
+                "description": "Min good entities after filtering or the run fails (goodSamplesGenes only).",
+            },
+            "min_relative_weight": {
+                "type": "float",
+                "default": 0.1,
+                "range": "0.0-1.0",
+                "description": "Relative-weight threshold below which observations are missing (goodSamplesGenes only).",
+            },
+            "tol": {
+                "type": "Optional[float]",
+                "default": None,
+                "range": ">= 0.0 or None",
+                "description": "Variance threshold for declaring an entity constant (goodSamplesGenes only). None auto-computes.",
             },
         },
     },

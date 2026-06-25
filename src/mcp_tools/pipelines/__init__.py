@@ -13,16 +13,19 @@ from .dose_response import (
     run_dose_response_bulk,
     run_dose_response_from_upload,
 )
+from .gsea import run_gsea
 from .mofa import run_mofa
 from .normalisation import (
     run_normalisation_imputation,
     run_normalisation_imputation_bulk,
 )
+from .ora import run_ora
 from .pairwise import (
     generate_pairwise_comparisons,
     run_pairwise_comparison,
     run_pairwise_comparison_bulk,
 )
+from .wgcna import run_wgcna
 
 # Append the binding LLM-behaviour mandates to every analysis tool's docstring.
 # Single source of truth lives in ._mandates so future updates are easy.
@@ -31,11 +34,14 @@ _attach(
     run_dose_response,
     run_dose_response_bulk,
     run_dose_response_from_upload,
+    run_gsea,
     run_mofa,
     run_normalisation_imputation,
     run_normalisation_imputation_bulk,
+    run_ora,
     run_pairwise_comparison,
     run_pairwise_comparison_bulk,
+    run_wgcna,
 )
 
 __all__ = [
@@ -46,9 +52,12 @@ __all__ = [
     "run_dose_response",
     "run_dose_response_bulk",
     "run_dose_response_from_upload",
+    "run_gsea",
     "run_mofa",
     "run_normalisation_imputation",
     "run_normalisation_imputation_bulk",
+    "run_ora",
     "run_pairwise_comparison",
     "run_pairwise_comparison_bulk",
+    "run_wgcna",
 ]

@@ -3,10 +3,13 @@ from uuid import UUID
 from md_python.models import SampleMetadata
 from md_python.models.dataset_builders import (
     DoseResponseDataset,
+    GseaDataset,
     MinimalDataset,
     MOFADataset,
     NormalisationImputationDataset,
+    OraDataset,
     PairwiseComparisonDataset,
+    WgcnaDataset,
 )
 
 
@@ -174,6 +177,333 @@ def test_mofa_dataset_validation_errors():
         raise AssertionError("expected ValueError for empty dataset_name")
     except ValueError as e:
         assert "dataset_name" in str(e)
+
+
+ONE_ID = [str(UUID(int=9))]
+
+
+def test_ora_dataset_build_and_run(mocker):
+    ora = OraDataset(
+        input_dataset_ids=ONE_ID,
+        dataset_name="ORA enrichment",
+        foreground_ids=["P1", "P2", "P3"],
+        species="human",
+    )
+    ds = ora.to_dataset()
+    assert ds.name == "ORA enrichment"
+    assert ds.job_slug == "ora"
+    assert ds.job_run_params == {
+        "entity_type": "protein",
+        "foreground_ids": ["P1", "P2", "P3"],
+        "species": "human",
+        "database": "GO - Biological Process",
+        "background": "Detected features in this dataset",
+        "min_gene_set_size": 5,
+        "max_gene_set_size": 500,
+    }
+    assert len(ds.input_dataset_ids) == 1
+    # output_dataset_type is NOT in job_run_params — the server derives the
+    # output type from the job slug's run_type (mirrors MOFADataset).
+    assert "output_dataset_type" not in ds.job_run_params
+    assert "dataset_name" not in ds.job_run_params
+
+    client = mocker.Mock()
+    client.datasets = mocker.Mock()
+    client.datasets.create.return_value = "ora-id"
+    assert ora.run(client) == "ora-id"
+
+
+def test_ora_dataset_custom_background_round_trip():
+    ora = OraDataset(
+        input_dataset_ids=ONE_ID,
+        dataset_name="ORA custom bg",
+        foreground_ids=["G1"],
+        species="mouse",
+        entity_type="gene",
+        database="Reactome",
+        background="Custom Background List",
+        custom_background_ids=["G2", "G3"],
+        min_gene_set_size=10,
+        max_gene_set_size=300,
+    )
+    params = ora.to_dataset().job_run_params
+    assert params["entity_type"] == "gene"
+    assert params["database"] == "Reactome"
+    assert params["background"] == "Custom Background List"
+    assert params["custom_background_ids"] == ["G2", "G3"]
+    assert params["min_gene_set_size"] == 10
+    assert params["max_gene_set_size"] == 300
+
+
+def test_ora_dataset_validation_errors():
+    # not exactly one input dataset
+    try:
+        OraDataset(
+            input_dataset_ids=[str(UUID(int=1)), str(UUID(int=2))],
+            dataset_name="x",
+            foreground_ids=["P1"],
+            species="human",
+        ).validate()
+        raise AssertionError("expected ValueError for !=1 input datasets")
+    except ValueError as e:
+        assert "exactly 1" in str(e)
+
+    # empty foreground
+    try:
+        OraDataset(
+            input_dataset_ids=ONE_ID,
+            dataset_name="x",
+            foreground_ids=[],
+            species="human",
+        ).validate()
+        raise AssertionError("expected ValueError for empty foreground_ids")
+    except ValueError as e:
+        assert "foreground_ids" in str(e)
+
+    # bad species
+    try:
+        OraDataset(
+            input_dataset_ids=ONE_ID,
+            dataset_name="x",
+            foreground_ids=["P1"],
+            species="rat",
+        ).validate()
+        raise AssertionError("expected ValueError for bad species")
+    except ValueError as e:
+        assert "species" in str(e)
+
+    # custom background without ids
+    try:
+        OraDataset(
+            input_dataset_ids=ONE_ID,
+            dataset_name="x",
+            foreground_ids=["P1"],
+            species="human",
+            background="Custom Background List",
+        ).validate()
+        raise AssertionError("expected ValueError for missing custom_background_ids")
+    except ValueError as e:
+        assert "custom_background_ids" in str(e)
+
+
+def test_gsea_dataset_build_and_run(mocker):
+    sm = SampleMetadata(data=[["sample_name", "condition"], ["s1", "a"], ["s2", "b"]])
+    gsea = GseaDataset(
+        input_dataset_ids=ONE_ID,
+        dataset_name="GSEA enrichment",
+        sample_metadata=sm,
+        condition_column="condition",
+        condition_comparisons=[["a", "b"]],
+        species="Human",
+    )
+    ds = gsea.to_dataset()
+    assert ds.name == "GSEA enrichment"
+    assert ds.job_slug == "camera_gsea"
+    params = ds.job_run_params
+    assert params["entity_type"] == "protein"
+    assert params["species"] == "Human"
+    assert params["sets"] == [
+        "GO - Biological Process",
+        "GO - Cellular Component",
+        "GO - Molecular Function",
+    ]
+    assert params["condition_comparisons"] == {
+        "condition_comparison_pairs": [["a", "b"]]
+    }
+    assert params["filter_values_criteria"] == {
+        "method": "percentage",
+        "filter_threshold_percentage": 0.5,
+    }
+    assert params["filter_valid_values_logic"] == "at least one condition"
+    # output_dataset_type is NOT in job_run_params (mirrors MOFADataset).
+    assert "output_dataset_type" not in params
+    assert "dataset_name" not in params
+
+    client = mocker.Mock()
+    client.datasets = mocker.Mock()
+    client.datasets.create.return_value = "gsea-id"
+    assert gsea.run(client) == "gsea-id"
+
+
+def test_gsea_dataset_custom_params_round_trip():
+    sm = SampleMetadata(data=[["sample_name", "condition"], ["s1", "a"], ["s2", "b"]])
+    gsea = GseaDataset(
+        input_dataset_ids=ONE_ID,
+        dataset_name="GSEA tuned",
+        sample_metadata=sm,
+        condition_column="condition",
+        condition_comparisons=[["a", "b"]],
+        species="Mouse",
+        entity_type="gene",
+        sets=["Reactome"],
+        filter_values_criteria={"method": "count", "filter_threshold_count": 3},
+        limma_trend=False,
+        fit_separate_models=False,
+    )
+    params = gsea.to_dataset().job_run_params
+    assert params["entity_type"] == "gene"
+    assert params["sets"] == ["Reactome"]
+    assert params["filter_values_criteria"] == {
+        "method": "count",
+        "filter_threshold_count": 3,
+    }
+    assert params["limma_trend"] is False
+    assert params["fit_separate_models"] is False
+
+
+def test_gsea_dataset_validation_errors():
+    sm = SampleMetadata(data=[["sample_name", "condition"], ["s1", "a"], ["s2", "b"]])
+
+    # bad species
+    try:
+        GseaDataset(
+            input_dataset_ids=ONE_ID,
+            dataset_name="x",
+            sample_metadata=sm,
+            condition_column="condition",
+            condition_comparisons=[["a", "b"]],
+            species="human",
+        ).validate()
+        raise AssertionError("expected ValueError for bad species casing")
+    except ValueError as e:
+        assert "species" in str(e)
+
+    # empty comparisons
+    try:
+        GseaDataset(
+            input_dataset_ids=ONE_ID,
+            dataset_name="x",
+            sample_metadata=sm,
+            condition_column="condition",
+            condition_comparisons=[],
+            species="Human",
+        ).validate()
+        raise AssertionError("expected ValueError for empty comparisons")
+    except ValueError as e:
+        assert "condition_comparisons" in str(e)
+
+    # >1 input dataset
+    try:
+        GseaDataset(
+            input_dataset_ids=[str(UUID(int=1)), str(UUID(int=2))],
+            dataset_name="x",
+            sample_metadata=sm,
+            condition_column="condition",
+            condition_comparisons=[["a", "b"]],
+            species="Human",
+        ).validate()
+        raise AssertionError("expected ValueError for !=1 input datasets")
+    except ValueError as e:
+        assert "exactly 1" in str(e)
+
+
+def test_wgcna_dataset_build_and_run(mocker):
+    wgcna = WgcnaDataset(
+        input_dataset_ids=ONE_ID,
+        dataset_name="WGCNA network",
+    )
+    ds = wgcna.to_dataset()
+    assert ds.name == "WGCNA network"
+    assert ds.job_slug == "wgcna"
+    params = ds.job_run_params
+    assert params["entity_type"] == "protein"
+    assert params["network_type"] == "signed"
+    assert params["min_module_size"] == 30
+    assert params["merge_cut_height"] == 0.25
+    assert params["soft_power"] is None
+    assert params["rsquared_cut"] == 0.9
+    assert params["mean_connectivity_cut"] == 100
+    assert params["deep_split"] == 2
+    assert params["filter_method"] is None
+    # output_dataset_type is NOT in job_run_params (mirrors MOFADataset).
+    assert "output_dataset_type" not in params
+    # goodSamplesGenes sub-params are NOT emitted when filter_method is None
+    assert "min_fraction" not in params
+    assert "tol" not in params
+    # experiment_design omitted when no sample_metadata
+    assert "experiment_design" not in params
+    assert "dataset_name" not in params
+
+    client = mocker.Mock()
+    client.datasets = mocker.Mock()
+    client.datasets.create.return_value = "wgcna-id"
+    assert wgcna.run(client) == "wgcna-id"
+
+
+def test_wgcna_dataset_filter_emits_subparams():
+    sm = SampleMetadata(
+        data=[["sample_name", "treatment"], ["s1", "ctrl"], ["s2", "drug"]]
+    )
+    wgcna = WgcnaDataset(
+        input_dataset_ids=ONE_ID,
+        dataset_name="WGCNA filtered",
+        sample_metadata=sm,
+        trait_columns=["treatment"],
+        entity_type="gene",
+        network_type="unsigned",
+        soft_power=12,
+        deep_split=4,
+        filter_method="goodSamplesGenes",
+        min_fraction=0.75,
+        min_n_samples=2,
+        tol=0.001,
+    )
+    params = wgcna.to_dataset().job_run_params
+    assert params["entity_type"] == "gene"
+    assert params["network_type"] == "unsigned"
+    assert params["soft_power"] == 12
+    assert params["deep_split"] == 4
+    assert params["filter_method"] == "goodSamplesGenes"
+    assert params["min_fraction"] == 0.75
+    assert params["min_n_samples"] == 2
+    assert params["tol"] == 0.001
+    assert params["trait_columns"] == ["treatment"]
+    assert params["experiment_design"]["sample_name"] == ["s1", "s2"]
+
+
+def test_wgcna_dataset_validation_errors():
+    # >1 input dataset
+    try:
+        WgcnaDataset(
+            input_dataset_ids=[str(UUID(int=1)), str(UUID(int=2))],
+            dataset_name="x",
+        ).validate()
+        raise AssertionError("expected ValueError for !=1 input datasets")
+    except ValueError as e:
+        assert "exactly 1" in str(e)
+
+    # bad network_type
+    try:
+        WgcnaDataset(
+            input_dataset_ids=ONE_ID,
+            dataset_name="x",
+            network_type="bipartite",
+        ).validate()
+        raise AssertionError("expected ValueError for bad network_type")
+    except ValueError as e:
+        assert "network_type" in str(e)
+
+    # deep_split out of range
+    try:
+        WgcnaDataset(
+            input_dataset_ids=ONE_ID,
+            dataset_name="x",
+            deep_split=9,
+        ).validate()
+        raise AssertionError("expected ValueError for deep_split out of range")
+    except ValueError as e:
+        assert "deep_split" in str(e)
+
+    # soft_power out of range
+    try:
+        WgcnaDataset(
+            input_dataset_ids=ONE_ID,
+            dataset_name="x",
+            soft_power=99,
+        ).validate()
+        raise AssertionError("expected ValueError for soft_power out of range")
+    except ValueError as e:
+        assert "soft_power" in str(e)
 
 
 def test_builders_validation_errors():
