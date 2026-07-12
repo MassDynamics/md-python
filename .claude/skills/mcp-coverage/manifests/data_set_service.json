@@ -2,7 +2,7 @@
   "source": "data_set_service",
   "repo_path": "/Users/giuseppeinfusini/wd/md-repos/data-set-service",
   "unit_of_work": "job_slug",
-  "pinned_sha": "3e893aa0df386b5ce78e85ba0b8fae0912fe0c8a",
+  "pinned_sha": "8dcedcc9824a53671d086094100db20cad482737",
   "scope_paths": [
     "db",
     "src/db",

@@ -23,8 +23,10 @@ import ast
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -519,27 +521,78 @@ def _scan_for_slugs(f: Path, into: dict[str, dict[str, Any]], evidence: str) -> 
             entry["evidence"].append(evidence)
 
 
-def extract_visualisations_modules(repo_path: Path) -> list[dict[str, Any]]:
-    """Delegate to md-viz-modules' extract.js when available; otherwise scan
-    the visualisations-service request classes as a coarse fallback (id list
-    only, no parameter fingerprint)."""
-    md_viz_extract = (
-        Path.home() / ".claude" / "skills" / "md-viz-modules" / "scripts" / "extract.js"
+def _find_viz_extract_js() -> Path | None:
+    """Locate the md-mcp-viz-modules extract.js across the known install paths.
+
+    The skill has been renamed (md-viz-modules -> md-mcp-viz-modules) and now
+    ships inside the md-skills-public checkout rather than ~/.claude/skills.
+    Probe every candidate so a machine that has it anywhere still works."""
+    candidates = [
+        REPOS_ROOT / "md-skills-public" / "skills" / "md-mcp-viz-modules" / "scripts" / "extract.js",
+        Path.home() / ".claude" / "skills" / "md-mcp-viz-modules" / "scripts" / "extract.js",
+        Path.home() / ".claude" / "skills" / "md-viz-modules" / "scripts" / "extract.js",
+    ]
+    return next((c for c in candidates if c.exists()), None)
+
+
+def _parse_viz_catalogue(catalogue_md: Path) -> list[dict[str, Any]]:
+    """Pull the module id list out of the extract.js-generated catalogue.md.
+
+    Each module is one markdown table row whose 3rd cell is the endpoint id in
+    backticks, e.g.
+      | [ANOVA Volcano Plot](modules/anova_volcano_plot.md) | Renderer | `anova_volcano_plot` | ... |
+    """
+    row = re.compile(
+        r"^\|\s*\[[^\]]+\]\([^)]+\)\s*\|[^|]*\|\s*`([^`]+)`\s*\|"
     )
-    if md_viz_extract.exists():
+    out: list[dict[str, Any]] = []
+    for line in catalogue_md.read_text(encoding="utf-8").splitlines():
+        m = row.match(line)
+        if m:
+            out.append({"id": m.group(1), "source": "catalogue"})
+    return sorted(out, key=lambda m: m["id"])
+
+
+def extract_visualisations_modules(repo_path: Path) -> list[dict[str, Any]]:
+    """Delegate to md-mcp-viz-modules' extract.js when available; otherwise scan
+    the visualisations-service request classes as a coarse fallback (id list
+    only, no parameter fingerprint).
+
+    The current extract.js does not emit JSON to stdout — it writes a
+    ``catalogue.md`` (+ per-module pages) to its ``--out`` dir. So run it into a
+    throwaway temp dir and parse the catalogue for the authoritative id list.
+    It needs both the vis-service repo (this ``repo_path``) and the workflow
+    repo (module registry lives there) plus workflow's node_modules for
+    @babel/parser."""
+    md_viz_extract = _find_viz_extract_js()
+    workflow_repo = REPOS_ROOT / "workflow"
+    if md_viz_extract is not None and workflow_repo.exists():
+        tmp_out = Path(tempfile.mkdtemp(prefix="mcp-cov-viz-"))
         try:
             result = subprocess.run(
-                ["node", str(md_viz_extract), "--list-only", "--json"],
+                [
+                    "node",
+                    str(md_viz_extract),
+                    "--vis-service",
+                    str(repo_path),
+                    "--workflow",
+                    str(workflow_repo),
+                    "--out",
+                    str(tmp_out),
+                ],
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=120,
             )
-            if result.returncode == 0 and result.stdout.strip():
-                data = json.loads(result.stdout)
-                if isinstance(data, list):
-                    return sorted(data, key=lambda m: m.get("id", ""))
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+            catalogue = tmp_out / "catalogue.md"
+            if result.returncode == 0 and catalogue.exists():
+                parsed = _parse_viz_catalogue(catalogue)
+                if parsed:
+                    return parsed
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             pass
+        finally:
+            shutil.rmtree(tmp_out, ignore_errors=True)
 
     # Fallback: list every Request subclass file under the service's request modules.
     requests_root = repo_path / "src"
@@ -552,9 +605,10 @@ def extract_visualisations_modules(repo_path: Path) -> list[dict[str, Any]]:
         {
             "id": "__warning__",
             "warning": (
-                "md-viz-modules extract.js not invoked successfully — the list "
-                "above is a coarse filename scan, not the parameter-aware "
-                "catalogue. Run md-viz-modules' own extractor for the truth."
+                "md-mcp-viz-modules extract.js not invoked successfully — the "
+                "list above is a coarse filename scan, not the parameter-aware "
+                "catalogue. Ensure the md-skills-public checkout and the "
+                "workflow repo (with node_modules installed) are present."
             ),
         }
     )

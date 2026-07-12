@@ -168,3 +168,46 @@ fresh, since that is what guides users in MCP calls.
    repo path and returns a list of units.
 4. Run `coverage.py bootstrap --source <name>`, review with the user, commit.
 5. Document the recipe in this file.
+
+---
+
+## Extractor state notes (2026-07-12)
+
+- **visualisations_service — FIXED, needs re-bootstrap.** The extractor used to
+  call the md-viz-modules `extract.js` with `--list-only --json` at
+  `~/.claude/skills/md-viz-modules/...`. Both were wrong: the skill was renamed
+  to **md-mcp-viz-modules** (now at
+  `md-skills-public/skills/md-mcp-viz-modules/scripts/extract.js`) and its CLI
+  changed — it no longer prints JSON; it writes `catalogue.md` + per-module
+  pages to `--out`. `extract_visualisations_modules` now locates the script via
+  `_find_viz_extract_js()`, runs it into a temp dir with `--vis-service`,
+  `--workflow`, `--out`, and parses module ids from `catalogue.md` via
+  `_parse_viz_catalogue()`. Requires the workflow repo's `node_modules`
+  (@babel/parser). NOTE: the manifest's `coverage` list is still the OLD coarse
+  filename-scan stems (`*_request`), so the first good refresh shows a large
+  churn (+real ids / −stems). Re-**bootstrap** this source (not just `commit`)
+  to reset the coverage list to real catalogue ids, then future diffs are clean.
+
+- **workflow — degraded, environment-gated.** `bin/rails routes --json` fails
+  in this env because the workflow repo's gems aren't installed
+  (`Bundler::GemNotFound: websocket-driver`). Until someone runs `bundle
+  install` in `/Users/giuseppeinfusini/wd/md-repos/workflow`, the extractor
+  falls back to `_scan_routes_rb`, a declaration-level scan that reports ~138
+  false "changed" (it can't expand `resources :x` → CRUD paths, and keys
+  differently than the canonical dump the manifest was built from). Do NOT
+  trust the workflow delta's "changed" list while in fallback mode; only the
+  top-level `added`/`removed` declarations are meaningful. Fix = `bundle
+  install` in the workflow repo, then re-run. (Do not `bundle install` from
+  this skill — it mutates another repo.)
+
+- **Blind spot — pipeline algorithm repos are NOT tracked.** The ORA / GSEA /
+  MOFA / WGCNA job **parameter contracts** live in the algorithm repos'
+  deploy-form specs: `md-ORA/src/md_ora/process_r.py`,
+  `md-mofa/src/md_mofa/process.py`, `md-wgcna/src/md_wgcna/process.py` (these
+  are the real `MD*ParamsProperties` the workflow `/jobs` catalogue serves — NOT
+  data-set-service, whose manifest only scopes `db`/`alembic`/`jobs.py`). Since
+  no manifest watches these repos, the skill structurally cannot detect
+  pipeline-param drift. To close it: add per-repo manifests whose extractor
+  diffs each `process*` form's fields/enums against the matching md-python
+  builder in `src/md_python/models/dataset_builders/`. (Verified 2026-07-12: the
+  builders were all in sync with the current forms.)
