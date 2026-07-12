@@ -25,6 +25,13 @@ in front of this server so the token is protected in transit.
 Config via env vars (or .env file):
     FASTMCP_HOST=127.0.0.1   (default)
     FASTMCP_PORT=8000         (default)
+
+NOTE: The bundled ``mcp`` package's ``FastMCP.__init__`` takes ``host``/``port``
+as explicit keyword defaults (127.0.0.1 / 8000) and passes them straight into
+its pydantic ``Settings``. Because init kwargs outrank environment variables in
+pydantic-settings, ``FASTMCP_HOST`` / ``FASTMCP_PORT`` are otherwise ignored.
+We therefore read them ourselves in ``__main__`` and assign onto ``mcp.settings``
+before ``run()`` so the env vars actually take effect.
 """
 
 from pathlib import Path
@@ -90,4 +97,10 @@ from mcp_tools import mcp
 # settings for this) if a proper auth server is available.
 
 if __name__ == "__main__":
+    import os
+
+    # See module docstring: FastMCP's constructor defaults clobber FASTMCP_HOST /
+    # FASTMCP_PORT, so honour them explicitly here.
+    mcp.settings.host = os.environ.get("FASTMCP_HOST", mcp.settings.host)
+    mcp.settings.port = int(os.environ.get("FASTMCP_PORT", mcp.settings.port))
     mcp.run(transport="streamable-http")
