@@ -9,6 +9,7 @@ from . import mcp
 from . import datasets as _datasets_pkg  # noqa: F401
 from . import entities as _entities_mod  # noqa: F401
 from . import entity_meta as _entity_meta_mod  # noqa: F401
+from . import evosep as _evosep_mod  # noqa: F401
 from . import files as _files_pkg  # noqa: F401
 from . import health as _health_mod  # noqa: F401
 from . import pipelines as _pipelines_pkg  # noqa: F401

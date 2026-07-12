@@ -9,6 +9,7 @@ from .resources import Health
 from .resources.v2 import (
     Datasets,
     Entities,
+    EvosepQcs,
     Jobs,
     ModuleRegistry,
     Uploads,
@@ -27,6 +28,7 @@ class MDClientV2(BaseMDClient):
         self.uploads = Uploads(self)
         self.datasets = Datasets(self)
         self.entities = Entities(self)
+        self.evosep_qcs = EvosepQcs(self)
         self.jobs = Jobs(self)
         self.module_registry = ModuleRegistry(self)
         # Pass the same module_registry instance into Workspaces so

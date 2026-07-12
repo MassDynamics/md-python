@@ -65,6 +65,7 @@ Every tool returns ONE of:
     list_workspaces, get_workspace, list_tabs, get_tab,
     list_tab_modules, get_tab_module, list_entity_lists, get_entity_list,
     list_module_types, describe_module_type, render_module_visualisation,
+    create_evosep_qc,
     and list_jobs when called WITHOUT upload_id.
   - Prose string starting with a sentinel verb — "Upload created.",
     "Upload record created. ID:", "Normalisation/imputation pipeline
@@ -121,7 +122,8 @@ TOOL CATEGORIES — use roughly in this order:
                      add_plotly_json_module, render_module_visualisation,
                      create_entity_list, list_entity_lists, get_entity_list,
                      update_entity_list, delete_entity_list
-  6. Utility       : health_check, batch, get_workflow_guide
+  6. Utility       : health_check, batch, get_workflow_guide,
+                     create_evosep_qc
 
 UPLOAD SOURCE FORMAT — enum (authoritative, enforced by the server and
 by a client-side guard in src/md_python/resources/v2/uploads.py ::
