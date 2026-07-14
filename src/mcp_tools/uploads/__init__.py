@@ -7,6 +7,7 @@ from .delete import delete_upload
 from .get import get_upload, get_upload_sample_metadata, update_sample_metadata
 from .query import query_uploads
 from .queue import cancel_upload_queue, list_uploads_status
+from .update import update_upload
 from .validate import validate_upload_inputs
 from .wait import wait_for_upload
 
@@ -25,6 +26,7 @@ __all__ = [
     "create_upload_from_csv",
     "delete_upload",
     "get_upload_sample_metadata",
+    "update_upload",
     "update_sample_metadata",
     "wait_for_upload",
     "cancel_upload_queue",

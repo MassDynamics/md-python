@@ -291,6 +291,56 @@ class TestV2Uploads:
         with pytest.raises(Exception, match="Failed to get upload: 404"):
             uploads.get_by_id("bad-id")
 
+    def test_update_sends_put_with_both_fields(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"name": "new", "description": "desc"}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.update("upload-1", name="new", description="desc")
+
+        call_args = mock_client._make_request.call_args
+        assert call_args[1]["method"] == "PUT"
+        assert call_args[1]["endpoint"] == "/uploads/upload-1"
+        assert call_args[1]["json"] == {"name": "new", "description": "desc"}
+
+    def test_update_omits_unsupplied_fields(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"name": "new"}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.update("upload-1", name="new")
+
+        # description must not be sent at all, or the server would overwrite it.
+        assert mock_client._make_request.call_args[1]["json"] == {"name": "new"}
+
+    def test_update_sends_empty_description_to_clear_it(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"name": "unchanged", "description": ""}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.update("upload-1", description="")
+
+        # "" is meaningful (clear) and must survive the falsy check.
+        assert mock_client._make_request.call_args[1]["json"] == {"description": ""}
+
+    def test_update_requires_at_least_one_field(self, uploads, mock_client):
+        with pytest.raises(ValueError, match="at least one of name or description"):
+            uploads.update("upload-1")
+
+        mock_client._make_request.assert_not_called()
+
+    def test_update_failure(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 422
+        mock_response.text = "Name has already been taken"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to update upload: 422"):
+            uploads.update("upload-1", name="taken")
+
     def test_delete_success(self, uploads, mock_client):
         mock_response = Mock()
         mock_response.status_code = 204

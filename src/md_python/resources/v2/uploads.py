@@ -88,8 +88,7 @@ class Uploads:
         # The v2 API accepts description (Api::V2::Uploads::Api#experiment_params
         # permits :description) and Experiment has a description column, but it
         # was never sent — so every description passed by a caller was silently
-        # dropped. There is no upload-update endpoint in v2, so the only way to
-        # set it is at create time.
+        # dropped. It can now also be changed after the fact via update().
         if upload.description:
             payload["description"] = upload.description
 
@@ -170,6 +169,57 @@ class Uploads:
         else:
             raise Exception(
                 f"Failed to get upload: {response.status_code} - {response.text}"
+            )
+
+    def update(
+        self,
+        upload_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[Upload]:
+        """Update an upload's name and/or description.
+
+        Partial update: any field left as None is untouched server-side.
+        Pass description="" to clear an existing description — hence the
+        `is not None` guards rather than truthiness checks.
+
+        Args:
+            upload_id: UUID of the upload to update.
+            name: New name. Must be unique within the organisation.
+            description: New description. "" clears it.
+
+        Returns:
+            The updated Upload.
+
+        Raises:
+            ValueError: if neither name nor description is supplied.
+            Exception: on any non-200 response (422 if the name is blank
+                or already taken within the organisation).
+        """
+        payload: Dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        if description is not None:
+            payload["description"] = description
+
+        # The endpoint enforces this too (at_least_one_of :name, :description
+        # → 400), but failing here gives the caller a clearer error than a
+        # round-trip to a 400.
+        if not payload:
+            raise ValueError("Provide at least one of name or description")
+
+        response = self._client._make_request(
+            method="PUT",
+            endpoint=f"/uploads/{upload_id}",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+
+        if response.status_code == 200:
+            return Upload.from_json(response.json())
+        else:
+            raise Exception(
+                f"Failed to update upload: {response.status_code} - {response.text}"
             )
 
     def delete(self, upload_id: str) -> bool:

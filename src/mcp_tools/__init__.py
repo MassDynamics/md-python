@@ -74,6 +74,7 @@ Every tool returns ONE of:
     started. Dataset ID:", "Sample metadata updated successfully",
     "Dataset deleted successfully", "Dataset retry triggered successfully",
     "Dataset cancellation requested", "Upload deleted successfully",
+    "Upload updated successfully. ID:",
     "Workspace created. ID:", "Workspace deleted successfully. ID:",
     "Tab created. ID:", "Tab deleted successfully. ID:",
     "Module placed. ID:", "Text module placed. ID:",
@@ -93,7 +94,8 @@ TOOL CATEGORIES — use roughly in this order:
   2. Upload tools  : validate_upload_inputs, create_upload_from_csv
                      (PREFERRED for local files), create_upload,
                      wait_for_upload, get_upload, get_upload_sample_metadata,
-                     update_sample_metadata, list_uploads_status,
+                     update_upload, update_sample_metadata,
+                     list_uploads_status,
                      query_uploads, cancel_upload_queue, delete_upload
   3. Dataset tools : find_initial_dataset, find_initial_datasets,
                      get_dataset, list_datasets, list_jobs,
