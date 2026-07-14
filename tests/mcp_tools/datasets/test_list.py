@@ -98,3 +98,23 @@ class TestListDatasets:
         with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
             result = list_datasets("upload-123", type_filter="dose_response")
         assert "ds-1" in result
+
+    def test_anova_type_filter_works_client_side(self):
+        # ANOVA is a real dataset type. query_datasets(type=["ANOVA"]) 400s
+        # because the SERVER enum rejects it, but this filter is client-side —
+        # it must keep working, and the docstring must not conflate the two.
+        mock_client = MagicMock()
+        mock_client.datasets.list_by_upload.return_value = [
+            mock_dataset("ds-1", "CKD - ANOVA", "ANOVA", "COMPLETED"),
+            mock_dataset("ds-2", "Pairwise", "PAIRWISE", "COMPLETED"),
+        ]
+        with patch("mcp_tools.datasets.list.get_client", return_value=mock_client):
+            result = list_datasets("upload-123", type_filter="ANOVA")
+        assert "ds-1" in result
+        assert "ds-2" not in result
+
+    def test_docstring_distinguishes_client_filter_from_query_enum(self):
+        doc = list_datasets.__doc__ or ""
+        assert "CLIENT-SIDE" in doc
+        assert "ANOVA" in doc
+        assert "query_datasets" in doc

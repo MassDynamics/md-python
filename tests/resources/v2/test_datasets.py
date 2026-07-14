@@ -5,7 +5,10 @@ import pytest
 
 from md_python.client_v2 import MDClientV2
 from md_python.models import Dataset
+from md_python.resources.v2 import datasets as datasets_module
 from md_python.resources.v2.datasets import (
+    CONFIRMED_TABLES_BY_UNCATALOGUED_TYPE,
+    KNOWN_TABLES_BY_DATASET_TYPE,
     REASON_TABLE_NAME_INVALID,
     REASON_TABLE_NOT_IN_MODALITY,
     DatasetNotFoundError,
@@ -386,23 +389,20 @@ class TestV2Datasets:
     def test_table_not_found_on_uncatalogued_type_forbids_guessing(
         self, datasets, mock_client
     ):
+        # WGCNA is not in KNOWN_TABLES_BY_DATASET_TYPE — a type we genuinely
+        # cannot enumerate (ENRICHMENT/ORA/ANOVA now are catalogued).
         table_404 = Mock(status_code=404, text="Not found")
-        ds_resp = Mock(status_code=200)
-        ds_resp.json.return_value = {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "name": "DS",
-            "type": "ENRICHMENT",
-            "input_dataset_ids": [],
-        }
-        mock_client._make_request.side_effect = [table_404, ds_resp]
+        mock_client._make_request.side_effect = [
+            table_404,
+            _dataset_response("WGCNA"),
+        ]
 
         with pytest.raises(TableNotFoundError) as exc:
-            datasets.download_table_url("ds-1", "output_enrichment")
+            datasets.download_table_url("ds-1", "output_modules")
 
         msg = str(exc.value)
         assert "CANNOT be enumerated" in msg
         assert "DO NOT brute-force guess" in msg
-        assert "runtime_metadata" in msg
         assert "ask them for the exact table name" in msg
 
     def test_download_table_url_docstring_names_the_mcp_tool(self, datasets):
@@ -447,45 +447,21 @@ class TestV2Datasets:
         assert datasets.list_table_names("ds-1", verify=False)["catalogued"] is True
 
     def test_list_table_names_uncatalogued_type_says_so(self, datasets, mock_client):
-        # ENRICHMENT has no verified catalogue. Returning an empty list reads
-        # as "no tables" and provoked 12 consecutive 404 guesses in telemetry.
-        ds_resp = Mock(status_code=200)
-        ds_resp.json.return_value = {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "name": "DS",
-            "type": "ENRICHMENT",
-            "input_dataset_ids": [],
-        }
-        mock_client._make_request.return_value = ds_resp
+        # An unknown type has no verified catalogue. Returning an empty list
+        # reads as "no tables" and provoked 12 consecutive 404 guesses in
+        # telemetry — the note must say the names cannot be enumerated instead.
+        mock_client._make_request.return_value = _dataset_response("WGCNA")
 
         result = datasets.list_table_names("ds-1")
 
         assert result["catalogued"] is False
         assert result["tables"] == []
-        assert "ENRICHMENT" in result["note"]
+        assert "WGCNA" in result["note"]
         assert "CANNOT be enumerated" in result["note"]
         assert "DO NOT brute-force guess" in result["note"]
-        # the one ENRICHMENT table confirmed to download, flagged non-exhaustive
-        assert result["confirmed_tables"] == ["runtime_metadata"]
-        assert "NON-EXHAUSTIVE" in result["confirmed_tables_note"]
-
-    def test_list_table_names_uncatalogued_type_without_confirmed(
-        self, datasets, mock_client
-    ):
-        ds_resp = Mock(status_code=200)
-        ds_resp.json.return_value = {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "name": "DS",
-            "type": "ANOVA",
-            "input_dataset_ids": [],
-        }
-        mock_client._make_request.return_value = ds_resp
-
-        result = datasets.list_table_names("ds-1")
-
-        assert result["catalogued"] is False
+        # nothing is confirmed for this type, so no confirmed_tables key
         assert "confirmed_tables" not in result
-        assert "DO NOT brute-force guess" in result["note"]
+        assert "NOT because the dataset has no tables" in result["tables_note"]
 
     def test_list_table_names_dataset_not_found(self, datasets, mock_client):
         mock_client._make_request.return_value = Mock(status_code=404)
@@ -496,6 +472,121 @@ class TestV2Datasets:
         msg = str(exc.value)
         assert "DELETED in the web UI" in msg
         assert "NOT a table-name problem" in msg
+
+    def test_uncatalogued_type_with_confirmed_tables_lists_them(
+        self, datasets, mock_client, monkeypatch
+    ):
+        # No type is currently in CONFIRMED_TABLES_BY_UNCATALOGUED_TYPE (the one
+        # entry, ENRICHMENT, is now fully catalogued), but the branch is live for
+        # the next partially-known type — it must keep flagging the list as
+        # non-exhaustive so it is not mistaken for a catalogue.
+        monkeypatch.setitem(
+            datasets_module.CONFIRMED_TABLES_BY_UNCATALOGUED_TYPE,
+            "WGCNA",
+            ["runtime_metadata"],
+        )
+        mock_client._make_request.return_value = _dataset_response("WGCNA")
+
+        result = datasets.list_table_names("ds-1")
+
+        assert result["catalogued"] is False
+        assert result["confirmed_tables"] == ["runtime_metadata"]
+        assert "NON-EXHAUSTIVE" in result["confirmed_tables_note"]
+
+
+class TestEnrichmentAnovaOraCatalogue:
+    """GSEA/ORA/ANOVA results must be downloadable — they used to be a dead end.
+
+    Telemetry: an ENRICHMENT dataset returned catalogued=false, the model fired
+    twelve wrong table-name guesses (output_gsea, output_enrichment, ...) and
+    abandoned the task. The real names are now catalogued.
+    """
+
+    @pytest.fixture
+    def mock_client(self):
+        client = Mock(spec=MDClientV2)
+        client.uploads = Mock()
+        return client
+
+    @pytest.fixture
+    def datasets(self, mock_client):
+        return Datasets(mock_client)
+
+    @pytest.mark.parametrize(
+        "dataset_type,expected",
+        [
+            (
+                "ENRICHMENT",
+                ["output_comparisons", "database_metadata", "runtime_metadata"],
+            ),
+            ("ORA", ["ora_results", "runtime_metadata"]),
+            ("ANOVA", ["anova_results", "runtime_metadata"]),
+        ],
+    )
+    def test_type_is_catalogued_with_the_real_names(
+        self, datasets, mock_client, dataset_type, expected
+    ):
+        mock_client._make_request.return_value = _dataset_response(dataset_type)
+
+        result = datasets.list_table_names("ds-1", verify=False)
+
+        assert result["catalogued"] is True
+        assert result["candidates"] == expected
+        assert "tables_by_entity" not in result
+
+    def test_enrichment_results_table_is_output_comparisons(self):
+        # The collision with PAIRWISE is deliberate and is the whole bug: the
+        # name reads as pairwise-only, so it was never tried on ENRICHMENT.
+        enrichment = KNOWN_TABLES_BY_DATASET_TYPE["ENRICHMENT"]
+        pairwise = KNOWN_TABLES_BY_DATASET_TYPE["PAIRWISE"]
+        assert "output_comparisons" in enrichment
+        assert "output_comparisons" in pairwise
+
+    def test_enrichment_is_no_longer_the_uncatalogued_dead_end(
+        self, datasets, mock_client
+    ):
+        mock_client._make_request.return_value = _dataset_response("ENRICHMENT")
+
+        result = datasets.list_table_names("ds-1", verify=False)
+
+        assert result["catalogued"] is True
+        assert "CANNOT be enumerated" not in result["note"]
+        assert "tables_note" not in result
+        assert "ENRICHMENT" not in CONFIRMED_TABLES_BY_UNCATALOGUED_TYPE
+
+    def test_enrichment_results_table_verifies_and_downloads(
+        self, datasets, mock_client
+    ):
+        mock_client._make_request.side_effect = [
+            _dataset_response("ENRICHMENT"),
+            _table_url_response("https://s3.example.com/results.csv"),  # results
+            _table_url_response(),  # database_metadata
+            Mock(status_code=404, text="Not found"),  # runtime_metadata absent
+            _dataset_response("ENRICHMENT"),  # 404 -> catalogue lookup
+        ]
+
+        result = datasets.list_table_names("ds-1", verify=True)
+
+        assert result["tables"] == ["output_comparisons", "database_metadata"]
+        assert result["unavailable"] == ["runtime_metadata"]
+
+    def test_wrong_enrichment_guess_is_rejected_with_the_valid_names(
+        self, datasets, mock_client
+    ):
+        table_404 = Mock(status_code=404, text="Not found")
+        mock_client._make_request.side_effect = [
+            table_404,
+            _dataset_response("ENRICHMENT"),
+        ]
+
+        with pytest.raises(TableNotFoundError) as exc:
+            datasets.download_table_url("ds-1", "output_gsea")
+
+        msg = str(exc.value)
+        assert "output_comparisons" in msg
+        assert "database_metadata" in msg
+        assert "Do not try other names" in msg
+        assert "CANNOT be enumerated" not in msg
 
 
 class TestEntityNarrowing:
@@ -674,7 +765,7 @@ class TestTableVerification:
 
     def test_uncatalogued_type_is_never_probed(self, datasets, mock_client):
         # No candidate names => nothing to verify. Do not invent names.
-        mock_client._make_request.return_value = _dataset_response("ENRICHMENT")
+        mock_client._make_request.return_value = _dataset_response("WGCNA")
 
         result = datasets.list_table_names("ds-1", verify=True)
 
@@ -999,7 +1090,8 @@ class TestTableNameHelpers:
         assert "list_dataset_tables" in msg
 
     def test_uncatalogued_table_message_forbids_guessing(self):
-        msg = uncatalogued_table_message("ds-1", "output_gsea", "ENRICHMENT")
+        # ENRICHMENT is catalogued now; this message is for types that are not.
+        msg = uncatalogued_table_message("ds-1", "output_modules", "WGCNA")
         assert "DO NOT brute-force guess" in msg
         assert "dozen calls" in msg
         assert "visualisation module" in msg

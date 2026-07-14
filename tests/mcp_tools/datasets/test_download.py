@@ -29,7 +29,9 @@ def _intensity_catalogue(entity="protein"):
     }
 
 
-def _uncatalogued_catalogue(dataset_type="ENRICHMENT"):
+def _uncatalogued_catalogue(dataset_type="WGCNA"):
+    # ENRICHMENT/ORA/ANOVA are catalogued now — WGCNA stands in for a type whose
+    # tables genuinely cannot be enumerated.
     return {
         "dataset_id": "ds-1",
         "type": dataset_type,
@@ -37,6 +39,22 @@ def _uncatalogued_catalogue(dataset_type="ENRICHMENT"):
         "verified": False,
         "tables": [],
         "note": "cannot be enumerated",
+    }
+
+
+def _enrichment_catalogue():
+    return {
+        "dataset_id": "ds-1",
+        "type": "ENRICHMENT",
+        "catalogued": True,
+        "verified": False,
+        "entity": None,
+        "entity_resolved_from": None,
+        "candidates": [
+            "output_comparisons",
+            "database_metadata",
+            "runtime_metadata",
+        ],
     }
 
 
@@ -179,8 +197,8 @@ class TestPreflightGuard:
         assert "download_url" in result
 
     def test_uncatalogued_type_is_let_through(self):
-        # ENRICHMENT tables cannot be enumerated, so we cannot prove the name
-        # is wrong — the request must still go out.
+        # An uncatalogued type's tables cannot be enumerated, so we cannot prove
+        # the name is wrong — the request must still go out.
         mock_client = _client(catalogue=_uncatalogued_catalogue())
         with patch("mcp_tools.datasets.download.get_client", return_value=mock_client):
             result = json.loads(download_dataset_table("ds-1", "runtime_metadata"))
@@ -295,3 +313,60 @@ class TestFailureReasons:
 
         assert result["reason"] == REASON_TABLE_NOT_IN_MODALITY
         assert result["table_name"] == "Protein_Intensity"
+
+
+class TestEnrichmentDownload:
+    """GSEA results are downloadable again — this used to be the dead end."""
+
+    def test_output_comparisons_on_enrichment_is_accepted(self):
+        # The name the model refused to try because it "means pairwise".
+        mock_client = _client(catalogue=_enrichment_catalogue())
+        with patch("mcp_tools.datasets.download.get_client", return_value=mock_client):
+            result = json.loads(download_dataset_table("ds-1", "output_comparisons"))
+
+        mock_client.datasets.download_table_url.assert_called_once_with(
+            "ds-1", "output_comparisons", format="csv"
+        )
+        assert result["download_url"] == "https://s3.example.com/presigned"
+
+    def test_database_metadata_on_enrichment_is_accepted(self):
+        mock_client = _client(catalogue=_enrichment_catalogue())
+        with patch("mcp_tools.datasets.download.get_client", return_value=mock_client):
+            result = json.loads(download_dataset_table("ds-1", "database_metadata"))
+
+        assert "download_url" in result
+
+    def test_guessed_enrichment_name_is_rejected_with_the_valid_list(self):
+        # output_gsea / output_enrichment / output_pathways were all guessed in
+        # telemetry. Each must now come back with the real names, before the HTTP
+        # call, instead of another bare 404.
+        mock_client = _client(catalogue=_enrichment_catalogue())
+        with patch("mcp_tools.datasets.download.get_client", return_value=mock_client):
+            result = json.loads(download_dataset_table("ds-1", "output_gsea"))
+
+        mock_client.datasets.download_table_url.assert_not_called()
+        assert result["reason"] == REASON_TABLE_NAME_INVALID
+        assert result["valid_tables"] == [
+            "output_comparisons",
+            "database_metadata",
+            "runtime_metadata",
+        ]
+        assert "output_comparisons" in result["error"]
+        assert "Do not try other names" in result["error"]
+
+
+class TestDocstringAdvertisesTheEnrichmentNames:
+    """Discoverability up front: the model should not need the error path."""
+
+    def test_docstring_names_the_enrichment_tables(self):
+        doc = download_dataset_table.__doc__ or ""
+        assert "ENRICHMENT" in doc
+        assert "output_comparisons" in doc
+        assert "database_metadata" in doc
+        assert "ora_results" in doc
+        assert "anova_results" in doc
+
+    def test_docstring_warns_off_the_guessed_names(self):
+        doc = download_dataset_table.__doc__ or ""
+        assert "output_gsea" in doc
+        assert "do not" in doc.lower()

@@ -85,10 +85,12 @@ class TestListDatasetTables:
         assert "reason" not in result  # cause unknown — do not claim one
 
     def test_surfaces_uncatalogued_flag_and_do_not_guess_note(self):
+        # WGCNA stands in for a type that really cannot be enumerated —
+        # ENRICHMENT/ORA/ANOVA are catalogued now.
         mock_client = MagicMock()
         mock_client.datasets.list_table_names.return_value = {
             "dataset_id": "ds-1",
-            "type": "ENRICHMENT",
+            "type": "WGCNA",
             "catalogued": False,
             "verified": False,
             "tables": [],
@@ -105,9 +107,50 @@ class TestListDatasetTables:
         assert result["confirmed_tables"] == ["runtime_metadata"]
         assert "DO NOT brute-force guess" in result["note"]
 
+    def test_enrichment_is_catalogued_and_verified(self):
+        # The former dead end: catalogued=false meant "nothing to download".
+        mock_client = MagicMock()
+        mock_client.datasets.list_table_names.return_value = {
+            "dataset_id": "ds-1",
+            "type": "ENRICHMENT",
+            "catalogued": True,
+            "verified": True,
+            "candidates": [
+                "output_comparisons",
+                "database_metadata",
+                "runtime_metadata",
+            ],
+            "tables": ["output_comparisons", "database_metadata"],
+            "unavailable": ["runtime_metadata"],
+        }
+        with patch(
+            "mcp_tools.datasets.list_tables.get_client", return_value=mock_client
+        ):
+            result = json.loads(list_dataset_tables("ds-1"))
+
+        assert result["catalogued"] is True
+        assert result["tables"] == ["output_comparisons", "database_metadata"]
+
 
 class TestDocstringNamesRealTools:
     """Failure mode 1: never point the model at a tool it cannot call."""
 
     def test_docstring_does_not_name_the_internal_sdk_method(self):
         assert "list_table_names" not in (list_dataset_tables.__doc__ or "")
+
+
+class TestDocstringAdvertisesTheCatalogue:
+    """The names must be discoverable BEFORE the model hits an error."""
+
+    def test_docstring_lists_the_enrichment_ora_anova_tables(self):
+        doc = list_dataset_tables.__doc__ or ""
+        assert "ENRICHMENT" in doc
+        assert "output_comparisons" in doc
+        assert "database_metadata" in doc
+        assert "ora_results" in doc
+        assert "anova_results" in doc
+
+    def test_docstring_flags_the_pairwise_name_collision(self):
+        doc = list_dataset_tables.__doc__ or ""
+        assert "SAME name PAIRWISE uses" in doc
+        assert "output_gsea" in doc

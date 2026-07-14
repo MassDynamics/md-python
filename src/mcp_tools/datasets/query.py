@@ -35,9 +35,15 @@ def query_datasets(
         upload_id: restrict to datasets belonging to this upload UUID.
         state: filter by dataset state. Common values: COMPLETED, FAILED,
             ERROR, PROCESSING, RUNNING, PENDING, CANCELLED.
-        type: filter by dataset type. Common values: INTENSITY,
-            NORMALISATION_AND_IMPUTATION, PAIRWISE, ANOVA, DOSE_RESPONSE,
-            DOSE_RESPONSE_AGGREGATE, ENRICHMENT, IMPUTATION, DEMO.
+        type: filter by dataset type. The server accepts ONLY these values:
+            DEMO, DOSE_RESPONSE, DOSE_RESPONSE_AGGREGATE, ENRICHMENT,
+            IMPUTATION, INTENSITY, NORMALISATION_AND_IMPUTATION, PAIRWISE.
+            Anything else is a 400 ("type does not have a valid value").
+            NOTE — this is a FILTER-enum limitation, not the set of dataset
+            types that exist: a dataset's ``type`` field CAN be ANOVA (and
+            ANOVA datasets are returned by this tool), you just cannot FILTER
+            by it. To find ANOVA datasets use ``search`` or filter the results
+            client-side; do not pass type=["ANOVA"], it 400s.
         search: case-insensitive substring match on dataset name. 1-256 chars.
         page: 1-based page number. Defaults to 1.
 

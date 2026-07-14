@@ -99,3 +99,36 @@ class TestQueryDatasets:
             result = json.loads(query_datasets())
         assert "error" in result
         assert "boom" in result["error"]
+
+
+class TestTypeFilterEnumDocstring:
+    """The server enum REJECTS ANOVA — advertising it produced a 400 every time.
+
+    Rails source of truth: workflow/app/api/api/v2/datasets/query.rb:43.
+    """
+
+    ACCEPTED = [
+        "DEMO",
+        "DOSE_RESPONSE",
+        "DOSE_RESPONSE_AGGREGATE",
+        "ENRICHMENT",
+        "IMPUTATION",
+        "INTENSITY",
+        "NORMALISATION_AND_IMPUTATION",
+        "PAIRWISE",
+    ]
+
+    def test_docstring_lists_every_accepted_value(self):
+        doc = query_datasets.__doc__ or ""
+        type_doc = doc.split("type:", 1)[1].split("search:", 1)[0]
+        for value in self.ACCEPTED:
+            assert value in type_doc
+
+    def test_docstring_says_anova_is_not_filterable(self):
+        doc = query_datasets.__doc__ or ""
+        type_doc = doc.split("type:", 1)[1].split("search:", 1)[0]
+        assert "400" in type_doc
+        assert 'type=["ANOVA"]' in type_doc
+        # ...but a dataset's own type CAN be ANOVA — say so, or the next reader
+        # deletes ANOVA from the table catalogue.
+        assert "CAN be ANOVA" in type_doc

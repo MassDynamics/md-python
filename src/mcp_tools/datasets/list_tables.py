@@ -50,11 +50,20 @@ def list_dataset_tables(
       PAIRWISE:      "output_comparisons", "runtime_metadata"
       DOSE_RESPONSE: "output_curves", "output_volcanoes", "input_drc",
                      "runtime_metadata"
+      ENRICHMENT (run_gsea / run_ora):
+                     "output_comparisons"  <- the GSEA RESULTS table. Yes,
+                     the SAME name PAIRWISE uses — that is correct, not a
+                     mix-up, and "output_gsea"/"output_enrichment"/
+                     "output_pathways" do not exist.
+                     "database_metadata"   <- gene-set / database metadata
+                     "runtime_metadata"
+      ORA:           "ora_results", "runtime_metadata"
+      ANOVA:         "anova_results", "runtime_metadata"
 
-    Other types (ENRICHMENT from run_gsea / run_ora, ANOVA) return
-    ``"catalogued": false``: their names cannot be enumerated, so there is
-    nothing to verify and nothing to guess. DO NOT brute-force names — ask
-    the user for the exact name or use the dataset's visualisation module.
+    A type outside that set returns ``"catalogued": false``: its names cannot
+    be enumerated, so there is nothing to verify and nothing to guess. DO NOT
+    brute-force names — ask the user for the exact name or use the dataset's
+    visualisation module.
 
     Args:
         dataset_id: dataset UUID.

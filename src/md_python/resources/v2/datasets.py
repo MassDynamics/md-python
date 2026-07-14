@@ -98,6 +98,44 @@ INTENSITY_TABLES_BY_ENTITY: Dict[str, List[str]] = {
 # IMPUTATION runs register as type INTENSITY (see find_initial_dataset), so they
 # share the intensity tables. PAIRWISE / DOSE_RESPONSE names are the
 # FlowOutPutTable names emitted by their respective flows.
+#
+# ENRICHMENT (run_gsea / run_ora, backend slug "camera_gsea") — VERIFIED LIVE:
+# "output_comparisons" and "database_metadata" each resolved to a presigned URL
+# against two real ENRICHMENT datasets (a gene GSEA and a protein GSEA), and
+# both are exactly the names the visualisations-service reads
+# (module_sdk/.../gsea_dot_plot/services/gsea_dot_plot_service.py:55,65).
+# "runtime_metadata" was already confirmed by telemetry.
+#
+#   !! "output_comparisons" is ALSO the PAIRWISE results table name. That is
+#   NOT a copy-paste error and it must NOT be "fixed", renamed or special-cased.
+#   The collision is precisely why the GSEA results were never found: the name
+#   reads as pairwise-only, so the model rejected it and guessed
+#   enrichment-flavoured names instead (output_enrichment, output_gsea,
+#   output_camera, output_pathways, ...) — twelve consecutive 404s, then the
+#   task was abandoned. The ENRICHMENT results table IS called
+#   "output_comparisons".
+#
+# ANOVA — VERIFIED LIVE: "anova_results" and "runtime_metadata" both resolved on
+# a real type=ANOVA dataset. Name corroborated by module_sdk/.../anova_volcano/
+# services/anova_volcano_plot_workspace_service.py:115. ANOVA is a real dataset
+# type; only the /datasets/query TYPE FILTER enum rejects it (see query.py) —
+# that is a filter limitation, NOT evidence against this entry. Do not delete it.
+#
+# ORA — SOURCE-DERIVED, NOT VERIFIED LIVE: "ora_results" comes from
+# module_sdk/.../ora_dot_plot/services/ora_dot_plot_service.py:41. It could not
+# be probed because there is no ORA dataset in the account to probe against
+# (query_datasets(search="ORA") returns nothing), not because the name is
+# doubted. Cataloguing it unverified is SAFE: list_dataset_tables(verify=True)
+# probes every candidate and reports what actually resolves, so a wrong entry
+# self-corrects into "unavailable" rather than misleading the caller — whereas
+# an ABSENT entry is a hard dead end, because the pre-flight guard rejects any
+# name the catalogue does not list. "runtime_metadata" rides along for the same
+# reason: every other flow type emits it, and if this one does not, it simply
+# reports as unavailable.
+#
+# The table_name is a LOGICAL key, not a filename: both the ENRICHMENT and the
+# ANOVA results tables sit behind an S3 object called results.csv. Never infer a
+# table name from an S3 path.
 KNOWN_TABLES_BY_DATASET_TYPE: Dict[str, List[str]] = {
     "INTENSITY": [
         name for tables in INTENSITY_TABLES_BY_ENTITY.values() for name in tables
@@ -109,6 +147,10 @@ KNOWN_TABLES_BY_DATASET_TYPE: Dict[str, List[str]] = {
         "input_drc",
         "runtime_metadata",
     ],
+    # See the ENRICHMENT note above before touching "output_comparisons" here.
+    "ENRICHMENT": ["output_comparisons", "database_metadata", "runtime_metadata"],
+    "ORA": ["ora_results", "runtime_metadata"],
+    "ANOVA": ["anova_results", "runtime_metadata"],
 }
 
 # Tables that are known to EXIST for a dataset type whose full table list is
@@ -116,14 +158,10 @@ KNOWN_TABLES_BY_DATASET_TYPE: Dict[str, List[str]] = {
 # lists are NON-EXHAUSTIVE and must never be used to reject a table name — they
 # only exist so an uncatalogued type is not a total dead end.
 #
-# ENRICHMENT (run_gsea / run_ora, backend slug "camera_gsea"): the flow source
-# is not determinable — data-set-service's `enrichment` flow is a stub (`pass`)
-# and `camera_gsea` lives outside the repo — so the results-table name is
-# UNKNOWN and is deliberately NOT guessed here. "runtime_metadata" is the only
-# ENRICHMENT table observed to download successfully.
-CONFIRMED_TABLES_BY_UNCATALOGUED_TYPE: Dict[str, List[str]] = {
-    "ENRICHMENT": ["runtime_metadata"],
-}
+# Currently EMPTY: ENRICHMENT — the only entry this ever had — is now fully
+# catalogued above. The machinery stays because the next uncatalogued type
+# (IMPUTATION, WGCNA, ...) will need it; a type is not required to appear here.
+CONFIRMED_TABLES_BY_UNCATALOGUED_TYPE: Dict[str, List[str]] = {}
 
 # Upload sources that map 1:1 onto an omics entity. The proteomics sources
 # (md_format / maxquant / diann_tabular / tims_diann / spectronaut) produce
@@ -435,9 +473,16 @@ class Datasets:
           PAIRWISE:        "output_comparisons", "runtime_metadata"
           DOSE_RESPONSE:   "output_curves", "output_volcanoes",
                            "input_drc", "runtime_metadata"
+          ENRICHMENT (run_gsea / run_ora):
+                           "output_comparisons"  <- the GSEA RESULTS table
+                           "database_metadata", "runtime_metadata"
+          ORA:             "ora_results", "runtime_metadata"
+          ANOVA:           "anova_results", "runtime_metadata"
 
-        Other types (e.g. ENRICHMENT, ANOVA) have no verified catalogue —
-        their table names cannot be enumerated and must not be guessed.
+        The ENRICHMENT results table really is "output_comparisons" — the same
+        name PAIRWISE uses. Do not reject it as "the pairwise name" and do not
+        guess output_gsea / output_enrichment / output_pathways: none of them
+        exist.
 
         A 404 has three different causes and they are NOT interchangeable:
         the DATASET is gone (DatasetNotFoundError — it may have been deleted
@@ -557,10 +602,12 @@ class Datasets:
               "note": "..."
             }
         With ``verify=False`` there is NO ``tables`` key — only ``candidates``,
-        which are unconfirmed. Uncatalogued types (ENRICHMENT / ANOVA) have no
-        candidate names, so verification is impossible: ``catalogued`` is false,
-        ``tables`` is [] and the note says the names cannot be enumerated and
-        must not be guessed.
+        which are unconfirmed. Catalogued types are INTENSITY, PAIRWISE,
+        DOSE_RESPONSE, ENRICHMENT (results table: "output_comparisons", plus
+        "database_metadata"), ORA ("ora_results") and ANOVA ("anova_results").
+        A type outside that set has no candidate names, so verification is
+        impossible: ``catalogued`` is false, ``tables`` is [] and the note says
+        the names cannot be enumerated and must not be guessed.
 
         Raises DatasetNotFoundError if the dataset does not resolve.
         """

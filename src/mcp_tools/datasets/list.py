@@ -43,9 +43,7 @@ def list_jobs(upload_id: Optional[str] = None) -> str:
     See also: describe_pipeline, list_datasets, find_initial_dataset.
     """
     if upload_id is not None:
-        datasets = retry_on_5xx(
-            lambda: get_client().datasets.list_by_upload(upload_id)
-        )
+        datasets = retry_on_5xx(lambda: get_client().datasets.list_by_upload(upload_id))
         if not datasets:
             return "No pipeline jobs found for this upload"
         lines = [f"Found {len(datasets)} job(s) for upload {upload_id}:"]
@@ -81,10 +79,15 @@ def list_datasets(upload_id: str, type_filter: Optional[str] = None) -> str:
 
     Args:
       upload_id: upload UUID to list datasets for.
-      type_filter: restrict to one dataset type. Case-insensitive. Common
-        values: INTENSITY, NORMALISATION_AND_IMPUTATION, PAIRWISE, ANOVA,
-        DOSE_RESPONSE, DOSE_RESPONSE_AGGREGATE, ENRICHMENT, IMPUTATION,
+      type_filter: restrict to one dataset type. Case-insensitive. Applied
+        CLIENT-SIDE against each dataset's own ``type`` field, so any real
+        dataset type works: INTENSITY, NORMALISATION_AND_IMPUTATION, PAIRWISE,
+        ANOVA, DOSE_RESPONSE, DOSE_RESPONSE_AGGREGATE, ENRICHMENT, IMPUTATION,
         DEMO.
+        NOTE — this is NOT the same list as query_datasets(type=...), whose
+        server-side enum REJECTS "ANOVA" with a 400. ANOVA is a real dataset
+        type; it is only the query filter that cannot express it. Use
+        type_filter="ANOVA" here, never type=["ANOVA"] there.
 
     NOTE: NI pipeline output datasets are typed INTENSITY, same as the
     raw upload input. The type reflects data format, not which step
@@ -94,9 +97,7 @@ def list_datasets(upload_id: str, type_filter: Optional[str] = None) -> str:
       get_dataset (the only tool that exposes job_run_params — call it
       when the user wants to know how a dataset in this list was run).
     """
-    datasets = retry_on_5xx(
-        lambda: get_client().datasets.list_by_upload(upload_id)
-    )
+    datasets = retry_on_5xx(lambda: get_client().datasets.list_by_upload(upload_id))
     if type_filter:
         datasets = [d for d in datasets if d.type == type_filter.upper()]
     if not datasets:

@@ -104,8 +104,16 @@ def download_dataset_table(
               PAIRWISE: "output_comparisons", "runtime_metadata"
               DOSE_RESPONSE: "output_curves", "output_volcanoes",
                 "input_drc", "runtime_metadata"
-            Other types (e.g. ENRICHMENT, ANOVA) have NO catalogue: their
-            table names cannot be enumerated and must not be guessed — see
+              ENRICHMENT (run_gsea / run_ora): "output_comparisons" is the
+                GSEA RESULTS table — yes, the SAME name PAIRWISE uses; that
+                is correct, not a mix-up. Also "database_metadata" (gene-set
+                / database metadata) and "runtime_metadata". Do NOT guess
+                "output_gsea" / "output_enrichment" / "output_pathways" —
+                none of them exist.
+              ORA: "ora_results", "runtime_metadata"
+              ANOVA: "anova_results", "runtime_metadata"
+            A type outside that set has NO catalogue: its table names cannot
+            be enumerated and must not be guessed — see
             ``list_dataset_tables``.
         format: "csv" or "parquet". Parquet is smaller and faster for
             downstream pandas/polars reads; CSV is easier for quick
