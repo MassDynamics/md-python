@@ -3,6 +3,8 @@
 from functools import partial
 from typing import Any, Dict, List, Optional
 
+from pydantic import ValidationError
+
 from md_python.models.dataset_builders import NormalisationImputationDataset
 
 from .. import mcp
@@ -91,6 +93,22 @@ def _split_typed_kwargs(merged: Dict[str, Any]) -> Dict[str, Any]:
     return typed
 
 
+def _format_validation_error(exc: ValidationError) -> str:
+    """Flatten a pydantic ValidationError into one LLM-readable line.
+
+    The raw multi-line pydantic rendering (``1 validation error for
+    NormalisationImputationDataset / experiment_design / Input should be a
+    valid dictionary``) gives the caller no recovery path, so we surface the
+    field name plus the message our own validators raised.
+    """
+    parts: List[str] = []
+    for err in exc.errors():
+        field = ".".join(str(loc) for loc in err["loc"]) or "<input>"
+        msg = err["msg"].removeprefix("Value error, ")
+        parts.append(msg if msg.startswith(field) else f"{field}: {msg}")
+    return "; ".join(parts)
+
+
 @mcp.tool()
 def run_normalisation_imputation(
     input_dataset_ids: List[str],
@@ -171,8 +189,8 @@ def run_normalisation_imputation(
         combat seq (gene only):
           batch_variable_combat                                REQUIRED
           design_variables                                     optional
-        experiment_design (dict)  REQUIRED for any technique
-                                  — pass SampleMetadata.to_columns()
+        experiment_design         REQUIRED for any technique
+                                  — see EXPERIMENT_DESIGN SHAPES below
 
     Decision rules for batch correction:
       • combat: empirical-Bayes correction; use when batches are confounded but
@@ -208,9 +226,46 @@ def run_normalisation_imputation(
                                      "full experiment"
       filter_based_on_condition      column name (REQUIRED for the first two
                                      logic values)
-      experiment_design (dict)       REQUIRED — pass SampleMetadata.to_columns()
+      experiment_design              REQUIRED — see EXPERIMENT_DESIGN SHAPES below
 
     Pass these via filtration_extra_params={...}.
+
+    ── CONDITIONAL REQUIREMENTS (get these right on the FIRST call) ──────────
+    Some params are required only because of ANOTHER param's value. There is no
+    way to express that in this flat signature, so the rules are listed here.
+    Violating one returns "Error: ..." (never a raised exception) naming the
+    missing param, the trigger, and what to pass.
+
+    Required param              …when this param has this value
+    ─────────────────────────────────────────────────────────────────────────────
+    batch_correction_technique  normalisation_method = "batch correction"
+    batch_variables             batch_correction_technique = "limma remove batch
+                                effect"   (list of {column, type:"categorical"})
+    batch_variable_combat       batch_correction_technique = "combat" | "combat seq"
+                                (single column name, str)
+    experiment_design           normalisation_method = "batch correction"
+                                OR filtration_method = "by missing values"
+                                OR filtration_method = "by minimum abundance"
+    filter_valid_values_criteria  filtration_method = "by missing values" |
+                                "by minimum abundance"   ("percentage" | "count")
+    filter_threshold_proportion  filter_valid_values_criteria = "percentage"
+                                (defaulted to 0.5 if omitted)
+    filter_threshold_count      filter_valid_values_criteria = "count"
+    filter_based_on_condition   filter_valid_values_logic = "all conditions" |
+                                "at least one condition"  (a column name from
+                                experiment_design, e.g. "condition"). Not needed
+                                for "full experiment".
+
+    ── EXPERIMENT_DESIGN SHAPES (both accepted) ──────────────────────────────
+    1. Column-oriented dict — SampleMetadata.to_columns():
+         {"sample_name": ["s1", "s2"], "condition": ["ctrl", "treated"]}
+    2. Row-oriented list of lists — header row + data rows, exactly what
+       get_dataset / get_upload_sample_metadata / load_metadata_from_csv return:
+         [["sample_name", "condition"], ["s1", "ctrl"], ["s2", "treated"]]
+    The row form is coerced to the column form automatically, so an
+    experiment_design copied straight out of get_dataset can be passed through
+    unchanged. Rows must not be ragged and the header row must be column names.
+    Never hand-construct it — sample names must be verbatim.
 
     ── SCOPE NOTE ────────────────────────────────────────────────────────────
     Pairwise additions (HR, edgeR, DESeq2) are NOT exposed by this MCP. Pairwise
@@ -225,9 +280,13 @@ def run_normalisation_imputation(
     spaced form.
 
     Errors:
-      - APIError 422: required per-method params missing (e.g. batch_variables
-        without batch correction), bad entity_type, missing input dataset.
-      - ValueError: raised by NormalisationImputationDataset on local validation.
+      - "Error: <message>" (prose envelope, NOT an exception): local validation
+        failed before submission — a conditional requirement above was not met,
+        an enum value is invalid, a numeric knob is out of range, or
+        experiment_design was neither of the two accepted shapes. The message
+        names the missing/invalid param and what to pass; fix it and re-call.
+      - APIError 422: raised by the server — bad entity_type, missing input
+        dataset, or an upstream-gated entity_type (metabolite).
     """
     merged: Dict[str, Any] = {}
     merged.update(_NORM_DEFAULTS.get(normalisation_method, {}))
@@ -242,16 +301,25 @@ def run_normalisation_imputation(
         merged.update(filtration_extra_params)
 
     typed = _split_typed_kwargs(merged)
-    dataset_id = NormalisationImputationDataset(
-        input_dataset_ids=input_dataset_ids,
-        dataset_name=dataset_name,
-        normalisation_method=normalisation_method,
-        imputation_method=imputation_method,
-        entity_type=entity_type,
-        filtration_method=filtration_method,
-        extra_params=merged or None,
-        **typed,
-    ).run(get_client())
+    try:
+        dataset_id = NormalisationImputationDataset(
+            input_dataset_ids=input_dataset_ids,
+            dataset_name=dataset_name,
+            normalisation_method=normalisation_method,
+            imputation_method=imputation_method,
+            entity_type=entity_type,
+            filtration_method=filtration_method,
+            extra_params=merged or None,
+            **typed,
+        ).run(get_client())
+    except ValidationError as e:
+        # ValidationError subclasses ValueError — catch it first and flatten.
+        return f"Error: {_format_validation_error(e)}"
+    except ValueError as e:
+        # Local (pre-submission) validation: conditional-required params, bad
+        # enum values, out-of-range knobs. Surfaced as the prose error envelope
+        # so the LLM gets a recovery path instead of an uncaught exception.
+        return f"Error: {e}"
     return f"Normalisation/imputation pipeline started. Dataset ID: {dataset_id}"
 
 
@@ -297,6 +365,12 @@ def _submit_ni_job(
         )
         if "Dataset ID:" in run_result:
             entry["dataset_id"] = run_result.split("Dataset ID:")[-1].strip()
+        elif run_result.startswith("Error: "):
+            # Local validation failure — the single-job tool returns the prose
+            # error envelope rather than raising, so map it back onto the bulk
+            # envelope or the job would be miscounted as submitted.
+            entry["error"] = run_result.removeprefix("Error: ")
+            entry["error_code"] = "invalid_params"
         else:
             entry["result"] = run_result
     except Exception as e:

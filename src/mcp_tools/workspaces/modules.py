@@ -25,6 +25,7 @@ from .._destructive import _attach_destructive
 from . import _introspect
 from ._mandates import _attach_visualisation
 from ._modules_validation import _module_to_dict, resolve_dataset_settings
+from ._renderable import NOT_RENDERABLE_NOTE, RENDERABLE_MODULE_IDS, is_renderable
 
 # Server-side rendering can take a long wall-clock time, but the LLM should
 # not silently retry forever — the FastMCP instructions cap wait_* calls at
@@ -32,6 +33,29 @@ from ._modules_validation import _module_to_dict, resolve_dataset_settings
 # matching internal cap so one MCP call costs at most this many HTTP
 # round-trips, then returns a "still rendering" envelope to the LLM.
 _RENDER_MAX_POLLS = 10
+
+
+def _missing_required_keys_message(item_id: str, missing: List[str]) -> str:
+    """Fail-fast message for required keys with no registry default.
+
+    Telemetry's third-most-common add_module_to_tab failure is the LLM
+    discovering one of these only when the create call blows up ("Cannot
+    create 'intensity_distribution_plot': required key(s) not provided and
+    no registry default exists for them: ['groupByColumn']"). The keys are
+    ALREADY published — verbatim, per module — as
+    ``required_keys_no_default`` in list_module_types, so the message names
+    that field explicitly instead of leaving the LLM to guess.
+    """
+    return (
+        f"cannot create {item_id!r}: required key(s) with no registry "
+        f"default were not supplied: {missing}. Pass them in "
+        f"settings={{{missing[0]!r}: <value>, ...}}.\n\n"
+        "These keys are exactly what list_module_types publishes for this "
+        f"module under required_keys_no_default, and "
+        f"describe_module_type({item_id!r}) documents each one (field_type, "
+        "options, data_dependencies, whether the LLM may fill it). Read "
+        "that first — do not guess a value."
+    )
 
 
 def _render_error_envelope(
@@ -57,6 +81,60 @@ def _render_error_envelope(
             "tab_id": tab_id,
             "module_id": module_id,
             "detail": e.body,
+        },
+        indent=2,
+    )
+
+
+def _renderable_guard(
+    client: Any, workspace_id: str, tab_id: str, module_id: str
+) -> Optional[str]:
+    """Pre-flight check for render_module_visualisation.
+
+    Returns an error envelope when the module cannot be rendered (unknown
+    module, or a module type with no server-side renderer), else None.
+
+    Only 12 module types have a renderer (see ``_renderable``); the rest
+    are drawn client-side by the browser and the vis endpoint answers
+    "Visualisation not supported for module type '<id>'". Telemetry: 58%
+    of render_module_visualisation calls failed, most of them this way.
+    Resolving the module's item_id locally turns that wasted round-trip
+    into an actionable, instant answer.
+    """
+    try:
+        mod = client.workspaces.modules.get(workspace_id, tab_id, module_id)
+    except Exception as e:
+        return f"Error: {e}"
+    if mod is None:
+        return json.dumps(
+            {
+                "status": "error",
+                "error": (
+                    f"module {module_id!r} not found on tab {tab_id!r} of "
+                    f"workspace {workspace_id!r}. Call list_tab_modules to "
+                    "see the modules actually on this tab."
+                ),
+                "workspace_id": workspace_id,
+                "tab_id": tab_id,
+                "module_id": module_id,
+            },
+            indent=2,
+        )
+    if is_renderable(mod.item_id):
+        return None
+    return json.dumps(
+        {
+            "status": "error",
+            "renderable": False,
+            "error": (
+                f"module type {mod.item_id!r} is NOT renderable via the API — "
+                + NOT_RENDERABLE_NOTE
+            ),
+            "workspace_id": workspace_id,
+            "tab_id": tab_id,
+            "module_id": module_id,
+            "item_id": mod.item_id,
+            "renderable_module_types": list(RENDERABLE_MODULE_IDS),
         },
         indent=2,
     )
@@ -132,6 +210,30 @@ def add_module_to_tab(
     is wrong (e.g. dataset_id passed to a multiple=True module), this
     tool fails fast with a clear message before any API roundtrip.
 
+    ENTITY_TYPE — LOOK IT UP, DON'T GUESS. Modules split into two
+    classes and passing the wrong thing used to fail either way:
+      * has an EntityType field -> entity_type is REQUIRED. If you omit
+        it, this tool infers it from the dataset
+        (job_run_params.entity_type — what the web UI itself reads) or
+        from an unambiguous upload source (md_format_gene -> gene,
+        md_format_metabolite -> metabolite), and reports the inference in
+        ``warnings``. When it cannot be inferred (a protein/peptide
+        upload is genuinely ambiguous), the call fails — ask the user.
+      * has NO EntityType field (heading, page_break, text, some tables)
+        -> there is nothing to set it on. Passing entity_type is NOT an
+        error: the arg is dropped and a warning is returned.
+    Which class a module is in is published as ``entity_type_input`` by
+    BOTH list_module_types and describe_module_type (null = the module
+    takes no entity_type). ``entity_type_input.valid_values`` is
+    per-module — do not assume a global list.
+
+    RENDERABILITY. Placing a module always works for a valid registry
+    id, but only 12 module types have a server-side renderer (see
+    ``renderable`` in list_module_types / describe_module_type). When
+    this tool places a non-renderable module it says so in ``warnings``:
+    the module is valid and draws when the user opens the workspace, but
+    render_module_visualisation will NOT work on it — do not call it.
+
     Args:
       workspace_id, tab_id: Where to place the module.
       item_id: The registry id (use list_module_types /
@@ -169,17 +271,21 @@ def add_module_to_tab(
       upload_ids: Required companion to dataset_ids. Same length and
         order as dataset_ids — one upload_id per dataset.
       entity_type: One of ``"protein"``, ``"peptide"``, ``"gene"``,
-        ``"metabolite"``. Required for any module that has an EntityType
-        field — that is, almost every plot module. The dataset payload
-        does NOT carry the entity type, so the LLM MUST supply it:
+        ``"metabolite"`` — check the module's own
+        ``entity_type_input.valid_values`` (list_module_types /
+        describe_module_type), which is authoritative and per-module.
+        Required for any module that has an EntityType field — that is,
+        almost every plot module:
           * md_format / DIA-NN / MaxQuant / Spectronaut uploads ->
-            "protein" or "peptide"
+            "protein" or "peptide" (ambiguous — ask the user)
           * md_format_gene uploads -> "gene"
           * md_format_metabolite uploads -> "metabolite"
-        Confirm with the user when uncertain. Modules without an
-        EntityType field (heading, page_break, text) reject this arg.
-        vis-service is the final arbiter — a module that does not yet
-        support metabolite will reject it at render time.
+        Omitting it is tolerated only when this tool can infer it (see
+        ENTITY_TYPE above); the inference is reported in ``warnings``.
+        Passing it to a module that has no EntityType field drops it with
+        a warning rather than failing. vis-service is the final arbiter —
+        a module that does not yet support metabolite will reject it at
+        render time.
       comparison: PAIRWISE modules only (e.g. ``pairwise_volcano_plot``).
         The ``[left, right]`` case/control pair to plot, as two condition
         names — positive log2FC means ``left`` is more abundant than
@@ -197,17 +303,27 @@ def add_module_to_tab(
         builds are merged on top last so a malformed user value
         cannot accidentally override the structured fields.
 
-    Returns prose: ``Module placed. ID: <uuid>\\n<module JSON>``
+    Returns prose: ``Module placed. ID: <uuid>\\n<module JSON>``. The
+    module JSON carries two extra keys beyond the persisted module:
+      * ``renderable`` (bool) — can render_module_visualisation render
+        this module type at all?
+      * ``warnings`` (list of strings) — non-fatal notes. READ THEM and
+        relay anything material to the user: a dropped entity_type, an
+        entity_type this tool inferred on your behalf, or a module that
+        is UI-only. An empty list means nothing to report.
 
     Raises (returned as ``Error: <message>`` prose):
       * Unknown item_id (not in registry / not available to user).
       * Required key without a registry default that the caller did not
-        supply — fail-fast happens client-side before the request leaves.
+        supply — fail-fast client-side, naming the keys (they are the
+        ``required_keys_no_default`` list from list_module_types).
       * Dataset-arity mismatch (multiple=False vs dataset_ids passed,
         or vice versa).
       * Missing upload_id / upload_ids companion.
       * upload_ids length mismatched with dataset_ids.
       * Dataset args passed to a module that does not accept a dataset.
+      * entity_type required but neither supplied nor inferable, or not
+        in the module's valid_values.
       * 400 from the server when settings keys are not in the module's
         declared input_settings.
 
@@ -215,7 +331,7 @@ def add_module_to_tab(
     """
     client = get_client()
     try:
-        structured_overlay = resolve_dataset_settings(
+        resolution = resolve_dataset_settings(
             client=client,
             item_id=item_id,
             dataset_id=dataset_id,
@@ -249,7 +365,15 @@ def add_module_to_tab(
     merged_settings.update(fallbacks)
     if settings:
         merged_settings.update(settings)
-    merged_settings.update(structured_overlay)
+    merged_settings.update(resolution.overlay)
+
+    # Required-no-default keys: fail BEFORE the request leaves, naming the
+    # discovery field (required_keys_no_default) rather than letting
+    # create_with_defaults raise its terser message.
+    if module is not None:
+        missing = module.missing_required_keys(merged_settings)
+        if missing:
+            return f"Error: {_missing_required_keys_message(item_id, missing)}"
 
     try:
         mod = client.workspaces.modules.create_with_defaults(
@@ -264,9 +388,17 @@ def add_module_to_tab(
         )
     except ValueError as e:
         return f"Error: {e}"
-    return (
-        f"Module placed. ID: {mod.id}\n" f"{json.dumps(_module_to_dict(mod), indent=2)}"
-    )
+
+    payload = _module_to_dict(mod)
+    payload["renderable"] = is_renderable(item_id)
+    warnings = list(resolution.warnings)
+    if not payload["renderable"]:
+        # Informational, NOT an error — the module is valid and will draw
+        # in the web UI. Saying it here stops the LLM burning a failing
+        # render_module_visualisation round-trip on it.
+        warnings.append(f"module type {item_id!r}: {NOT_RENDERABLE_NOTE}")
+    payload["warnings"] = warnings
+    return f"Module placed. ID: {mod.id}\n{json.dumps(payload, indent=2)}"
 
 
 @mcp.tool()
@@ -477,6 +609,17 @@ def render_module_visualisation(
     opens the tab — calling this tool is not required for the module to
     appear in the app.
 
+    ONLY 12 MODULE TYPES ARE RENDERABLE. Most modules draw client-side in
+    the browser and have NO server-side renderer, so this endpoint cannot
+    produce them (gsea_dot_plot, pairwise_heatmap, qc_summary_table,
+    entity_rank_plot, dimensionality_reduction_plot, … all fall in this
+    class). This tool checks the module's item_id against the renderable
+    set first and fails fast — no HTTP round-trip, no "Visualisation not
+    supported" 4xx. The ``renderable`` flag is published per module by
+    list_module_types and describe_module_type, and add_module_to_tab
+    warns when it places a non-renderable module: read those instead of
+    calling this tool speculatively.
+
     POLLING DISCIPLINE — one tool call = at most ``_RENDER_MAX_POLLS``
     server requests. If the envelope says "still rendering" after that,
     treat each subsequent call as one more "wait" toward the 10-poll
@@ -508,15 +651,26 @@ def render_module_visualisation(
         retry. When the module type itself is unsupported by the render
         endpoint, the module still renders in the workspace UI; tell the
         user they can open the workspace to see it.
+      * NOT RENDERABLE (the module type has no server-side renderer) — a
+        structured error envelope with ``"status": "error"``,
+        ``"renderable": false`` and the full ``renderable_module_types``
+        list. Nothing was sent to the server. Do not retry: place a
+        renderable module instead, or tell the user to open the workspace
+        (the module draws there).
       * Other errors / timeouts — an ``Error: ...`` prose string.
     """
+    client = get_client()
+    guard = _renderable_guard(client, workspace_id, tab_id, module_id)
+    if guard is not None:
+        return guard
+
     # Track polls in the MCP layer so the LLM gets a hard guarantee that
     # one tool call never makes more than _RENDER_MAX_POLLS HTTP requests
     # regardless of what timeout_s says. The resource's own poll loop is
     # bypassed (poll=False) so we own the counting here.
     if not poll:
         try:
-            body = get_client().workspaces.modules.render_visualisation(
+            body = client.workspaces.modules.render_visualisation(
                 workspace_id=workspace_id,
                 tab_id=tab_id,
                 module_id=module_id,
@@ -529,7 +683,6 @@ def render_module_visualisation(
             return f"Error: {e}"
         return json.dumps(body, indent=2)
 
-    client = get_client()
     deadline = time.monotonic() + max(0.0, timeout_s)
     last_retry_after = 0
 

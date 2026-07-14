@@ -2,8 +2,11 @@
 
 import json
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import UUID
+
+import pytest
 
 from mcp_tools.workspaces.modules import (
     add_module_to_tab,
@@ -93,6 +96,33 @@ PCA_REG = RegisteredModule(
             "rules": [{"name": "is_required"}],
         },
         "scalingMethod": {"fieldType": "String", "default": "none"},
+    },
+)
+
+# Renderable module (in the vis-service REGISTRY) whose EntityType field
+# enumerates its OWN options — the accepted entity_type set is per-module,
+# not a global vocabulary.
+PTM_REG = RegisteredModule(
+    id="ptm_intensity_scatter",
+    name="PTM Intensity Scatter",
+    group="Experiment",
+    icon="x",
+    input_settings={
+        "datasetsSearch": {
+            "fieldType": "Datasets",
+            "parameters": {"type": "INTENSITY", "multiple": False},
+            "rules": [{"name": "is_required"}],
+        },
+        "entityType": {
+            "fieldType": "EntityType",
+            "parameters": {
+                "options": [
+                    {"value": "protein", "name": "Protein"},
+                    {"value": "peptide", "name": "Peptide"},
+                ]
+            },
+            "rules": [{"name": "is_required"}],
+        },
     },
 )
 
@@ -486,9 +516,12 @@ class TestAddModuleSingleDataset:
         )
         assert call_kwargs["height"] == 16
 
-    def test_entity_type_on_dataset_free_module_rejected(self, mock_client):
-        # heading has no EntityType field — passing entity_type must fail.
+    def test_entity_type_on_module_without_entity_field_is_dropped(self, mock_client):
+        # heading has no EntityType field. There is nothing to set it on,
+        # so the correct behaviour is to DROP it and place the module —
+        # NOT to fail. The drop must be surfaced as a warning.
         mock_client.module_registry.get.return_value = HEADING_REG
+        mock_client.workspaces.modules.create_with_defaults.return_value = _module()
         with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = add_module_to_tab(
                 WS_ID,
@@ -501,8 +534,16 @@ class TestAddModuleSingleDataset:
                 entity_type="protein",
                 settings={"text": "x"},
             )
-        assert result.startswith("Error:")
-        assert "does not accept entity_type" in result
+        assert result.startswith("Module placed.")
+        # entity_type never reaches the wire.
+        sent = mock_client.workspaces.modules.create_with_defaults.call_args.kwargs
+        assert sent["settings"] == {"text": "x"}
+        # …but the LLM is told, loudly, in the success payload.
+        body = json.loads(result.split("\n", 1)[1])
+        dropped = [w for w in body["warnings"] if "DROPPED" in w]
+        assert len(dropped) == 1
+        assert "entity_type" in dropped[0]
+        assert "entity_type_input" in dropped[0]
 
     def test_missing_upload_id_fails_fast(self, mock_client):
         mock_client.module_registry.get.return_value = PCA_REG
@@ -563,6 +604,245 @@ class TestAddModuleSingleDataset:
         mock_client.workspaces.modules.create_with_defaults.assert_not_called()
 
 
+class TestEntityTypeInference:
+    """entity_type is required by almost every plot module but is NOT
+    discoverable from the module id alone. When the LLM omits it, the tool
+    infers it from the same signals the web UI uses — and says so — rather
+    than failing outright. It only fails when the signals are ambiguous.
+    """
+
+    DATASET_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    UPLOAD_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+    def _place(self, mock_client, dataset, upload_source=None):
+        mock_client.module_registry.get.return_value = PCA_REG
+        mock_client.datasets.get_by_id.return_value = dataset
+        mock_client.uploads.get_by_id.return_value = (
+            SimpleNamespace(source=upload_source) if upload_source else None
+        )
+        mock_client.workspaces.modules.create_with_defaults.return_value = _module(
+            item_id="dimensionality_reduction_plot"
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            return add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "dimensionality_reduction_plot",
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                # entity_type deliberately omitted
+            )
+
+    def test_inferred_from_dataset_job_run_params(self, mock_client):
+        # Every pipeline-produced dataset persists entity_type in
+        # job_run_params — the same key EntityTypeSelectField.vue reads.
+        result = self._place(
+            mock_client,
+            _stub_dataset(self.DATASET_ID, job_run_params={"entity_type": "gene"}),
+        )
+        assert result.startswith("Module placed.")
+        sent = mock_client.workspaces.modules.create_with_defaults.call_args.kwargs
+        assert sent["settings"]["entityType"] == "gene"
+        body = json.loads(result.split("\n", 1)[1])
+        warning = body["warnings"][0]
+        assert "INFERRED" in warning
+        assert "gene" in warning
+        assert "job_run_params.entity_type" in warning
+        # No upload fetch needed — the dataset answered.
+        mock_client.uploads.get_by_id.assert_not_called()
+
+    def test_inferred_from_unambiguous_upload_source(self, mock_client):
+        # The initial (upload-conversion) dataset carries no entity_type;
+        # a md_format_metabolite upload can only be metabolite.
+        result = self._place(
+            mock_client,
+            _stub_dataset(self.DATASET_ID, job_run_params={}),
+            upload_source="md_format_metabolite",
+        )
+        assert result.startswith("Module placed.")
+        sent = mock_client.workspaces.modules.create_with_defaults.call_args.kwargs
+        assert sent["settings"]["entityType"] == "metabolite"
+        body = json.loads(result.split("\n", 1)[1])
+        assert "INFERRED" in body["warnings"][0]
+        assert "md_format_metabolite" in body["warnings"][0]
+
+    @pytest.mark.parametrize("source", ["md_format", "diann_tabular", "maxquant"])
+    def test_ambiguous_upload_source_still_fails(self, source, mock_client):
+        # protein vs peptide cannot be inferred from the source — guessing
+        # would render the wrong table. Fail, and name the discovery tools.
+        result = self._place(
+            mock_client,
+            _stub_dataset(self.DATASET_ID, job_run_params={}),
+            upload_source=source,
+        )
+        assert result.startswith("Error:")
+        assert "entity_type" in result
+        assert "list_module_types" in result
+        assert "describe_module_type" in result
+        mock_client.workspaces.modules.create_with_defaults.assert_not_called()
+
+    def test_upload_lookup_failure_degrades_to_error(self, mock_client):
+        mock_client.module_registry.get.return_value = PCA_REG
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(
+            self.DATASET_ID, job_run_params={}
+        )
+        mock_client.uploads.get_by_id.side_effect = Exception("403 forbidden")
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "dimensionality_reduction_plot",
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+            )
+        # A failed inference is never fatal in itself — it degrades to the
+        # actionable "pass entity_type" error, not an exception.
+        assert result.startswith("Error:")
+        assert "requires entity_type" in result
+
+    def test_explicit_entity_type_skips_inference(self, mock_client):
+        mock_client.module_registry.get.return_value = PCA_REG
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(
+            self.DATASET_ID, job_run_params={"entity_type": "gene"}
+        )
+        mock_client.workspaces.modules.create_with_defaults.return_value = _module(
+            item_id="dimensionality_reduction_plot"
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "dimensionality_reduction_plot",
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="protein",
+            )
+        sent = mock_client.workspaces.modules.create_with_defaults.call_args.kwargs
+        # The caller's value wins over the dataset's — no inference at all.
+        assert sent["settings"]["entityType"] == "protein"
+        body = json.loads(result.split("\n", 1)[1])
+        assert not any("INFERRED" in w for w in body["warnings"])
+
+
+class TestEntityTypeValidValuesArePerModule:
+    """The accepted entity_type set differs between modules. When a
+    module's registry spec enumerates its own options, THOSE are the
+    values validated and published — never a hard-coded global list."""
+
+    DATASET_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    UPLOAD_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+    def test_value_outside_module_options_rejected(self, mock_client):
+        mock_client.module_registry.get.return_value = PTM_REG
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "ptm_intensity_scatter",
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="gene",  # module only accepts protein/peptide
+            )
+        assert result.startswith("Error:")
+        assert "['protein', 'peptide']" in result
+        assert "gene" in result
+        mock_client.workspaces.modules.create_with_defaults.assert_not_called()
+
+    def test_value_inside_module_options_accepted(self, mock_client):
+        mock_client.module_registry.get.return_value = PTM_REG
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(self.DATASET_ID)
+        mock_client.workspaces.modules.create_with_defaults.return_value = _module(
+            item_id="ptm_intensity_scatter"
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                "ptm_intensity_scatter",
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="peptide",
+            )
+        sent = mock_client.workspaces.modules.create_with_defaults.call_args.kwargs
+        assert sent["settings"]["entityType"] == "peptide"
+
+
+class TestAddModuleRenderability:
+    """A placed module that has no server-side renderer is still a valid
+    module — it draws in the web UI. Say so; never block the add."""
+
+    DATASET_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    UPLOAD_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+    def _place(self, mock_client, reg, item_id):
+        mock_client.module_registry.get.return_value = reg
+        mock_client.datasets.get_by_id.return_value = _stub_dataset(self.DATASET_ID)
+        mock_client.workspaces.modules.create_with_defaults.return_value = _module(
+            item_id=item_id
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            return add_module_to_tab(
+                WS_ID,
+                TAB_ID,
+                item_id,
+                x=0,
+                y=0,
+                width=12,
+                dataset_id=self.DATASET_ID,
+                upload_id=self.UPLOAD_ID,
+                entity_type="protein",
+            )
+
+    def test_non_renderable_module_placed_with_warning(self, mock_client):
+        # dimensionality_reduction_plot is NOT in the vis-service REGISTRY.
+        result = self._place(mock_client, PCA_REG, "dimensionality_reduction_plot")
+        assert result.startswith("Module placed.")  # NOT an error
+        body = json.loads(result.split("\n", 1)[1])
+        assert body["renderable"] is False
+        assert any("render_module_visualisation" in w for w in body["warnings"])
+        assert any("browser" in w for w in body["warnings"])
+
+    def test_renderable_module_has_no_warning(self, mock_client):
+        result = self._place(mock_client, PTM_REG, "ptm_intensity_scatter")
+        body = json.loads(result.split("\n", 1)[1])
+        assert body["renderable"] is True
+        assert body["warnings"] == []
+
+
+class TestAddModuleMissingRequiredKeys:
+    """Root cause: a required key with no registry default is discovered
+    only on failure. The failure message must name the field the LLM can
+    read up-front (required_keys_no_default)."""
+
+    def test_missing_required_key_names_the_discovery_field(self, mock_client):
+        mock_client.module_registry.get.return_value = HEADING_REG
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = add_module_to_tab(
+                WS_ID, TAB_ID, "heading", x=0, y=0, width=12, height=1
+            )
+        assert result.startswith("Error:")
+        assert "'text'" in result
+        assert "required_keys_no_default" in result
+        assert "describe_module_type" in result
+        # Fail-fast: nothing left the process.
+        mock_client.workspaces.modules.create_with_defaults.assert_not_called()
+
+
 class TestAddModulePairwiseComparison:
     """Pairwise modules with a ConditionComparison field (volcano).
 
@@ -602,11 +882,9 @@ class TestAddModulePairwiseComparison:
 
     def test_comparison_autofilled_from_first_pair(self, mock_client):
         self._place(mock_client)
-        settings = (
-            mock_client.workspaces.modules.create_with_defaults.call_args.kwargs[
-                "settings"
-            ]
-        )
+        settings = mock_client.workspaces.modules.create_with_defaults.call_args.kwargs[
+            "settings"
+        ]
         cmp = settings["experimentAndConditionComparison"]["comparison"]
         # First pair, oriented case-vs-control.
         assert cmp["conditionPair"] == "Stage 3 - Stage 1"
@@ -955,6 +1233,15 @@ class TestUpdateTextModule:
 
 
 class TestRenderModuleVisualisation:
+    @pytest.fixture(autouse=True)
+    def _renderable_module(self, mock_client):
+        """Every render test targets a module the vis-service CAN render.
+
+        The tool resolves the module's item_id first (renderable guard),
+        so the stub must answer with a real module.
+        """
+        mock_client.workspaces.modules.get.return_value = _module(item_id="box_plot")
+
     def test_returns_json_body_on_success(self, mock_client):
         # MCP tool layer always drives polling itself (resource called with
         # poll=False) so the per-call HTTP count stays bounded by the
@@ -963,9 +1250,7 @@ class TestRenderModuleVisualisation:
             "data": [{"type": "scatter"}],
             "layout": {"title": "x"},
         }
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID)
         body = json.loads(result)
         assert body["data"][0]["type"] == "scatter"
@@ -987,9 +1272,7 @@ class TestRenderModuleVisualisation:
         mock_client.workspaces.modules.render_visualisation.side_effect = TimeoutError(
             "render_visualisation: still 202 after 60s"
         )
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = render_module_visualisation(
                 WS_ID, TAB_ID, MOD_ID, poll=True, timeout_s=60
             )
@@ -1001,12 +1284,8 @@ class TestRenderModuleVisualisation:
             "status": "rendering",
             "retry_after": 5,
         }
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
-            result = render_module_visualisation(
-                WS_ID, TAB_ID, MOD_ID, poll=False
-            )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID, poll=False)
         body = json.loads(result)
         assert body["status"] == "rendering"
         assert body["retry_after"] == 5
@@ -1060,9 +1339,7 @@ class TestRenderModuleVisualisation:
             "status": "rendering",
             "retry_after": 0,
         }
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = render_module_visualisation(
                 WS_ID, TAB_ID, MOD_ID, poll=True, timeout_s=300.0
             )
@@ -1084,9 +1361,7 @@ class TestRenderModuleVisualisation:
             {"status": "rendering", "retry_after": 0},
             {"data": [{"type": "bar"}], "layout": {}},
         ]
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = render_module_visualisation(
                 WS_ID, TAB_ID, MOD_ID, poll=True, timeout_s=300.0
             )
@@ -1094,9 +1369,7 @@ class TestRenderModuleVisualisation:
         assert body["data"][0]["type"] == "bar"
         assert mock_client.workspaces.modules.render_visualisation.call_count == 2
 
-    def test_internal_poll_returns_envelope_when_deadline_exceeded(
-        self, mock_client
-    ):
+    def test_internal_poll_returns_envelope_when_deadline_exceeded(self, mock_client):
         """A small timeout_s should produce the rendering envelope BEFORE
         the internal poll cap when the next retry_after would blow the
         deadline."""
@@ -1104,9 +1377,7 @@ class TestRenderModuleVisualisation:
             "status": "rendering",
             "retry_after": 5,
         }
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = render_module_visualisation(
                 WS_ID, TAB_ID, MOD_ID, poll=True, timeout_s=0.0
             )
@@ -1114,9 +1385,70 @@ class TestRenderModuleVisualisation:
         assert body["status"] == "rendering"
         assert "timeout_s exceeded" in body["reason"]
         # First request was made; loop bailed before sleeping.
-        assert (
-            mock_client.workspaces.modules.render_visualisation.call_count == 1
+        assert mock_client.workspaces.modules.render_visualisation.call_count == 1
+
+
+class TestRenderModuleVisualisationRenderableGuard:
+    """Only 12 module types have a server-side renderer. Calling this tool
+    on any other module used to burn an HTTP round-trip and come back with
+    "Visualisation not supported for module type 'X'" — 58% of render
+    calls failed this way. The guard answers locally instead."""
+
+    def test_non_renderable_module_fails_fast(self, mock_client):
+        mock_client.workspaces.modules.get.return_value = _module(
+            item_id="gsea_dot_plot"
         )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID)
+        body = json.loads(result)
+        assert body["status"] == "error"
+        assert body["renderable"] is False
+        assert body["item_id"] == "gsea_dot_plot"
+        # The renderable set is named so the LLM can pick an alternative.
+        assert "box_plot" in body["renderable_module_types"]
+        assert len(body["renderable_module_types"]) == 12
+        # No HTTP round-trip to the vis endpoint.
+        mock_client.workspaces.modules.render_visualisation.assert_not_called()
+
+    def test_non_renderable_guard_applies_when_poll_false(self, mock_client):
+        mock_client.workspaces.modules.get.return_value = _module(
+            item_id="qc_summary_table"
+        )
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID, poll=False)
+        assert json.loads(result)["status"] == "error"
+        mock_client.workspaces.modules.render_visualisation.assert_not_called()
+
+    def test_unknown_module_returns_error_envelope(self, mock_client):
+        mock_client.workspaces.modules.get.return_value = None
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID)
+        body = json.loads(result)
+        assert body["status"] == "error"
+        assert "not found" in body["error"]
+        assert "list_tab_modules" in body["error"]
+        mock_client.workspaces.modules.render_visualisation.assert_not_called()
+
+    def test_renderable_module_passes_through(self, mock_client):
+        mock_client.workspaces.modules.get.return_value = _module(
+            item_id="pairwise_volcano_plot"
+        )
+        mock_client.workspaces.modules.render_visualisation.return_value = {
+            "data": [],
+            "layout": {},
+        }
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
+            result = render_module_visualisation(WS_ID, TAB_ID, MOD_ID)
+        assert json.loads(result) == {"data": [], "layout": {}}
+        assert mock_client.workspaces.modules.render_visualisation.call_count == 1
+
+    def test_docstring_names_the_renderable_contract(self):
+        wrapped = (
+            getattr(render_module_visualisation, "fn", None)
+            or render_module_visualisation
+        )
+        doc = (render_module_visualisation.__doc__ or "") + (wrapped.__doc__ or "")
+        assert "ONLY 12 MODULE TYPES ARE RENDERABLE" in doc
 
 
 class TestAddPlotlyJsonModule:
@@ -1125,9 +1457,7 @@ class TestAddPlotlyJsonModule:
             item_id="plotly_json_renderer",
             settings={"plotlyJson": {"data": [], "layout": {}}, "title": "My plot"},
         )
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = add_plotly_json_module(
                 WS_ID,
                 TAB_ID,
@@ -1148,17 +1478,13 @@ class TestAddPlotlyJsonModule:
         mock_client.workspaces.modules.create.return_value = _module(
             item_id="plotly_json_renderer", settings={"plotlyJson": {}}
         )
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             add_plotly_json_module(WS_ID, TAB_ID, plotly_json={})
         kwargs = mock_client.workspaces.modules.create.call_args.kwargs
         assert kwargs["settings"] == {"plotlyJson": {}}
 
     def test_non_dict_plotly_json_returns_error(self, mock_client):
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = add_plotly_json_module(
                 WS_ID, TAB_ID, plotly_json="{}"  # type: ignore[arg-type]
             )
@@ -1170,9 +1496,7 @@ class TestAddPlotlyJsonModule:
         mock_client.workspaces.modules.create.side_effect = Exception(
             "Failed to create module: 422 - feature flag off"
         )
-        with patch(
-            "mcp_tools.workspaces.modules.get_client", return_value=mock_client
-        ):
+        with patch("mcp_tools.workspaces.modules.get_client", return_value=mock_client):
             result = add_plotly_json_module(
                 WS_ID, TAB_ID, plotly_json={"data": [], "layout": {}}
             )

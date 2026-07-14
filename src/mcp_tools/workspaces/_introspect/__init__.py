@@ -28,6 +28,8 @@ from .dataset_inputs import (
     build_dataset_envelope_multi,
     condition_comparison_input_for,
     dataset_input_for,
+    entity_type_from_dataset,
+    entity_type_from_upload_source,
     entity_type_input_for,
     field_type_fallbacks,
 )
@@ -51,6 +53,8 @@ __all__ = [
     "parameter_doc",
     "parameters_for",
     "entity_type_input_for",
+    "entity_type_from_dataset",
+    "entity_type_from_upload_source",
     "dataset_input_for",
     "condition_comparison_input_for",
     "build_dataset_envelope",

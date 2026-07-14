@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from md_python.models import RegisteredModule
 
+from .._renderable import NOT_RENDERABLE_NOTE, is_renderable
 from .dataset_inputs import dataset_input_for, entity_type_input_for
 from .parameter_docs import _aggregate_data_dependencies, parameters_for
 
@@ -53,10 +54,13 @@ def describe(module: RegisteredModule) -> Dict[str, Any]:
                                           # the LLM MUST collect a value
       "registry_defaults": {key: value, ...},  # what create_with_defaults
                                                # would auto-send
+      "renderable": bool,                 # render_module_visualisation works?
+      "render_note": "..." | null,        # why not, when renderable is False
     }
     """
     params = parameters_for(module)
     deps = _aggregate_data_dependencies(params)
+    renderable = is_renderable(module.id)
     return {
         "id": module.id,
         "name": module.name,
@@ -78,5 +82,10 @@ def describe(module: RegisteredModule) -> Dict[str, Any]:
         # Top-level summary of the module's entity_type binding (if any).
         # Most plot modules need entity_type ∈ {protein, peptide, gene,
         # metabolite} and there is no default — the LLM MUST supply a value.
+        # None means the module accepts NO entity_type — do not pass one.
         "entity_type_input": entity_type_input_for(module),
+        # Whether render_module_visualisation can render this module type.
+        # False = placeable + valid, but UI-only (no server-side renderer).
+        "renderable": renderable,
+        "render_note": None if renderable else NOT_RENDERABLE_NOTE,
     }

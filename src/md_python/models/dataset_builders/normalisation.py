@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from uuid import UUID
 
+from pydantic import field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from ..dataset import Dataset
@@ -28,6 +29,71 @@ from ._methods import (
 )
 from ._normalisation_help import NORMALISATION_HELP_TEXT
 
+# The wire format for experiment_design is a column-oriented dict
+# (SampleMetadata.to_columns()). Callers routinely hold the ROW-oriented form
+# instead — it is what get_dataset, get_upload_sample_metadata and
+# load_metadata_from_csv all emit, and what run_gsea / run_anova /
+# run_pairwise_comparison take as sample_metadata. Both shapes are accepted on
+# input and coerced to the column dict; anything else raises a ValueError that
+# names the two accepted shapes.
+_EXPERIMENT_DESIGN_SHAPES = (
+    "experiment_design accepts exactly two shapes: (1) a column-oriented dict, "
+    "e.g. {'sample_name': ['s1', 's2'], 'condition': ['a', 'b']} "
+    "(SampleMetadata.to_columns()); or (2) a row-oriented list of lists whose "
+    "first row is the header, e.g. [['sample_name', 'condition'], "
+    "['s1', 'a'], ['s2', 'b']] (exactly what get_dataset / "
+    "load_metadata_from_csv return)."
+)
+
+
+def _rows_to_columns(rows: Sequence[Any]) -> Dict[str, List[str]]:
+    """Coerce a row-oriented experiment_design (header row + data rows) to columns.
+
+    Raises ValueError naming both accepted shapes when *rows* is empty, ragged,
+    header-only, has duplicate header names, or is not a list of lists.
+    """
+    if not rows:
+        raise ValueError(
+            f"experiment_design cannot be empty. {_EXPERIMENT_DESIGN_SHAPES}"
+        )
+    if any(not isinstance(row, (list, tuple)) for row in rows):
+        raise ValueError(
+            "experiment_design was given as a list, but its entries are not rows "
+            f"(lists) — got {[type(r).__name__ for r in rows][:3]}. "
+            f"{_EXPERIMENT_DESIGN_SHAPES}"
+        )
+
+    header = list(rows[0])
+    if not header or any(not isinstance(h, str) or not h.strip() for h in header):
+        raise ValueError(
+            "experiment_design row-oriented form requires a non-empty header row "
+            f"of column-name strings — got {rows[0]!r} as the first row. "
+            f"{_EXPERIMENT_DESIGN_SHAPES}"
+        )
+    headers = [h.strip() for h in header]
+    if len(set(headers)) != len(headers):
+        raise ValueError(
+            f"experiment_design header row has duplicate column names: {headers}. "
+            f"{_EXPERIMENT_DESIGN_SHAPES}"
+        )
+    if len(rows) == 1:
+        raise ValueError(
+            "experiment_design row-oriented form has a header row but no sample "
+            f"rows: {headers}. {_EXPERIMENT_DESIGN_SHAPES}"
+        )
+
+    columns: Dict[str, List[str]] = {h: [] for h in headers}
+    for i, row in enumerate(rows[1:], start=1):
+        if len(row) != len(headers):
+            raise ValueError(
+                f"experiment_design row {i} has {len(row)} values but the header "
+                f"has {len(headers)} columns ({headers}) — rows must not be "
+                f"ragged. Offending row: {list(row)!r}. {_EXPERIMENT_DESIGN_SHAPES}"
+            )
+        for h, value in zip(headers, row):
+            columns[h].append(str(value))
+    return columns
+
 
 @pydantic_dataclass
 class NormalisationImputationDataset(BaseDatasetBuilder):
@@ -38,6 +104,11 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
 
     Required: ``input_dataset_ids``, ``dataset_name``, ``normalisation_method``,
     ``imputation_method``. ``entity_type`` defaults to ``"protein"``.
+
+    ``experiment_design`` accepts BOTH the column-oriented dict wire format
+    (``SampleMetadata.to_columns()``) and the row-oriented list-of-lists form
+    (header row + data rows) that ``get_dataset`` / ``load_metadata_from_csv``
+    emit; the row form is coerced to columns on construction.
 
     See :meth:`help` for the full list of supported methods, per-method parameters,
     and entity-type constraints.
@@ -81,6 +152,24 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
 
     extra_params: Optional[Dict[str, Any]] = None
     job_slug: str = "normalisation_imputation"
+
+    @field_validator("experiment_design", mode="before")
+    @classmethod
+    def _accept_row_or_column_experiment_design(cls, value: Any) -> Any:
+        """Accept the row-oriented list-of-lists form as well as the column dict.
+
+        The MCP's own ``get_dataset`` hands the model a row-oriented
+        ``experiment_design``; passing it straight back in used to raise a raw
+        pydantic ``dict_type`` error. Rows are coerced here; dicts pass through.
+        """
+        if value is None or isinstance(value, dict):
+            return value
+        if isinstance(value, (list, tuple)):
+            return _rows_to_columns(value)
+        raise ValueError(
+            f"experiment_design has unsupported type '{type(value).__name__}'. "
+            f"{_EXPERIMENT_DESIGN_SHAPES}"
+        )
 
     @classmethod
     def filter_only(
@@ -271,8 +360,10 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
         if norm == "batch correction":
             if technique is None:
                 raise ValueError(
-                    "batch_correction_technique is required when "
-                    "normalisation_method='batch correction'"
+                    "batch_correction_technique is required because "
+                    "normalisation_method='batch correction'. Pass one of "
+                    f"{sorted(_BATCH_CORRECTION_TECHNIQUES_GENE if self.entity_type == 'gene' else _BATCH_CORRECTION_TECHNIQUES_PROTEOMICS)} "
+                    "via normalisation_extra_params."
                 )
             allowed_tech = (
                 _BATCH_CORRECTION_TECHNIQUES_GENE
@@ -288,8 +379,12 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
             if technique == "limma remove batch effect":
                 if not self.batch_variables:
                     raise ValueError(
-                        "batch_variables (non-empty list) is required for "
-                        "limma remove batch effect"
+                        "batch_variables (non-empty list) is required because "
+                        "batch_correction_technique='limma remove batch effect'. "
+                        "Pass one entry per batch column via "
+                        "normalisation_extra_params, e.g. "
+                        "batch_variables=[{'column': 'batch', "
+                        "'type': 'categorical'}]."
                     )
             elif technique in {"combat", "combat seq"}:
                 if (
@@ -297,8 +392,11 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
                     or not str(self.batch_variable_combat).strip()
                 ):
                     raise ValueError(
-                        "batch_variable_combat (non-empty str) is required for "
-                        f"{technique}"
+                        "batch_variable_combat (non-empty str) is required because "
+                        f"batch_correction_technique='{technique}'. Pass the single "
+                        "batch column name from experiment_design via "
+                        "normalisation_extra_params, e.g. "
+                        "batch_variable_combat='batch'."
                     )
                 if technique == "combat seq":
                     if self.mean_only is not None:
@@ -309,8 +407,9 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
                         )
             if self.experiment_design is None:
                 raise ValueError(
-                    "experiment_design is required when normalisation_method="
-                    "'batch correction'"
+                    "experiment_design is required because normalisation_method="
+                    "'batch correction'. Pass it via normalisation_extra_params. "
+                    f"{_EXPERIMENT_DESIGN_SHAPES}"
                 )
 
         # Imputation per-method param validation
@@ -363,8 +462,10 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
         if filt in {"by missing values", "by minimum abundance"}:
             if self.filter_valid_values_criteria is None:
                 raise ValueError(
-                    f"filter_valid_values_criteria is required for filtration_method="
-                    f"'{filt}'"
+                    "filter_valid_values_criteria is required because "
+                    f"filtration_method='{filt}'. Pass 'percentage' (with "
+                    "filter_threshold_proportion, 0.0-1.0) or 'count' (with "
+                    "filter_threshold_count, >=1) via filtration_extra_params."
                 )
             if self.filter_valid_values_criteria not in _FILTER_VALID_VALUES_CRITERIA:
                 raise ValueError(
@@ -403,10 +504,16 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
                 ):
                     raise ValueError(
                         "filter_based_on_condition (non-empty str) is required "
-                        "for filter_valid_values_logic='"
-                        f"{self.filter_valid_values_logic}'"
+                        "because filter_valid_values_logic='"
+                        f"{self.filter_valid_values_logic}'. Pass the name of the "
+                        "condition column in experiment_design (e.g. 'condition') "
+                        "via filtration_extra_params, or set "
+                        "filter_valid_values_logic='full experiment' to apply the "
+                        "threshold across the whole experiment instead."
                     )
             if self.experiment_design is None:
                 raise ValueError(
-                    "experiment_design is required for filtration_method=" f"'{filt}'"
+                    "experiment_design is required because filtration_method="
+                    f"'{filt}'. Pass it via filtration_extra_params. "
+                    f"{_EXPERIMENT_DESIGN_SHAPES}"
                 )

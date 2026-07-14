@@ -14,6 +14,40 @@ from md_python.models import RegisteredModule
 
 from .parameter_docs import _is_required
 
+# Client-side entity_type vocabulary, used when the module's EntityType
+# field does not enumerate its own options (the common case — the live
+# registry ships ``options: null`` there and the web UI narrows the list
+# from the chosen dataset at render time).
+_ENTITY_TYPE_VOCABULARY = ["protein", "peptide", "gene", "metabolite"]
+
+# Upload sources that map 1:1 onto an entity_type. Everything else
+# (md_format / maxquant / diann_tabular / tims_diann / spectronaut) can
+# produce protein OR peptide depending on which file was uploaded, so the
+# source alone is NOT enough to infer entity_type — mirrors
+# mcp_tools.entity_meta._SOURCES_PER_ENTITY.
+_UNAMBIGUOUS_SOURCE_ENTITY_TYPES = {
+    "md_format_gene": "gene",
+    "md_format_metabolite": "metabolite",
+}
+
+
+def _entity_type_options(spec: Dict[str, Any]) -> Optional[list]:
+    """Per-module entity_type enum, when the registry declares one.
+
+    ``parameters.options`` is the registry's standard enum encoding
+    (``[{"value": "...", "name": "..."}, ...]``). EntityType fields
+    normally omit it, but when a module DOES narrow the value-space we
+    must surface the module's own list — never a hard-coded global one.
+    """
+    params = spec.get("parameters")
+    if not isinstance(params, dict):
+        return None
+    opts = params.get("options")
+    if not isinstance(opts, list):
+        return None
+    values = [o.get("value") for o in opts if isinstance(o, dict) and o.get("value")]
+    return [str(v) for v in values] or None
+
 
 def entity_type_input_for(module: RegisteredModule) -> Optional[Dict[str, Any]]:
     """Find the EntityType-typed parameter on a module, if any.
@@ -22,14 +56,26 @@ def entity_type_input_for(module: RegisteredModule) -> Optional[Dict[str, Any]]:
     dataset is being interpreted as protein, peptide, gene, or metabolite
     level. This is required-no-default for almost every plot — the LLM has
     to supply it. Returns the structured block for the tool layer or None
-    when the module has no EntityType field.
+    when the module has no EntityType field::
 
-    The registry does NOT enumerate which entity types a given module
-    accepts (the EntityType field carries ``options: null`` server-side —
-    the value-space is resolved from the chosen dataset at render time).
-    So ``valid_values`` is the full client-side vocabulary; vis-service is
-    the final arbiter and will reject an unsupported entity_type at
+        {
+          "settings_key": "entityType",
+          "required": True,
+          "valid_values": ["protein", "peptide", "gene", "metabolite"],
+          "valid_values_source": "client_vocabulary" | "registry_options",
+          "tool_arg": "entity_type",
+        }
+
+    ``valid_values`` is per-module: when the module's registry spec
+    enumerates ``parameters.options`` we surface exactly those; otherwise
+    the field carries ``options: null`` server-side (the value-space is
+    narrowed from the chosen dataset at render time) and we fall back to
+    the full client-side vocabulary. vis-service is the final arbiter and
+    will reject an unsupported entity_type at
     render_module_visualisation time.
+
+    A None return means the module accepts NO entity_type at all — the
+    tool layer must drop the arg rather than persist it.
     """
     schema = module.input_settings
     if not schema:
@@ -44,13 +90,60 @@ def entity_type_input_for(module: RegisteredModule) -> Optional[Dict[str, Any]]:
         field_type = spec.get("fieldType") or spec.get("type")
         if field_type != "EntityType":
             continue
+        options = _entity_type_options(spec)
         return {
             "settings_key": key,
             "required": _is_required(spec),
-            "valid_values": ["protein", "peptide", "gene", "metabolite"],
+            "valid_values": options or list(_ENTITY_TYPE_VOCABULARY),
+            "valid_values_source": (
+                "registry_options" if options else "client_vocabulary"
+            ),
             "tool_arg": "entity_type",
         }
     return None
+
+
+def entity_type_from_dataset(job_run_params: Any) -> Optional[str]:
+    """Infer entity_type from a dataset's ``job_run_params``, or None.
+
+    Authoritative — this is the same signal the web UI reads. The
+    EntityType select field short-circuits to a SINGLE option when the
+    chosen dataset carries ``job_run_params.entity_type``
+    (workflow/app/javascript/workspaces/lib/fields/EntityTypeSelectField.vue:56-58),
+    and the EntityTypeFromDataset instruction resolves the same key
+    (…/instructions/EntityTypeFromDataset.js). Every pipeline that
+    produces a dataset (NI, pairwise, ANOVA, GSEA, ORA, WGCNA) persists
+    ``entity_type`` into job_run_params, so this covers every derived
+    dataset.
+
+    Returns None for datasets that do not carry the key (typically the
+    initial upload-conversion dataset) — the caller must then fail rather
+    than guess. We deliberately do NOT mirror the UI's
+    ``PAIRWISE -> protein`` / ``default -> protein`` fallbacks: they are
+    wrong for gene and metabolite data, and a silently-wrong entity_type
+    renders the wrong table.
+    """
+    if not isinstance(job_run_params, dict):
+        return None
+    value = job_run_params.get("entity_type")
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def entity_type_from_upload_source(source: Any) -> Optional[str]:
+    """Infer entity_type from an upload's ``source``, or None when the
+    source is ambiguous.
+
+    Only ``md_format_gene`` (-> gene) and ``md_format_metabolite``
+    (-> metabolite) map 1:1. The proteomics sources (md_format, maxquant,
+    diann_tabular, tims_diann, spectronaut) produce protein OR peptide
+    depending on the uploaded file, so they infer nothing — the LLM/user
+    must choose.
+    """
+    if not isinstance(source, str):
+        return None
+    return _UNAMBIGUOUS_SOURCE_ENTITY_TYPES.get(source)
 
 
 def condition_comparison_input_for(

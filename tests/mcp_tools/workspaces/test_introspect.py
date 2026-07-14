@@ -527,9 +527,7 @@ class TestFieldTypeFallbackWireShape:
         them distinct so the bug above can't recur by accident."""
         from mcp_tools.workspaces._introspect import _FIELD_TYPE_FALLBACKS
 
-        assert _FIELD_TYPE_FALLBACKS["SampleMetadataValuesFilter"] == {
-            "values": []
-        }
+        assert _FIELD_TYPE_FALLBACKS["SampleMetadataValuesFilter"] == {"values": []}
 
     def test_dim_red_fallback_overlay_uses_flat_list(self):
         """End-to-end: building the fallback overlay for a module that uses
@@ -537,9 +535,7 @@ class TestFieldTypeFallbackWireShape:
         list, not a dict."""
         from mcp_tools.workspaces._introspect import field_type_fallbacks
 
-        mod = _module(
-            {"sampleNames": {"fieldType": "DatasetSampleMetadataValues"}}
-        )
+        mod = _module({"sampleNames": {"fieldType": "DatasetSampleMetadataValues"}})
         out = field_type_fallbacks(mod)
         assert out == {"sampleNames": []}
 
@@ -627,3 +623,92 @@ class TestConditionComparison:
 
         with pytest.raises(ValueError, match="does not match"):
             build_condition_comparison([["A", "B"]], ["A", "C"])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# entity_type — per-module valid values + inference from the data in hand
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestEntityTypeInput:
+    def test_no_entity_type_field_returns_none(self):
+        from mcp_tools.workspaces._introspect import entity_type_input_for
+
+        mod = _module({"text": {"fieldType": "String"}})
+        assert entity_type_input_for(mod) is None
+
+    def test_falls_back_to_client_vocabulary_when_registry_has_no_options(self):
+        from mcp_tools.workspaces._introspect import entity_type_input_for
+
+        mod = _module({"entityType": {"fieldType": "EntityType", "required": True}})
+        eti = entity_type_input_for(mod)
+        assert eti["valid_values"] == ["protein", "peptide", "gene", "metabolite"]
+        assert eti["valid_values_source"] == "client_vocabulary"
+        assert eti["required"] is True
+
+    def test_registry_options_win_over_the_global_vocabulary(self):
+        from mcp_tools.workspaces._introspect import entity_type_input_for
+
+        mod = _module(
+            {
+                "entityType": {
+                    "fieldType": "EntityType",
+                    "parameters": {
+                        "options": [
+                            {"value": "protein", "name": "Protein"},
+                            {"value": "gene", "name": "Gene"},
+                        ]
+                    },
+                }
+            }
+        )
+        eti = entity_type_input_for(mod)
+        assert eti["valid_values"] == ["protein", "gene"]
+        assert eti["valid_values_source"] == "registry_options"
+
+
+class TestEntityTypeFromDataset:
+    """Mirrors EntityTypeSelectField.vue — a dataset carrying
+    job_run_params.entity_type pins the entity type to a single value."""
+
+    def test_reads_job_run_params(self):
+        from mcp_tools.workspaces._introspect import entity_type_from_dataset
+
+        assert entity_type_from_dataset({"entity_type": "gene"}) == "gene"
+
+    def test_missing_key_returns_none(self):
+        from mcp_tools.workspaces._introspect import entity_type_from_dataset
+
+        assert entity_type_from_dataset({"normalisation_method": "median"}) is None
+
+    def test_non_dict_returns_none(self):
+        from mcp_tools.workspaces._introspect import entity_type_from_dataset
+
+        assert entity_type_from_dataset(None) is None
+
+    def test_does_not_guess_protein_for_pairwise(self):
+        # The web UI defaults PAIRWISE datasets to protein; we do NOT —
+        # a wrong entity_type silently renders the wrong table.
+        from mcp_tools.workspaces._introspect import entity_type_from_dataset
+
+        assert entity_type_from_dataset({}) is None
+
+
+class TestEntityTypeFromUploadSource:
+    def test_unambiguous_sources_map(self):
+        from mcp_tools.workspaces._introspect import entity_type_from_upload_source
+
+        assert entity_type_from_upload_source("md_format_gene") == "gene"
+        assert entity_type_from_upload_source("md_format_metabolite") == "metabolite"
+
+    def test_protein_peptide_sources_are_ambiguous(self):
+        from mcp_tools.workspaces._introspect import entity_type_from_upload_source
+
+        for source in ("md_format", "maxquant", "diann_tabular", "spectronaut"):
+            assert entity_type_from_upload_source(source) is None
+
+    def test_unknown_source_returns_none(self):
+        from mcp_tools.workspaces._introspect import entity_type_from_upload_source
+
+        assert entity_type_from_upload_source(None) is None
+        assert entity_type_from_upload_source("wat") is None

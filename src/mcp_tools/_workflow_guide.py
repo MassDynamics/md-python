@@ -365,10 +365,12 @@ _WORKFLOW_GUIDE = {
                 "The canvas is 12 grid columns wide. Headings / text / "
                 "page_break are typically 12x1. PLOT modules (volcano, "
                 "heatmap, PCA, dose-response, box plot, every Quality "
-                "control plot, etc.) MUST be sized with height >= 12 — "
-                "smaller heights crop the visualisation and collapse "
-                "legends on top of the data. Width is 6 (half-canvas, "
-                "two side-by-side) or 12 (full-width).",
+                "control plot, etc.) MUST be sized with height >= 16 — "
+                "this is the add_module_to_tab default, so leave height "
+                "unset unless the user asks for a specific size. Smaller "
+                "heights crop the visualisation and collapse legends on "
+                "top of the data. Width is 6 (half-canvas, two "
+                "side-by-side) or 12 (full-width).",
                 "Any settings key not in the module's input_settings → 400 "
                 "from the server. Stick to the keys describe_module_type "
                 "returns.",
@@ -440,7 +442,8 @@ _WORKFLOW_GUIDE = {
             "delete_dataset": "Permanently delete a pipeline result dataset.",
             "cancel_dataset": "Cancel a RUNNING/PROCESSING pipeline job. Only valid for non-terminal datasets.",
             "query_datasets": "Paginated filter search over datasets (upload_id/state/type/search). 50/page. Prefer list_datasets(upload_id=...) for a single upload.",
-            "download_dataset_table": "Get a presigned download URL for a dataset table (csv/parquet). Pass output_path to stream to disk instead.",
+            "list_dataset_tables": "Discover the CASE-SENSITIVE table names a dataset exposes. Call BEFORE download_dataset_table. Only INTENSITY/PAIRWISE/DOSE_RESPONSE are catalogued; other types (e.g. ENRICHMENT, ANOVA) return catalogued=false, meaning their table names CANNOT be enumerated — do NOT guess them, ask the user or use the visualisation module.",
+            "download_dataset_table": "Get a presigned download URL for a dataset table (csv/parquet). Pass output_path to stream to disk instead. table_name is case-sensitive ('Protein_Intensity', not 'protein_intensity') — get it from list_dataset_tables, never by guessing; a wrong name is always a 404 and retrying with another guess never works.",
             "query_entities": "Search proteins, genes, or peptides by keyword (e.g. gene symbol or UniProt ID) across one or more datasets.",
             "map_protein_to_protein": "Graph nodes + edges connecting protein groups through their shared individual proteins, scoped to one or more datasets. Use after query_entities to inspect shared-peptide ambiguity, isoform families, or cross-dataset protein-group provenance. Returns {nodes, edges} JSON.",
             "map_gene_to_protein": "Graph nodes + edges linking gene entities to protein groups via the protein cross-reference, across one or more datasets. Use to translate a gene-symbol hit into the actual protein groups quantified in the user's data. Returns {nodes, edges} JSON.",

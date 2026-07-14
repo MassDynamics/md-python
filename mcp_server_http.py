@@ -63,6 +63,7 @@ import mcp_tools.entity_meta  # noqa: F401
 import mcp_tools.files  # noqa: F401
 import mcp_tools.health  # noqa: F401
 import mcp_tools.pipelines  # noqa: F401
+import mcp_tools.task  # noqa: F401
 import mcp_tools.uploads  # noqa: F401
 import mcp_tools.workspaces  # noqa: F401
 from mcp_tools import mcp

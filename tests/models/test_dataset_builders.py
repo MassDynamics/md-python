@@ -1,5 +1,8 @@
 from uuid import UUID
 
+import pytest
+from pydantic import ValidationError
+
 from md_python.models import SampleMetadata
 from md_python.models.dataset_builders import (
     DoseResponseDataset,
@@ -1019,3 +1022,99 @@ def test_ni_extra_params_overrides_typed_field():
     p = ni.to_dataset().job_run_params
     assert p["std_position"] == 9.9
     assert p["custom_future_field"] == "x"
+
+
+# --- experiment_design shape coercion ------------------------------------------------
+#
+# get_dataset hands the caller a ROW-oriented experiment_design (header row +
+# data rows); the wire format is the COLUMN-oriented dict. Both are accepted.
+
+
+def _ni_with_design(design):
+    """Build a filter-only NI dataset carrying *design* as experiment_design."""
+    return NormalisationImputationDataset(
+        input_dataset_ids=[str(UUID(int=1))],
+        dataset_name="ed shape",
+        entity_type="protein",
+        normalisation_method="skip",
+        imputation_method="skip",
+        filtration_method="by missing values",
+        filter_valid_values_criteria="percentage",
+        filter_threshold_proportion=0.5,
+        filter_valid_values_logic="full experiment",
+        experiment_design=design,
+    )
+
+
+def test_ni_experiment_design_column_dict_passes_through_untouched():
+    """An already-correct column dict is not rewritten."""
+    ni = _ni_with_design(_design())
+    ni.validate()
+    assert ni.experiment_design == _design()
+    assert ni.to_dataset().job_run_params["experiment_design"] == _design()
+
+
+def test_ni_experiment_design_row_oriented_is_coerced_to_columns():
+    """The row-oriented shape get_dataset emits is coerced to the wire format."""
+    ni = _ni_with_design(
+        [
+            ["sample_name", "condition", "cell_line"],
+            ["A2780_rep1", "DMSO", "A2780"],
+            ["A2780_rep2", "Drug", "A2780"],
+        ]
+    )
+    ni.validate()
+    expected = {
+        "sample_name": ["A2780_rep1", "A2780_rep2"],
+        "condition": ["DMSO", "Drug"],
+        "cell_line": ["A2780", "A2780"],
+    }
+    assert ni.experiment_design == expected
+    assert ni.to_dataset().job_run_params["experiment_design"] == expected
+
+
+def test_ni_experiment_design_row_values_are_stringified():
+    """Non-string cells (e.g. numeric batch ids) are coerced to strings."""
+    ni = _ni_with_design([["sample_name", "batch"], ["s1", 1], ["s2", 2]])
+    assert ni.experiment_design == {"sample_name": ["s1", "s2"], "batch": ["1", "2"]}
+
+
+@pytest.mark.parametrize(
+    "bad_design,expected_fragment",
+    [
+        ([], "cannot be empty"),
+        (
+            [["sample_name", "condition"], ["s1", "a"], ["s2"]],
+            "row 2 has 1 values but the header has 2 columns",
+        ),
+        ([["sample_name", "condition"]], "header row but no sample rows"),
+        (["sample_name", "condition"], "entries are not rows"),
+        ([[], ["s1", "a"]], "requires a non-empty header row"),
+        ([[1, 2], ["s1", "a"]], "requires a non-empty header row"),
+        ([["condition", "condition"], ["a", "b"]], "duplicate column names"),
+        ("sample_name,condition", "unsupported type 'str'"),
+    ],
+    ids=[
+        "empty_list",
+        "ragged_rows",
+        "header_only",
+        "flat_list_of_strings",
+        "empty_header_row",
+        "non_string_header",
+        "duplicate_headers",
+        "not_a_list_or_dict",
+    ],
+)
+def test_ni_experiment_design_malformed_raises_clear_error(
+    bad_design, expected_fragment
+):
+    """Malformed input raises a message naming BOTH accepted shapes — never a
+    bare pydantic dict_type error."""
+    with pytest.raises(ValidationError) as exc:
+        _ni_with_design(bad_design)
+
+    message = str(exc.value)
+    assert expected_fragment in message
+    assert "dict_type" not in message
+    assert "column-oriented dict" in message
+    assert "row-oriented list of lists" in message

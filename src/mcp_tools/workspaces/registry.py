@@ -19,6 +19,7 @@ import json
 from .. import mcp
 from .._client import get_client
 from . import _introspect
+from ._renderable import is_renderable
 
 
 @mcp.tool()
@@ -37,7 +38,10 @@ def list_module_types() -> str:
              "group": "...", "icon": "...", "keywords": [...],
              "short_description": "...",
              "has_registry_defaults": bool,
-             "required_keys_no_default": [...]}
+             "required_keys_no_default": [...],
+             "dataset_input": {...} | null,
+             "entity_type_input": {...} | null,
+             "renderable": bool}
           ],
           "total": int,
           "groups": {group_name: count, ...}
@@ -45,8 +49,26 @@ def list_module_types() -> str:
 
     ``required_keys_no_default`` is the list of parameter keys the LLM
     MUST collect from the user (e.g. ``datasetsSearch`` for any data-bound
-    plot). ``has_registry_defaults`` tells the LLM whether
-    create_with_defaults will fill anything in.
+    plot) — add_module_to_tab fails fast on any of them that is missing.
+    ``has_registry_defaults`` tells the LLM whether create_with_defaults
+    will fill anything in.
+
+    ``entity_type_input`` is the module's entity_type contract, published
+    here so it costs no extra round-trip::
+
+        null                     -> the module accepts NO entity_type.
+                                    Passing one to add_module_to_tab drops
+                                    it (with a warning). Do not pass it.
+        {"required": true,
+         "valid_values": [...]}  -> add_module_to_tab NEEDS entity_type,
+                                    and only these values (per-module —
+                                    the accepted set is not global).
+
+    ``renderable`` says whether render_module_visualisation can render the
+    module type at all. False means the module is placeable and valid but
+    UI-only — it draws when the user opens the workspace, and calling
+    render_module_visualisation on it will fail. Only 12 module types are
+    renderable.
 
     Next step: pick an item_id and call describe_module_type for full
     parameter docs before calling add_module_to_tab.
@@ -71,6 +93,15 @@ def list_module_types() -> str:
                 # The LLM uses this to filter ("show me all PAIRWISE modules")
                 # and to decide which add_module_to_tab args to pass.
                 "dataset_input": _introspect.dataset_input_for(m),
+                # entity_type contract. Published HERE (not only in
+                # describe_module_type) because the LLM reads this index far
+                # more often than it describes a single module — and
+                # entity_type is otherwise undiscoverable until a failed
+                # add_module_to_tab. null = the module takes none.
+                "entity_type_input": _introspect.entity_type_input_for(m),
+                # Whether render_module_visualisation works for this module
+                # type at all (mirrors the vis-service REGISTRY).
+                "renderable": is_renderable(m.id),
             }
         )
         by_group[m.group] = by_group.get(m.group, 0) + 1
@@ -125,8 +156,20 @@ def describe_module_type(item_id: str) -> str:
           ],
           "data_dependencies": [...],         # union across all parameters
           "required_keys_no_default": [...],  # MUST be collected from user
-          "registry_defaults": {key: value, ...}
+          "registry_defaults": {key: value, ...},
+          "dataset_input": {...} | null,      # dataset binding contract
+          "entity_type_input": {...} | null,  # entity_type contract;
+                                              # null = takes NO entity_type
+          "renderable": bool,                 # render_module_visualisation
+                                              # works on this module type?
+          "render_note": "..." | null         # why not, when not renderable
         }
+
+    ``entity_type_input.valid_values`` is the set THIS module accepts —
+    it is not a global list. ``renderable: false`` means the module is
+    valid and draws in the web UI but has no server-side renderer: place
+    it, then tell the user to open the workspace; do NOT call
+    render_module_visualisation on it.
 
     The ``data_dependencies`` block is the LLM's checklist: every entry is
     something the LLM must know about before it can sensibly fill values.
