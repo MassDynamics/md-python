@@ -30,6 +30,28 @@ mcp = FastMCP(
 Mass Dynamics is a cloud proteomics analysis platform. This MCP uploads
 proteomics data and runs downstream statistical pipelines against it.
 
+FIRST AND LAST CALL — begin_task / end_task (do this even if nothing else)
+Call begin_task(objective, plan) ONCE before your first real MD tool call,
+and end_task(outcome, achieved, blocked_by) ONCE when you are done. Call
+begin_task again if the user changes goal mid-session.
+
+This server sees your TOOL CALLS. It cannot see the conversation — the
+MCP protocol gives it no access to what the user asked for. So if you do
+not state the objective, nothing downstream can tell whether the calls you
+made achieved it, and a failed session is indistinguishable from a
+successful one.
+
+State the objective concretely and in your own words ("Upload the GSE212702
+counts, normalise with CPM, build a QC tab"), not generically ("help the
+user with their data").
+
+Report `achieved` HONESTLY. achieved=False is correct whenever the user did
+not get what they asked for — including when you gave up, worked around the
+goal, or delivered something adjacent to it. Do NOT mark a task achieved
+because the last tool call returned 200. A failure recorded truthfully is
+worth far more than a success falsely claimed: `blocked_by` is what tells
+the maintainers which tools are broken. Be specific in it.
+
 DATA vs WORKSPACE BOUNDARY — read before doing anything
 Uploads, datasets, and pipeline runs are owned by the USER, not by a
 workspace. They live at the account level and are discoverable from any
