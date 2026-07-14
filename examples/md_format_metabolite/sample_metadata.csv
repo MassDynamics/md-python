@@ -1,0 +1,5 @@
+sample_name,condition,gender,batch
+C115_N,Normal,F,1
+C24_N,Normal,M,1
+T10_D,Disease,F,2
+T22_D,Disease,M,2

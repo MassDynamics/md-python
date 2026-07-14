@@ -61,6 +61,53 @@ class TestV2Uploads:
         assert payload["experiment_design"] == DESIGN.data
         assert payload["sample_metadata"] == METADATA.data
 
+    def test_create_sends_description(self, uploads, mock_client):
+        # The v2 API permits :description and Experiment has a description
+        # column, but create() never put it in the payload — so every caller's
+        # description was silently dropped. There is no upload-update endpoint,
+        # so create is the ONLY chance to set it.
+        upload = Upload(
+            name="Described Upload",
+            source="maxquant",
+            s3_bucket="my-bucket",
+            s3_prefix="data/",
+            filenames=["a.txt"],
+            experiment_design=DESIGN,
+            sample_metadata=METADATA,
+            description="PXD056996 — HGSOC EV proteome, 40 samples.",
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"id": "upload-123"}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.create(upload)
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload["description"] == "PXD056996 — HGSOC EV proteome, 40 samples."
+
+    def test_create_omits_description_when_unset(self, uploads, mock_client):
+        upload = Upload(
+            name="No Description",
+            source="maxquant",
+            s3_bucket="my-bucket",
+            s3_prefix="data/",
+            filenames=["a.txt"],
+            experiment_design=DESIGN,
+            sample_metadata=METADATA,
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"id": "upload-123"}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.create(upload)
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert "description" not in payload
+
     def test_create_with_file_location(self, uploads, mock_client):
         upload = Upload(
             name="Local Upload",

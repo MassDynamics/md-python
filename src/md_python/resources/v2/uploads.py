@@ -85,6 +85,14 @@ class Uploads:
             "sample_metadata": upload.sample_metadata.data,
         }
 
+        # The v2 API accepts description (Api::V2::Uploads::Api#experiment_params
+        # permits :description) and Experiment has a description column, but it
+        # was never sent — so every description passed by a caller was silently
+        # dropped. There is no upload-update endpoint in v2, so the only way to
+        # set it is at create time.
+        if upload.description:
+            payload["description"] = upload.description
+
         if upload.experiment_design:
             payload["experiment_design"] = upload.experiment_design.data
 

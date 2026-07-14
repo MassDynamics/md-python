@@ -265,6 +265,29 @@ class TestGetMdFormatSpec:
         assert "full matrix" in combined
         assert "long format" in combined
 
+    def test_metabolite_spec_documents_metadata_passthrough(self):
+        result = json.loads(get_md_format_spec("metabolite"))
+        # The spec lists the pass-through metadata column entry...
+        assert any("metadata" in k.lower() for k in result["spec"])
+        # ...and the notes explain the per-metabolite uniqueness rule.
+        combined = " ".join(result["notes"]).lower()
+        assert "pass-through" in combined
+        assert "one value per metaboliteid" in combined or "constant" in combined
+
+    def test_metabolite_spec_includes_example(self):
+        result = json.loads(get_md_format_spec("metabolite"))
+        example = result["example"]
+        # Header carries the four required columns plus pass-through metadata.
+        header = example.splitlines()[0]
+        for col in ("MetaboliteId", "MetaboliteIntensity", "SampleName", "Imputed"):
+            assert col in header
+        # Pass-through metadata column carrying the human-readable name.
+        assert "MetaboliteName" in header
+        # A missing measurement is shown as intensity 0.0 with Imputed=1.
+        assert "\t0.0\t1" in example
+        # Other entity types do not carry an example field.
+        assert "example" not in json.loads(get_md_format_spec("protein"))
+
     def test_peptide_spec(self):
         result = json.loads(get_md_format_spec("peptide"))
         spec = result["spec"]

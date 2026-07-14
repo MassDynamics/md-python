@@ -193,7 +193,34 @@ _MD_FORMAT_METABOLITE_SPEC = {
         "converter checks for are [MetaboliteId, MetaboliteIntensity, "
         "SampleName, Imputed] (reader.py:8 REQUIRED_METABOLITE_COLUMNS)."
     ),
+    "<any extra metadata columns>": (
+        "OPTIONAL — string/number — any column you add beyond the four "
+        "required ones is carried through as per-metabolite metadata and "
+        "attached to the metabolite in Mass Dynamics (e.g. Description, "
+        "InChIKey, KEGG, HMDB, m/z, RetentionTime, formula). Two rules: "
+        "(1) the value MUST be constant for a given MetaboliteId across all "
+        "its sample rows — md-converter validates this and rejects a column "
+        "whose value varies within one metabolite "
+        "(md-converter/src/mdconverter/md_format_metabolite/reader.py "
+        "validate_metadata_is_per_metabolite); (2) leave the value blank/"
+        "empty if unknown, but keep it constant. Any column not in the "
+        "required four is auto-detected as metadata (reader.py "
+        "identify_metadata_columns) — you do NOT register it anywhere."
+    ),
 }
+
+# Small worked example (tab-separated). MetaboliteId is a stable unique id
+# (an InChIKey here); MetaboliteName + Description are pass-through metadata
+# carrying the human-readable name. Metadata columns are CONSTANT within each
+# MetaboliteId; the second Glucose row is a missing measurement (intensity
+# 0.0 -> Imputed=1). Two metabolites x two samples = four rows = full matrix.
+_MD_FORMAT_METABOLITE_EXAMPLE = (
+    "MetaboliteId\tMetaboliteName\tDescription\tSampleName\tMetaboliteIntensity\tImputed\n"
+    "FHQVHHIBKUMWTI-OUTUXVNYSA-N\tLysoPE(18:2)\tLysophosphatidylethanolamine\tC115_N\t740.602952\t0\n"
+    "FHQVHHIBKUMWTI-OUTUXVNYSA-N\tLysoPE(18:2)\tLysophosphatidylethanolamine\tC24_N\t1798.107995\t0\n"
+    "WQZGKKKJIJFFOK-GASJEMHNSA-N\tGlucose\tD-Glucose\tC115_N\t15320.5\t0\n"
+    "WQZGKKKJIJFFOK-GASJEMHNSA-N\tGlucose\tD-Glucose\tC24_N\t0.0\t1\n"
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Generic conversion templates (no file path — fill in column names)
@@ -599,6 +626,15 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
             "combination present as exactly one row "
             "(md_format_metabolite/reader.py:93-107). Melting a wide intensity matrix "
             "satisfies this automatically.",
+            "EXTRA METADATA IS PASS-THROUGH: add as many descriptor columns as you "
+            "like (Description, InChIKey, KEGG, HMDB, m/z, RetentionTime, formula, "
+            "…) beyond the four required ones — md-converter auto-detects every "
+            "non-required column as per-metabolite metadata and attaches it to the "
+            "metabolite. The ONLY constraint is that each such column must hold ONE "
+            "value per MetaboliteId (constant across that metabolite's sample rows); "
+            "md-converter rejects a metadata column whose value varies within a "
+            "single MetaboliteId. Blank/empty is fine when unknown — just keep it "
+            "constant. You register these columns nowhere; just include them.",
             f"After converting, upload with source='{source}' in create_upload.",
             "You still need an experiment_design CSV and a sample_metadata CSV "
             "alongside the data file. experiment_design IS required for "
@@ -671,16 +707,16 @@ def get_md_format_spec(entity_type: str = "protein") -> str:
         "matrix produces this automatically.",
     )
 
-    return json.dumps(
-        {
-            "entity_type": et,
-            "spec": spec,
-            "conversion_template": template,
-            "upload_source": source,
-            "notes": notes,
-        },
-        indent=2,
-    )
+    payload = {
+        "entity_type": et,
+        "spec": spec,
+        "conversion_template": template,
+        "upload_source": source,
+        "notes": notes,
+    }
+    if et == "metabolite":
+        payload["example"] = _MD_FORMAT_METABOLITE_EXAMPLE
+    return json.dumps(payload, indent=2)
 
 
 @mcp.tool()
