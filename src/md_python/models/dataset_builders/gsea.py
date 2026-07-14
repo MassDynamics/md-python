@@ -6,6 +6,12 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from ..dataset import Dataset
 from ..metadata import SampleMetadata
 from ._base import BaseDatasetBuilder
+from ._gsea_sets import GSEA_DEFAULT_SETS, GSEA_SETS_BY_SPECIES, GseaSetsValidator
+
+# Knowledge bases are species-conditional; the validator owns the catalogue and
+# the fail-fast checking (see _gsea_sets.py — the backend silently drops
+# unrecognised sets, so an unknown value must never reach the wire).
+_SETS_VALIDATOR = GseaSetsValidator()
 
 # Entity types accepted by the enrichment params model
 # (EnrichmentParamsProperties.entity_type enum). The catalogue notes peptide
@@ -44,10 +50,11 @@ class GseaDataset(BaseDatasetBuilder):
 
     Optional (all have backend-aligned defaults):
       entity_type        str   gene|protein, default "protein"
-      sets               list[str]  default
-                               ["GO - Biological Process",
-                                "GO - Cellular Component",
-                                "GO - Molecular Function"]
+      sets               list[str]  knowledge bases, SPECIES-CONDITIONAL enum —
+                               see GSEA_SETS_BY_SPECIES in _gsea_sets.py. Default
+                               is the three GO sets. An unrecognised value raises
+                               ValueError (the backend would silently drop it and
+                               still report COMPLETED).
       filter_values_criteria dict  default
                                {"method": "percentage",
                                 "filter_threshold_percentage": 0.5}
@@ -76,11 +83,7 @@ class GseaDataset(BaseDatasetBuilder):
     def __post_init__(self) -> None:
         # Mutable defaults — backend defaults from EnrichmentParamsProperties.
         if self.sets is None:
-            self.sets = [
-                "GO - Biological Process",
-                "GO - Cellular Component",
-                "GO - Molecular Function",
-            ]
+            self.sets = list(GSEA_DEFAULT_SETS)
         if self.filter_values_criteria is None:
             self.filter_values_criteria = {
                 "method": "percentage",
@@ -96,7 +99,9 @@ class GseaDataset(BaseDatasetBuilder):
         params: Dict[str, Any] = {
             "entity_type": self.entity_type,
             "species": self.species,
-            "sets": self.sets,
+            # Canonicalised (and hard-validated) — an unrecognised value is a
+            # ValueError here, never a silent drop on the backend.
+            "sets": _SETS_VALIDATOR.canonicalise(self.sets or [], self.species),
             "condition_column": self.condition_column,
             "condition_comparisons": {
                 "condition_comparison_pairs": self.condition_comparisons
@@ -128,7 +133,12 @@ class GseaDataset(BaseDatasetBuilder):
             "- condition_comparisons (List[List[str]]): list of [case, control] pairs",
             "- species (str): Human|Mouse|Chinese hamster|Yeast",
             "- entity_type (str): gene|protein, default 'protein'",
-            "- sets (List[str]): knowledge bases, default the three GO sets",
+            "- sets (List[str]): knowledge bases, default the three GO sets."
+            " Valid values depend on species:",
+            *(
+                f"    {species}: {values}"
+                for species, values in GSEA_SETS_BY_SPECIES.items()
+            ),
             "- filter_values_criteria (dict): {method: percentage|count, ...},"
             " default percentage 0.5",
             "- filter_valid_values_logic (str): one of {all conditions,"
@@ -167,8 +177,9 @@ class GseaDataset(BaseDatasetBuilder):
             )
         if self.species not in _GSEA_SPECIES:
             raise ValueError(f"species must be one of: {sorted(_GSEA_SPECIES)}")
-        if not self.sets:
-            raise ValueError("sets cannot be empty")
+        # Species-conditional enum. An unknown value is REJECTED, not dropped —
+        # the backend accepts it, reports COMPLETED, and never runs it.
+        _SETS_VALIDATOR.canonicalise(self.sets or [], self.species)
         if self.filter_valid_values_logic not in _GSEA_FILTER_LOGIC:
             raise ValueError(
                 "filter_valid_values_logic must be one of: "

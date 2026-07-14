@@ -95,30 +95,105 @@ class TestRunGsea:
         }
 
     def test_count_filter_without_count_rejected(self):
+        """Local validation now returns the prose "Error: ..." envelope."""
         mock_client = MagicMock()
         with patch_pipeline_client(mock_client):
-            with pytest.raises(ValueError, match="filter_threshold_count"):
-                run_gsea(
-                    input_dataset_ids=[INTENSITY],
-                    dataset_name="GSEA bad",
-                    sample_metadata=SAMPLE_METADATA,
-                    condition_column="condition",
-                    condition_comparisons=[["treated", "ctrl"]],
-                    species="Human",
-                    filter_method="count",
-                )
+            result = run_gsea(
+                input_dataset_ids=[INTENSITY],
+                dataset_name="GSEA bad",
+                sample_metadata=SAMPLE_METADATA,
+                condition_column="condition",
+                condition_comparisons=[["treated", "ctrl"]],
+                species="Human",
+                filter_method="count",
+            )
+        assert result.startswith("Error: ")
+        assert "filter_threshold_count" in result
         mock_client.datasets.create.assert_not_called()
 
     def test_bad_species_rejected(self):
         mock_client = MagicMock()
         with patch_pipeline_client(mock_client):
-            with pytest.raises(ValueError, match="species"):
-                run_gsea(
-                    input_dataset_ids=[INTENSITY],
-                    dataset_name="GSEA bad",
-                    sample_metadata=SAMPLE_METADATA,
-                    condition_column="condition",
-                    condition_comparisons=[["treated", "ctrl"]],
-                    species="human",
-                )
+            result = run_gsea(
+                input_dataset_ids=[INTENSITY],
+                dataset_name="GSEA bad",
+                sample_metadata=SAMPLE_METADATA,
+                condition_column="condition",
+                condition_comparisons=[["treated", "ctrl"]],
+                species="human",
+            )
+        assert result.startswith("Error: ")
+        assert "species" in result
         mock_client.datasets.create.assert_not_called()
+
+
+class TestRunGseaSetsValidation:
+    """The `sets` enum is species-conditional and MUST NOT be silently dropped."""
+
+    def _run(self, mock_client, **overrides):
+        kwargs = dict(
+            input_dataset_ids=[INTENSITY],
+            dataset_name="GSEA",
+            sample_metadata=SAMPLE_METADATA,
+            condition_column="condition",
+            condition_comparisons=[["treated", "ctrl"]],
+            species="Human",
+        )
+        kwargs.update(overrides)
+        with patch_pipeline_client(mock_client):
+            return run_gsea(**kwargs)  # type: ignore[arg-type]
+
+    def test_hallmark_shorthand_returns_error_envelope_and_never_submits(self):
+        """The confirmed live bug: 4 sets requested, 3 ran, no warning."""
+        mock_client = MagicMock()
+        result = self._run(
+            mock_client,
+            sets=[
+                "GO - Biological Process",
+                "GO - Cellular Component",
+                "GO - Molecular Function",
+                "Hallmark",
+            ],
+        )
+
+        assert result.startswith("Error: ")
+        assert "'Hallmark'" in result
+        assert "MSigDB-H (hallmark gene sets)" in result  # the targeted hint
+        assert "Human" in result
+        mock_client.datasets.create.assert_not_called()
+
+    def test_human_only_value_under_mouse_returns_error_with_mouse_list(self):
+        mock_client = MagicMock()
+        result = self._run(
+            mock_client,
+            species="Mouse",
+            sets=["MSigDB-C2 (curated gene sets)"],
+        )
+
+        assert result.startswith("Error: ")
+        assert "MSigDB-M2 (curated gene sets)" in result
+        assert "'Mouse'" in result
+        mock_client.datasets.create.assert_not_called()
+
+    def test_valid_msigdb_value_is_submitted_verbatim(self):
+        mock_client = MagicMock()
+        mock_client.datasets.create.return_value = OUTPUT_ID
+        result = self._run(
+            mock_client,
+            sets=["MSigDB-H (hallmark gene sets)", "GO - Biological Process"],
+        )
+
+        assert result == f"GSEA pipeline started. Dataset ID: {OUTPUT_ID}"
+        params = mock_client.datasets.create.call_args[0][0].job_run_params
+        assert params["sets"] == [
+            "MSigDB-H (hallmark gene sets)",
+            "GO - Biological Process",
+        ]
+
+    def test_case_variant_is_normalised_to_the_catalogue_spelling(self):
+        mock_client = MagicMock()
+        mock_client.datasets.create.return_value = OUTPUT_ID
+        self._run(mock_client, sets=["  reactome "])
+
+        params = mock_client.datasets.create.call_args[0][0].job_run_params
+        assert params["sets"] == ["Reactome"]

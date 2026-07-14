@@ -23,12 +23,29 @@ Source-of-truth references
 - Dose response:
   data-set-service/src/flows/utils/type_defs.py (DoseResponseParams).
 - Workflow API: workflow/app/api/api/v2/datasets/create.rb.
+- CAMERA GSEA `sets` (species-conditional knowledge bases):
+  md_python/models/dataset_builders/_gsea_sets.py, transcribed from the live
+  /jobs catalogue (slug camera_gsea -> sets.parameters.options.cases).
 
 Update this file whenever the converter or data-set-service adds new methods
 or parameters; keep the citations above current.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+from md_python.models.dataset_builders._gsea_sets import (
+    GSEA_DEFAULT_SETS,
+    GSEA_SETS_BY_SPECIES,
+)
+
+
+def _gsea_sets_union() -> List[str]:
+    """Every camera_gsea knowledge base, any species, catalogue order, deduped."""
+    union: List[str] = []
+    for values in GSEA_SETS_BY_SPECIES.values():
+        union.extend(v for v in values if v not in union)
+    return union
+
 
 # All job slugs available on this account (from GET /api/v2/jobs).
 # Standard user-facing pipelines are marked with *.
@@ -1144,14 +1161,28 @@ _PIPELINE_SCHEMAS: Dict[str, Any] = {
             },
             "sets": {
                 "type": "Optional[List[str]]",
-                "default": [
-                    "GO - Biological Process",
-                    "GO - Cellular Component",
-                    "GO - Molecular Function",
-                ],
+                "default": list(GSEA_DEFAULT_SETS),
+                # Genuinely species-conditional (the live catalogue publishes
+                # sets.parameters.options as {"ref": "species", "cases": {...}}),
+                # so the per-species map is authoritative; valid_values is the
+                # union, exposed for parity with every other constrained param.
+                "valid_values": _gsea_sets_union(),
+                "valid_values_per_species": {
+                    species: list(values)
+                    for species, values in GSEA_SETS_BY_SPECIES.items()
+                },
                 "description": (
                     "Knowledge bases for enrichment. Multiple may be selected. "
-                    "Options depend on species."
+                    "Options depend on species — use valid_values_per_species, "
+                    "keyed by the `species` you pass. Mouse MSigDB collections "
+                    "use MH/M1/M2/M3/M5/M7/M8 prefixes, NOT the Human C-numbers; "
+                    "Chinese hamster has no Reactome. Values must be verbatim: "
+                    "'Hallmark' is NOT valid — the Human string is "
+                    "'MSigDB-H (hallmark gene sets)' and the Mouse string is "
+                    "'MSigDB-MH (hallmark gene sets)'. HAZARD: the backend "
+                    "silently drops an unrecognised value (job still reports "
+                    "COMPLETED without running that database); run_gsea now "
+                    "rejects unknown values before submission."
                 ),
             },
             "filter_method": {

@@ -101,6 +101,47 @@ class TestDescribePipeline:
         assert "condition_column" in result["parameters"]
         assert "comparisons_type" in result["parameters"]
 
+    def test_camera_gsea_publishes_per_species_sets(self):
+        """`sets` must be as discoverable as every other constrained param."""
+        result = json.loads(describe_pipeline("camera_gsea"))
+        sets = result["parameters"]["sets"]
+
+        per_species = sets["valid_values_per_species"]
+        assert sorted(per_species) == ["Chinese hamster", "Human", "Mouse", "Yeast"]
+        assert "MSigDB-H (hallmark gene sets)" in per_species["Human"]
+        assert "MSigDB-MH (hallmark gene sets)" in per_species["Mouse"]
+        # Mouse uses M-prefixes, not the Human C-numbers.
+        assert "MSigDB-C2 (curated gene sets)" not in per_species["Mouse"]
+        assert "MSigDB-M2 (curated gene sets)" in per_species["Mouse"]
+        # Chinese hamster has no Reactome.
+        assert "Reactome" not in per_species["Chinese hamster"]
+
+        # valid_values (the union) is present for parity with sibling params.
+        assert "MSigDB-H (hallmark gene sets)" in sets["valid_values"]
+        assert "Hallmark" not in sets["valid_values"]
+        assert sets["default"] == [
+            "GO - Biological Process",
+            "GO - Cellular Component",
+            "GO - Molecular Function",
+        ]
+
+    def test_camera_gsea_constrained_params_all_have_valid_values(self):
+        params = json.loads(describe_pipeline("camera_gsea"))["parameters"]
+        for name in (
+            "species",
+            "entity_type",
+            "sets",
+            "filter_method",
+            "filter_valid_values_logic",
+        ):
+            assert params[name].get("valid_values"), f"{name} publishes no valid_values"
+
+    def test_ora_has_no_sets_param(self):
+        """ORA's collection param is `database` (single), not a `sets` list."""
+        params = json.loads(describe_pipeline("ora"))["parameters"]
+        assert "sets" not in params
+        assert "database" in params
+
     def test_unknown_slug_returns_error(self):
         result = describe_pipeline("nonexistent_job")
         assert "Unknown job_slug" in result

@@ -10,6 +10,7 @@ from md_python.models.dataset_builders import NormalisationImputationDataset
 from .. import mcp
 from .._client import get_client
 from ._bulk import _MAX_BULK_JOBS, _bulk_prefetch_upload_data, _run_jobs_parallel
+from ._errors import format_validation_error
 
 # Per-method defaults applied client-side so the server always receives complete
 # params. User-supplied extras override these. The v2 dataset-service schema is
@@ -93,20 +94,9 @@ def _split_typed_kwargs(merged: Dict[str, Any]) -> Dict[str, Any]:
     return typed
 
 
-def _format_validation_error(exc: ValidationError) -> str:
-    """Flatten a pydantic ValidationError into one LLM-readable line.
-
-    The raw multi-line pydantic rendering (``1 validation error for
-    NormalisationImputationDataset / experiment_design / Input should be a
-    valid dictionary``) gives the caller no recovery path, so we surface the
-    field name plus the message our own validators raised.
-    """
-    parts: List[str] = []
-    for err in exc.errors():
-        field = ".".join(str(loc) for loc in err["loc"]) or "<input>"
-        msg = err["msg"].removeprefix("Value error, ")
-        parts.append(msg if msg.startswith(field) else f"{field}: {msg}")
-    return "; ".join(parts)
+# Re-exported for backward compatibility; the implementation now lives in
+# _errors.py so run_gsea (and future tools) share one error envelope.
+_format_validation_error = format_validation_error
 
 
 @mcp.tool()
