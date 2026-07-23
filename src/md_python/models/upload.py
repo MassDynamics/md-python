@@ -11,6 +11,7 @@ from .metadata import ExperimentDesign, SampleMetadata
 
 class Source(StrEnum):
     """Which pipeline/format produced the uploaded result files."""
+
     diann_tabular = "diann_tabular"  # DIA-NN tabular report output
     tims_diann = "tims_diann"  # timsTOF DIA-NN output
     spectronaut = "spectronaut"  # Spectronaut output

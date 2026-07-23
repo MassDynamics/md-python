@@ -5,7 +5,6 @@ import pytest
 from md_python.client_v2 import MDClientV2
 from md_python.models import ExperimentDesign, SampleMetadata, Upload
 from md_python.resources.v2.uploads import Uploads
-
 from src.md_python.models.upload import Source
 
 DESIGN = ExperimentDesign(
@@ -148,8 +147,9 @@ class TestV2Uploads:
     )
     def test_create_rejects_disallowed_source(self, uploads, bad_source):
 
-
-        with pytest.raises(ValueError, match="1 validation error for Upload\nsource\n  Input should be"):
+        with pytest.raises(
+            ValueError, match="1 validation error for Upload\nsource\n  Input should be"
+        ):
             upload = Upload(
                 name="Bad",
                 source=bad_source,
@@ -384,7 +384,11 @@ class TestV2Uploads:
 
     def test_wait_until_complete_success(self, uploads, mock_client, mocker):
         upload = Upload(
-            name="x", source=Source.diann_tabular, s3_bucket="b", filenames=[], status="COMPLETED"
+            name="x",
+            source=Source.diann_tabular,
+            s3_bucket="b",
+            filenames=[],
+            status="COMPLETED",
         )
         mocker.patch.object(uploads, "get_by_id", return_value=upload)
 
@@ -394,7 +398,11 @@ class TestV2Uploads:
 
     def test_wait_until_complete_failure(self, uploads, mock_client, mocker):
         upload = Upload(
-            name="x", source=Source.diann_tabular, s3_bucket="b", filenames=[], status="FAILED"
+            name="x",
+            source=Source.diann_tabular,
+            s3_bucket="b",
+            filenames=[],
+            status="FAILED",
         )
         mocker.patch.object(uploads, "get_by_id", return_value=upload)
 
