@@ -21,6 +21,20 @@ class Source(StrEnum):
     md_format_metabolite = "md_format_metabolite"  # Mass Dynamics metabolite format
 
 
+class LabellingMethod(StrEnum):
+    """Quantification labelling method."""
+
+    lfq = "lfq"  # label-free
+    tmt = "tmt"  # TMT
+
+class Status(StrEnum):
+    processing = "processing"
+    verifying = "verifying"
+    investigating = "investigating"
+    completed = "completed"
+    cancelled = "cancelled"
+    processing_failed = "processing_failed"
+
 @pydantic_dataclass
 @dataclass
 class Upload:
@@ -29,14 +43,14 @@ class Upload:
     id: Optional[UUID] = None
     description: Optional[str] = None
     experiment_design: Optional[ExperimentDesign] = None
-    labelling_method: Optional[str] = None
+    labelling_method: Optional[LabellingMethod] = None
     s3_bucket: Optional[str] = None
     s3_prefix: Optional[str] = None
     filenames: Optional[List[str]] = None
     file_location: Optional[str] = None
     sample_metadata: Optional[SampleMetadata] = None
     created_at: Optional[datetime] = None
-    status: Optional[str] = None
+    status: Optional[Status] = None
 
     def __str__(self) -> str:
         lines = [f"Upload: {self.name}"]

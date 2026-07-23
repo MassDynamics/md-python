@@ -8,6 +8,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ...models import ExperimentDesign, SampleMetadata, Upload
+from ...models.upload import Status, Source
 from ...uploads import Uploads as FileUploader
 
 if TYPE_CHECKING:
@@ -197,8 +198,8 @@ class Uploads:
 
     def query(
         self,
-        status: Optional[List[str]] = None,
-        source: Optional[List[str]] = None,
+        status: Optional[List[Status]] = None,
+        source: Optional[List[Source]] = None,
         search: Optional[str] = None,
         sample_metadata: Optional[List[Dict[str, str]]] = None,
         page: int = 1,

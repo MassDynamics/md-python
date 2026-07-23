@@ -225,7 +225,7 @@ class TestV2Uploads:
         mock_response.json.return_value = {
             "name": "Test Upload",
             "source": "maxquant",
-            "status": "COMPLETED",
+            "status": "completed",
         }
         mock_client._make_request.return_value = mock_response
 
@@ -388,7 +388,7 @@ class TestV2Uploads:
             source=Source.diann_tabular,
             s3_bucket="b",
             filenames=[],
-            status="COMPLETED",
+            status="completed",
         )
         mocker.patch.object(uploads, "get_by_id", return_value=upload)
 
@@ -402,7 +402,7 @@ class TestV2Uploads:
             source=Source.diann_tabular,
             s3_bucket="b",
             filenames=[],
-            status="FAILED",
+            status="processing_failed",
         )
         mocker.patch.object(uploads, "get_by_id", return_value=upload)
 
