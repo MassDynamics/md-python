@@ -6,14 +6,7 @@ from typing import Optional
 
 from .base_client import BaseMDClient
 from .resources import Health
-from .resources.v2 import (
-    Datasets,
-    Entities,
-    Jobs,
-    ModuleRegistry,
-    Uploads,
-    Workspaces,
-)
+from .resources.v2 import Datasets, Entities, Jobs, ModuleRegistry, Uploads, Workspaces
 
 
 class MDClientV2(BaseMDClient):

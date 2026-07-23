@@ -8,7 +8,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ...models import ExperimentDesign, SampleMetadata, Upload
-from ...models.upload import Status, Source
+from ...models.upload import Source, Status
 from ...uploads import Uploads as FileUploader
 
 if TYPE_CHECKING:

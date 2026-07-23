@@ -27,6 +27,7 @@ class LabellingMethod(StrEnum):
     lfq = "lfq"  # label-free
     tmt = "tmt"  # TMT
 
+
 class Status(StrEnum):
     processing = "processing"
     verifying = "verifying"
@@ -34,6 +35,7 @@ class Status(StrEnum):
     completed = "completed"
     cancelled = "cancelled"
     processing_failed = "processing_failed"
+
 
 @pydantic_dataclass
 @dataclass
