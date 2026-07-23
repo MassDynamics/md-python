@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -8,11 +9,22 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from .metadata import ExperimentDesign, SampleMetadata
 
 
+class Source(StrEnum):
+    """Which pipeline/format produced the uploaded result files."""
+    diann_tabular = "diann_tabular"  # DIA-NN tabular report output
+    tims_diann = "tims_diann"  # timsTOF DIA-NN output
+    spectronaut = "spectronaut"  # Spectronaut output
+    maxquant = "maxquant"  # MaxQuant output
+    md_format = "md_format"  # Mass Dynamics generic protein/peptide format
+    md_format_gene = "md_format_gene"  # Mass Dynamics gene-level format
+    md_format_metabolite = "md_format_metabolite"  # Mass Dynamics metabolite format
+
+
 @pydantic_dataclass
 @dataclass
 class Upload:
     name: str
-    source: str
+    source: Source
     id: Optional[UUID] = None
     description: Optional[str] = None
     experiment_design: Optional[ExperimentDesign] = None
