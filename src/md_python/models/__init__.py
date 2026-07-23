@@ -12,6 +12,7 @@ from .dataset_builders import (
 )
 from .entity_list import EntityList, EntityListItem
 from .experiment import Experiment
+from .jobs import Job
 from .metadata import ExperimentDesign, SampleMetadata
 from .registered_module import RegisteredModule
 from .upload import Upload
@@ -21,6 +22,7 @@ __all__ = [
     "SampleMetadata",
     "ExperimentDesign",
     "Experiment",
+    "Job",
     "Upload",
     "Dataset",
     "BaseDatasetBuilder",
