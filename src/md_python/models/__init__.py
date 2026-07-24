@@ -14,6 +14,7 @@ from .entity_list import EntityList, EntityListItem
 from .experiment import Experiment
 from .jobs import Job
 from .metadata import ExperimentDesign, SampleMetadata
+from .pagination import Page, Pagination
 from .registered_module import RegisteredModule
 from .upload import Upload
 from .workspace import Tab, TabModule, Workspace
@@ -36,4 +37,6 @@ __all__ = [
     "RegisteredModule",
     "EntityList",
     "EntityListItem",
+    "Page",
+    "Pagination",
 ]

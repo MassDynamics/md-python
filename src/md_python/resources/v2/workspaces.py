@@ -12,7 +12,7 @@ react-grid-layout grid (``x``, ``y``, ``width``, ``height`` in grid units).
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ...models import RegisteredModule, Tab, TabModule, Workspace
+from ...models import Page, RegisteredModule, Tab, TabModule, Workspace
 from .entity_lists import EntityLists
 
 if TYPE_CHECKING:
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from .module_registry import ModuleRegistry
 
 
-_PAGE_RESPONSE = Dict[str, Any]
 _JSON_HEADERS = {"Content-Type": "application/json"}
 
 
@@ -315,13 +314,10 @@ class Tabs:
         _check(response, 201, "create tab")
         return Tab.from_json(response.json())
 
-    def list(self, workspace_id: str, page: int = 1) -> _PAGE_RESPONSE:
+    def list(self, workspace_id: str, page: int = 1) -> Page[Tab]:
         """List tabs in a workspace, paginated and ordered by ``tab_index`` asc.
 
-        Returns the raw paginated envelope::
-
-            {"data": [Tab, ...], "pagination": {...}}
-
+        Returns the paginated envelope ``{"data": [...], "pagination": {...}}``
         with the ``data`` items decoded into :class:`Tab` objects.
         """
         response = self._client._make_request(
@@ -428,7 +424,7 @@ class Workspaces:
         _check(response, 201, "create workspace")
         return Workspace.from_json(response.json())
 
-    def list(self, page: int = 1) -> _PAGE_RESPONSE:
+    def list(self, page: int = 1) -> Page[Workspace]:
         """List workspaces accessible to the current user, 50 per page."""
         response = self._client._make_request(
             method="GET",
