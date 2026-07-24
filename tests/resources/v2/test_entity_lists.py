@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from md_python.client_v2 import MDClientV2
-from md_python.models import EntityList, EntityListItem
+from md_python.models import EntityList, EntityListItem, EntityType
 from md_python.resources.v2.entity_lists import EntityLists
 
 WS_ID = "11111111-1111-1111-1111-111111111111"
@@ -65,7 +65,7 @@ class TestCreate:
         result = lists.create(
             workspace_id=WS_ID,
             name="Top hits",
-            entity_type="protein",
+            entity_type=EntityType.protein,
             items=[
                 {"entity_id": "P12345", "group_id": 1, "dataset_id": DATASET_ID},
                 {"entity_id": "Q9999", "group_id": 2, "dataset_id": DATASET_ID},
@@ -95,7 +95,7 @@ class TestCreate:
         lists.create(
             workspace_id=WS_ID,
             name="Top hits",
-            entity_type="protein",
+            entity_type=EntityType.protein,
             items=[
                 EntityListItem(entity_id="P12345", group_id=1, dataset_id=DATASET_ID)
             ],
@@ -105,25 +105,35 @@ class TestCreate:
             {"entity_id": "P12345", "group_id": 1, "dataset_id": DATASET_ID}
         ]
 
-    def test_rejects_invalid_entity_type(self, lists):
-        with pytest.raises(ValueError, match="entity_type must be one of"):
+    def test_accepts_all_entity_types(self, lists, mock_client):
+        for entity_type in EntityType:
+            mock_client._make_request.return_value = _response(201, _list_payload())
             lists.create(
                 workspace_id=WS_ID,
                 name="x",
-                entity_type="metabolite",
+                entity_type=entity_type,
                 items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
+            )
+            assert (
+                mock_client._make_request.call_args[1]["json"]["entity_type"]
+                == entity_type
             )
 
     def test_rejects_empty_items(self, lists):
         with pytest.raises(ValueError, match="at least one"):
-            lists.create(workspace_id=WS_ID, name="x", entity_type="protein", items=[])
+            lists.create(
+                workspace_id=WS_ID,
+                name="x",
+                entity_type=EntityType.protein,
+                items=[],
+            )
 
     def test_rejects_item_without_entity_id(self, lists, mock_client):
         with pytest.raises(ValueError, match="entity_id"):
             lists.create(
                 workspace_id=WS_ID,
                 name="x",
-                entity_type="protein",
+                entity_type=EntityType.protein,
                 items=[{"group_id": 1, "dataset_id": DATASET_ID}],
             )
         mock_client._make_request.assert_not_called()
@@ -133,7 +143,7 @@ class TestCreate:
             lists.create(
                 workspace_id=WS_ID,
                 name="x",
-                entity_type="protein",
+                entity_type=EntityType.protein,
                 items=["P12345"],
             )
 
@@ -143,7 +153,7 @@ class TestCreate:
             lists.create(
                 workspace_id=WS_ID,
                 name="x",
-                entity_type="protein",
+                entity_type=EntityType.protein,
                 items=[{"entity_id": "P1", "group_id": 1, "dataset_id": DATASET_ID}],
             )
 

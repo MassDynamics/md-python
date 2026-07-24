@@ -10,7 +10,7 @@ from .dataset_builders import (
     NormalisationImputationDataset,
     PairwiseComparisonDataset,
 )
-from .entity_list import EntityList, EntityListItem
+from .entity_list import EntityList, EntityListItem, EntityType
 from .experiment import Experiment
 from .jobs import Job
 from .metadata import ExperimentDesign, SampleMetadata
@@ -37,6 +37,7 @@ __all__ = [
     "RegisteredModule",
     "EntityList",
     "EntityListItem",
+    "EntityType",
     "Page",
     "Pagination",
 ]

@@ -13,7 +13,7 @@ only Create and Show), so this resource intentionally does not implement
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
-from ...models.entity_list import EntityList, EntityListItem
+from ...models.entity_list import EntityList, EntityListItem, EntityType
 
 if TYPE_CHECKING:
     from ...base_client import BaseMDClient
@@ -50,7 +50,7 @@ class EntityLists:
         self,
         workspace_id: str,
         name: str,
-        entity_type: str,
+        entity_type: EntityType,
         items: Sequence[EntityListItemInput],
     ) -> EntityList:
         """Create a named entity list inside a workspace.
@@ -58,7 +58,8 @@ class EntityLists:
         Args:
             workspace_id: Parent workspace UUID.
             name: Display name for the list.
-            entity_type: One of ``protein``, ``peptide``, or ``gene``.
+            entity_type: An :class:`EntityType` — one of ``protein``,
+                ``peptide``, ``gene``, ``metabolite`` or ``ptm``.
             items: At least one item. Each item is either an
                 :class:`EntityListItem` or a dict with ``entity_id``,
                 ``group_id`` and ``dataset_id``.
@@ -66,11 +67,6 @@ class EntityLists:
         Returns:
             The created :class:`EntityList` (with ``items`` populated).
         """
-        if entity_type not in {"protein", "peptide", "gene"}:
-            raise ValueError(
-                "entity_type must be one of: protein, peptide, gene "
-                f"(got {entity_type!r})"
-            )
         if not items:
             raise ValueError("items must include at least one entry")
 

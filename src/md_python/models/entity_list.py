@@ -13,6 +13,7 @@ full dataset.
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -23,6 +24,14 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
     if value is not None and isinstance(value, str):
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     return None
+
+
+class EntityType(StrEnum):
+    protein = "protein"
+    peptide = "peptide"
+    gene = "gene"
+    metabolite = "metabolite"
+    ptm = "ptm"
 
 
 @pydantic_dataclass
@@ -71,7 +80,7 @@ class EntityList:
 
     id: UUID
     name: str
-    type: str  # 'protein' | 'peptide' | 'gene'
+    type: EntityType
     experiment_id: Optional[UUID] = None
     items_count: int = 0
     owner: bool = False
@@ -85,7 +94,7 @@ class EntityList:
         return cls(
             id=UUID(str(data["id"])),
             name=str(data["name"]),
-            type=str(data["type"]),
+            type=EntityType(data["type"]),
             experiment_id=(
                 UUID(str(experiment_id_raw)) if experiment_id_raw is not None else None
             ),
