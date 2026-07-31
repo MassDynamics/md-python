@@ -2,7 +2,7 @@
 Models package for the MD Python client
 """
 
-from .dataset import Dataset
+from .dataset import Dataset, DatasetState
 from .dataset_builders import (
     BaseDatasetBuilder,
     DoseResponseDataset,
@@ -26,6 +26,7 @@ __all__ = [
     "Job",
     "Upload",
     "Dataset",
+    "DatasetState",
     "BaseDatasetBuilder",
     "DoseResponseDataset",
     "MinimalDataset",

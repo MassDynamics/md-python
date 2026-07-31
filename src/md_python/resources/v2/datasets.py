@@ -5,7 +5,7 @@ Datasets resource for the MD Python v2 client
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ...models import Dataset
+from ...models import Dataset, DatasetState
 
 if TYPE_CHECKING:
     from ...base_client import BaseMDClient
@@ -111,7 +111,7 @@ class Datasets:
     def query(
         self,
         upload_id: Optional[str] = None,
-        state: Optional[List[str]] = None,
+        state: Optional[List[DatasetState]] = None,
         type: Optional[List[str]] = None,
         search: Optional[str] = None,
         page: int = 1,

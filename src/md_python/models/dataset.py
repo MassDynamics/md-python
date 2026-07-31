@@ -4,10 +4,23 @@ Dataset model for create, update, and retrieval operations
 
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+
+class DatasetState(StrEnum):
+    """Processing states a dataset can be in.
+
+    Mirrors the server-side ``Datasets::States`` module. Iterate the enum
+    (``list(DatasetState)``) for the full set of values.
+    """
+
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    PROCESSING = "PROCESSING"
 
 
 @pydantic_dataclass
@@ -20,7 +33,7 @@ class Dataset:
     job_slug: str
     job_run_params: Dict[str, Any]
     type: Optional[str] = None
-    state: Optional[str] = None
+    state: Optional[DatasetState] = None
     id: Optional[UUID] = None
     sample_names: Optional[List[str]] = None
     job_run_start_time: Optional[datetime] = None
