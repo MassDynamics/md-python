@@ -1,18 +1,16 @@
 """
 EntityLists resource for the MD Python v2 client.
 
-Maps the two endpoints exposed under a workspace:
+Maps the endpoints exposed under a workspace:
 
   POST /api/workspaces/:workspace_id/entity_lists      → create
+  GET  /api/workspaces/:workspace_id/entity_lists      → list (paginated)
   GET  /api/workspaces/:workspace_id/entity_lists/:id  → show
-
-There is no list/index endpoint yet (the server-side controller exposes
-only Create and Show), so this resource intentionally does not implement
-``list``. Looking up an entity list requires its id.
 """
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
+from ...models import Page
 from ...models.entity_list import EntityList, EntityListItem, EntityType
 
 if TYPE_CHECKING:
@@ -96,6 +94,37 @@ class EntityLists:
         )
         _check(response, 201, "create entity list")
         return EntityList.from_json(response.json())
+
+    def list(self, workspace_id: str, page: int = 1) -> Page[EntityList]:
+        """List entity lists in a workspace, paginated.
+
+        Returns the paginated envelope ``{"data": [...], "pagination": {...}}``
+        with the ``data`` items decoded into :class:`EntityList` objects.
+        """
+        response = self._client._make_request(
+            method="GET",
+            endpoint=self._base(workspace_id),
+            params={"page": page},
+        )
+        _check(response, 200, "list entity lists")
+        body = response.json()
+        return {
+            "data": [EntityList.from_json(x) for x in body.get("data", [])],
+            "pagination": body.get("pagination", {}),
+        }
+
+    def list_all(self, workspace_id: str) -> List[EntityList]:
+        """Convenience: page through all entity lists in a workspace."""
+        out: List[EntityList] = []
+        page = 1
+        while True:
+            body = self.list(workspace_id=workspace_id, page=page)
+            out.extend(body["data"])
+            pagination = body["pagination"]
+            if page >= int(pagination.get("total_pages", page)):
+                break
+            page += 1
+        return out
 
     def get(self, workspace_id: str, list_id: str) -> Optional[EntityList]:
         """Get a single entity list, or ``None`` if not found."""

@@ -42,6 +42,22 @@ def _list_payload(**overrides):
     return base
 
 
+def _index_row(**overrides):
+    # Index rows carry metadata only — no nested items.
+    base = {
+        "id": LIST_ID,
+        "name": "Top hits",
+        "type": "protein",
+        "experiment_id": "44444444-4444-4444-4444-444444444444",
+        "items_count": 2,
+        "owner": True,
+        "created_at": "2026-05-08T00:00:00Z",
+        "updated_at": "2026-05-08T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
 def _response(status_code, json_body=None, text=""):
     response = Mock()
     response.status_code = status_code
@@ -182,3 +198,74 @@ class TestGet:
     def test_returns_none_on_404(self, lists, mock_client):
         mock_client._make_request.return_value = _response(404)
         assert lists.get(WS_ID, LIST_ID) is None
+
+
+class TestList:
+    @pytest.fixture
+    def mock_client(self):
+        return Mock(spec=MDClientV2)
+
+    @pytest.fixture
+    def lists(self, mock_client):
+        return EntityLists(mock_client)
+
+    def test_list_paginated(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(
+            200,
+            {
+                "data": [_index_row(), _index_row(name="Runners up")],
+                "pagination": {
+                    "current_page": 2,
+                    "per_page": 50,
+                    "total_count": 2,
+                    "total_pages": 1,
+                },
+            },
+        )
+        body = lists.list(WS_ID, page=2)
+
+        call = mock_client._make_request.call_args
+        assert call[1]["method"] == "GET"
+        assert call[1]["endpoint"] == f"/workspaces/{WS_ID}/entity_lists"
+        assert call[1]["params"] == {"page": 2}
+        assert len(body["data"]) == 2
+        assert all(isinstance(x, EntityList) for x in body["data"])
+        assert body["data"][0].name == "Top hits"
+        assert body["pagination"]["total_pages"] == 1
+
+    def test_list_all_pages_through(self, lists, mock_client):
+        mock_client._make_request.side_effect = [
+            _response(
+                200,
+                {
+                    "data": [_index_row()],
+                    "pagination": {
+                        "current_page": 1,
+                        "per_page": 50,
+                        "total_count": 2,
+                        "total_pages": 2,
+                    },
+                },
+            ),
+            _response(
+                200,
+                {
+                    "data": [_index_row(name="Runners up")],
+                    "pagination": {
+                        "current_page": 2,
+                        "per_page": 50,
+                        "total_count": 2,
+                        "total_pages": 2,
+                    },
+                },
+            ),
+        ]
+        all_lists = lists.list_all(WS_ID)
+        assert len(all_lists) == 2
+        assert all(isinstance(x, EntityList) for x in all_lists)
+        assert mock_client._make_request.call_count == 2
+
+    def test_list_error_propagates(self, lists, mock_client):
+        mock_client._make_request.return_value = _response(500, text="boom")
+        with pytest.raises(Exception, match="500"):
+            lists.list(WS_ID)
