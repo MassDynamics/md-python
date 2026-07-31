@@ -1,9 +1,10 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
 from md_python.client_v2 import MDClientV2
-from md_python.models import RegisteredModule
+from md_python.models import RegisteredModule, VisualisationPending
+from md_python.resources.v2 import workspaces as workspaces_module
 from md_python.resources.v2.workspaces import TabModules, Tabs, Workspaces
 
 WS_ID = "11111111-1111-1111-1111-111111111111"
@@ -54,12 +55,14 @@ def _module_payload(**overrides):
     return base
 
 
-def _response(status_code, json_body=None, text=""):
+def _response(status_code, json_body=None, text="", headers=None):
     response = Mock()
     response.status_code = status_code
     if json_body is not None:
         response.json.return_value = json_body
     response.text = text
+    # Explicit dict so response.headers.get(...) returns None (not a Mock).
+    response.headers = headers or {}
     return response
 
 
@@ -463,3 +466,75 @@ class TestWorkspacesNested:
         registry = Mock()
         ws = Workspaces(client, registry=registry)
         assert ws.modules._registry is registry
+
+
+class TestVisualize:
+    @pytest.fixture
+    def mock_client(self):
+        return Mock(spec=MDClientV2)
+
+    @pytest.fixture
+    def modules(self, mock_client):
+        return TabModules(mock_client)
+
+    def test_visualize_ready(self, modules, mock_client):
+        figure = {"data": [{"type": "scatter", "x": [1], "y": [2]}], "layout": {}}
+        mock_client._make_request.return_value = _response(200, figure)
+
+        result = modules.visualize(WS_ID, TAB_ID, MOD_ID)
+
+        assert result == figure
+        call = mock_client._make_request.call_args
+        assert call[1]["method"] == "GET"
+        assert call[1]["endpoint"] == (
+            f"/workspaces/{WS_ID}/tabs/{TAB_ID}/modules/{MOD_ID}/visualisation"
+        )
+
+    def test_visualize_polls_then_returns(self, modules, mock_client):
+        figure = {"data": [], "layout": {"title": "done"}}
+        mock_client._make_request.side_effect = [
+            _response(202, headers={"Retry-After": "3"}),
+            _response(200, figure),
+        ]
+
+        with patch.object(workspaces_module.time, "sleep") as sleep:
+            result = modules.visualize(WS_ID, TAB_ID, MOD_ID)
+
+        assert result == figure
+        assert mock_client._make_request.call_count == 2
+        # Honours the server's Retry-After for the sleep between polls.
+        sleep.assert_called_once_with(3)
+
+    def test_visualize_timeout_returns_pending(self, modules, mock_client):
+        mock_client._make_request.return_value = _response(
+            202, headers={"Retry-After": "5"}
+        )
+
+        # monotonic: start (< deadline) then jump past the deadline.
+        with (
+            patch.object(
+                workspaces_module.time, "monotonic", side_effect=[0.0, 1000.0]
+            ),
+            patch.object(workspaces_module.time, "sleep"),
+        ):
+            result = modules.visualize(WS_ID, TAB_ID, MOD_ID, timeout_s=10)
+
+        assert result == VisualisationPending(retry_after=5)
+
+    def test_visualize_timeout_pending_without_retry_after(self, modules, mock_client):
+        mock_client._make_request.return_value = _response(202)
+
+        with (
+            patch.object(
+                workspaces_module.time, "monotonic", side_effect=[0.0, 1000.0]
+            ),
+            patch.object(workspaces_module.time, "sleep"),
+        ):
+            result = modules.visualize(WS_ID, TAB_ID, MOD_ID, timeout_s=10)
+
+        assert result == VisualisationPending(retry_after=None)
+
+    def test_visualize_error_propagates(self, modules, mock_client):
+        mock_client._make_request.return_value = _response(404, text="nope")
+        with pytest.raises(Exception, match="404"):
+            modules.visualize(WS_ID, TAB_ID, MOD_ID)

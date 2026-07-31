@@ -17,6 +17,7 @@ from .metadata import ExperimentDesign, SampleMetadata
 from .pagination import Page, Pagination
 from .registered_module import RegisteredModule
 from .upload import Upload
+from .visualisation import PlotlyVisualisation, VisualisationPending
 from .workspace import Tab, TabModule, Workspace
 
 __all__ = [
@@ -41,4 +42,6 @@ __all__ = [
     "EntityType",
     "Page",
     "Pagination",
+    "PlotlyVisualisation",
+    "VisualisationPending",
 ]

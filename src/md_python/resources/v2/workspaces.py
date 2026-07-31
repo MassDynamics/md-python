@@ -1,8 +1,9 @@
 """
 Workspaces resource for the MD Python v2 client.
 
-Maps the `/api/workspaces`, `/api/workspaces/:id/tabs`, and
-`/api/workspaces/:id/tabs/:id/modules` endpoints
+Maps the `/api/workspaces`, `/api/workspaces/:id/tabs`,
+`/api/workspaces/:id/tabs/:id/modules`, and
+`/api/workspaces/:id/tabs/:id/modules/:id/visualisation` endpoints
 (see `app/api/api/v2/workspaces/`).
 
 The visual environment of the app is structured as
@@ -10,9 +11,18 @@ The visual environment of the app is structured as
 react-grid-layout grid (``x``, ``y``, ``width``, ``height`` in grid units).
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+import time
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast
 
-from ...models import Page, RegisteredModule, Tab, TabModule, Workspace
+from ...models import (
+    Page,
+    PlotlyVisualisation,
+    RegisteredModule,
+    Tab,
+    TabModule,
+    VisualisationPending,
+    Workspace,
+)
 from .entity_lists import EntityLists
 
 if TYPE_CHECKING:
@@ -239,6 +249,40 @@ class TabModules:
             return None
         _check(response, 200, "get module")
         return TabModule.from_json(response.json())
+
+    def visualize(
+        self,
+        workspace_id: str,
+        tab_id: str,
+        module_id: str,
+        poll_s: int = 2,
+        timeout_s: int = 120,
+    ) -> Union[PlotlyVisualisation, VisualisationPending]:
+        """Render a module's visualisation, waiting for it to be ready.
+
+        Polls the endpoint, re-requesting on each 202 (honouring ``Retry-After``
+        when the server sends it, else ``poll_s``). Returns the ``{data, layout}``
+        payload once ready; if it is still rendering when ``timeout_s`` elapses,
+        returns a :class:`VisualisationPending` so the caller can retry later.
+        """
+        endpoint = f"{self._base(workspace_id, tab_id)}/{module_id}/visualisation"
+        end = time.monotonic() + timeout_s
+        while True:
+            response = self._client._make_request(method="GET", endpoint=endpoint)
+            if response.status_code == 200:
+                return cast(PlotlyVisualisation, response.json())
+            if response.status_code != 202:
+                raise Exception(
+                    "Failed to visualize module: "
+                    f"{response.status_code} - {response.text}"
+                )
+            retry_after = response.headers.get("Retry-After")
+            pending = VisualisationPending(
+                retry_after=int(retry_after) if retry_after else None,
+            )
+            if time.monotonic() >= end:
+                return pending
+            time.sleep(pending.retry_after or poll_s)
 
     def update(
         self,
