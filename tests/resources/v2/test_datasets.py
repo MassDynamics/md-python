@@ -4,7 +4,7 @@ from uuid import UUID
 import pytest
 
 from md_python.client_v2 import MDClientV2
-from md_python.models import Dataset
+from md_python.models import Dataset, DatasetTable
 from md_python.resources.v2.datasets import Datasets
 
 
@@ -205,6 +205,7 @@ class TestV2Datasets:
             "job_slug": "flow_1",
             "job_run_params": {},
             "input_dataset_ids": [],
+            "tables": [{"name": "Protein_Intensity"}],
         }
         mock_client._make_request.return_value = mock_response
 
@@ -212,6 +213,7 @@ class TestV2Datasets:
 
         assert isinstance(result, Dataset)
         assert result.name == "DS1"
+        assert result.tables == [DatasetTable(name="Protein_Intensity")]
 
         call_args = mock_client._make_request.call_args
         assert call_args[1]["method"] == "GET"

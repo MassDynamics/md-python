@@ -25,6 +25,23 @@ class DatasetState(StrEnum):
 
 @pydantic_dataclass
 @dataclass
+class DatasetTable:
+    """A named table available within a dataset.
+
+    Mirrors an entry in the ``tables`` array of the server-side Dataset
+    entity (``[{ "name": "Protein_Intensity" }]``). ``name`` is the
+    ``table_name`` used by the download/query endpoints.
+    """
+
+    name: str
+
+    @classmethod
+    def from_json(cls, data: Dict[str, Any]) -> "DatasetTable":
+        return cls(name=str(data["name"]))
+
+
+@pydantic_dataclass
+@dataclass
 class Dataset:
     """Dataset model that can be used for create, update, and retrieval operations"""
 
@@ -38,6 +55,7 @@ class Dataset:
     sample_names: Optional[List[str]] = None
     job_run_start_time: Optional[datetime] = None
     error_message: Optional[str] = None
+    tables: Optional[List[DatasetTable]] = None
 
     def __str__(self) -> str:
         """Return a readable string representation of the dataset"""
@@ -56,6 +74,8 @@ class Dataset:
             lines.append(f"Job Run Params: {self.job_run_params}")
         if self.job_run_start_time:
             lines.append(f"Job Run Start Time: {self.job_run_start_time}")
+        if self.tables:
+            lines.append(f"Tables: {[table.name for table in self.tables]}")
 
         return "\n".join(lines)
 
@@ -90,6 +110,13 @@ class Dataset:
 
         job_run_start_time = cls._parse_iso_datetime(data.get("job_run_start_time"))
 
+        tables_raw = data.get("tables")
+        tables = (
+            [DatasetTable.from_json(table) for table in tables_raw]
+            if tables_raw is not None
+            else None
+        )
+
         return cls(
             id=UUID(data.get("id")) if data.get("id") else None,
             input_dataset_ids=[UUID(did) for did in data.get("input_dataset_ids", [])],
@@ -101,4 +128,5 @@ class Dataset:
             state=data.get("state"),
             job_run_start_time=job_run_start_time,
             error_message=data.get("error_message"),
+            tables=tables,
         )

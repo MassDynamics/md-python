@@ -7,7 +7,7 @@ from uuid import UUID
 
 import pytest
 
-from md_python.models import Dataset
+from md_python.models import Dataset, DatasetTable
 
 
 class TestDataset:
@@ -96,3 +96,40 @@ class TestDataset:
         dataset = Dataset.from_json(data)
 
         assert dataset.error_message is None
+
+    def test_from_json_with_tables(self):
+        data = {
+            "input_dataset_ids": [],
+            "name": "With tables",
+            "job_slug": "test_job",
+            "job_run_params": {},
+            "tables": [{"name": "Protein_Intensity"}, {"name": "Peptide_Intensity"}],
+        }
+
+        dataset = Dataset.from_json(data)
+
+        assert dataset.tables == [
+            DatasetTable(name="Protein_Intensity"),
+            DatasetTable(name="Peptide_Intensity"),
+        ]
+
+    def test_from_json_with_empty_tables(self):
+        data = {
+            "input_dataset_ids": [],
+            "name": "No tables",
+            "job_slug": "test_job",
+            "job_run_params": {},
+            "tables": [],
+        }
+
+        assert Dataset.from_json(data).tables == []
+
+    def test_from_json_without_tables_defaults_none(self):
+        data = {
+            "input_dataset_ids": [],
+            "name": "Absent tables",
+            "job_slug": "test_job",
+            "job_run_params": {},
+        }
+
+        assert Dataset.from_json(data).tables is None
