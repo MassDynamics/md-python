@@ -5,6 +5,19 @@ All notable changes to `md-python` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project loosely adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.9]
+
+- **Docs fix (customer-facing):** the README install command still pointed at
+  `v0.2.4-33`, which predates the 0.3.0 builder rewrite. Anyone following it got a
+  client whose `NormalisationImputationDataset` required the old
+  `normalisation_methods` / `imputation_methods` dicts, so new-style code failed with
+  `2 validation errors ... Field required`. It now points at the current tag.
+- `client.datasets.create()` now accepts a dataset **builder** as well as a `Dataset`.
+  Builders are validated and converted via `to_dataset()`, so
+  `client.datasets.create(ni)` — the form shown in the API tour — works, and is
+  equivalent to `ni.run(client)`.
+
+
 ## [0.3.4]
 
 - Updated `client.entities.mappings.peptide_to_protein_same_dataset` and `client.entities.mappings.protein_to_protein_via_peptides` to accept a list of datasets instead of a single dataset.

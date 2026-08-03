@@ -4,7 +4,7 @@ from uuid import UUID
 import pytest
 
 from md_python.client_v2 import MDClientV2
-from md_python.models import Dataset, DatasetTable
+from md_python.models import Dataset, DatasetTable, NormalisationImputationDataset
 from md_python.resources.v2.datasets import Datasets
 
 
@@ -46,6 +46,48 @@ class TestV2Datasets:
         assert payload["job_slug"] == "demo_flow"
         assert payload["input_dataset_ids"] == ["2b1a5c27-ac95-456c-b2ff-eccfb3ab3d1e"]
         assert payload["job_run_params"] == {"param": "value"}
+
+    def test_create_accepts_a_builder(self, datasets, mock_client):
+        """create() must accept a builder, not just a Dataset.
+
+        The API tour documents `client.datasets.create(ni)`; before 0.3.8 that
+        raised AttributeError ('...' object has no attribute 'name').
+        """
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"dataset_id": "from-builder"}
+        mock_client._make_request.return_value = mock_response
+
+        ni = NormalisationImputationDataset(
+            dataset_name="ni via builder",
+            input_dataset_ids=["2b1a5c27-ac95-456c-b2ff-eccfb3ab3d1e"],
+            normalisation_method="median",
+            imputation_method="mnar",
+            entity_type="protein",
+        )
+
+        assert datasets.create(ni) == "from-builder"
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload["name"] == "ni via builder"
+        assert payload["job_slug"] == "normalisation_imputation"
+        assert payload["job_run_params"]["normalisation_methods_proteomics"] == "median"
+        assert payload["job_run_params"]["imputation_methods"] == "mnar"
+
+    def test_create_builder_is_validated(self, datasets, mock_client):
+        """An invalid builder must be rejected before any HTTP call."""
+        ni = NormalisationImputationDataset(
+            dataset_name="bad",
+            input_dataset_ids=[],
+            normalisation_method="median",
+            imputation_method="mnar",
+            entity_type="protein",
+        )
+
+        with pytest.raises(ValueError):
+            datasets.create(ni)
+
+        mock_client._make_request.assert_not_called()
 
     def test_create_uses_flat_payload(self, datasets, sample_dataset, mock_client):
         mock_response = Mock()

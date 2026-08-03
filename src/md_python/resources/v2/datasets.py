@@ -3,12 +3,13 @@ Datasets resource for the MD Python v2 client
 """
 
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ...models import Dataset, DatasetState
 
 if TYPE_CHECKING:
     from ...base_client import BaseMDClient
+    from ...models.dataset_builders import BaseDatasetBuilder
 
 
 class Datasets:
@@ -17,24 +18,34 @@ class Datasets:
     def __init__(self, client: "BaseMDClient"):
         self._client = client
 
-    def create(self, dataset: Dataset) -> str:
+    def create(self, dataset: Union[Dataset, "BaseDatasetBuilder"]) -> str:
         """Create a new dataset.
 
         V2 uses a flat payload (no wrapping 'dataset' key).
 
         Args:
-            dataset: Dataset object with creation parameters
+            dataset: A ``Dataset``, or any dataset builder (e.g.
+                ``NormalisationImputationDataset``). Builders are converted via
+                ``to_dataset()`` and validated first, so
+                ``client.datasets.create(ni)`` and ``ni.run(client)`` are
+                equivalent.
 
         Returns:
             Created dataset ID
         """
+        if isinstance(dataset, Dataset):
+            resolved = dataset
+        else:
+            dataset.validate()
+            resolved = dataset.to_dataset()
+
         payload: Dict[str, Any] = {
             "input_dataset_ids": [
-                str(dataset_id) for dataset_id in dataset.input_dataset_ids
+                str(dataset_id) for dataset_id in resolved.input_dataset_ids
             ],
-            "name": dataset.name,
-            "job_slug": dataset.job_slug,
-            "job_run_params": dataset.job_run_params or {},
+            "name": resolved.name,
+            "job_slug": resolved.job_slug,
+            "job_run_params": resolved.job_run_params or {},
         }
 
         response = self._client._make_request(
