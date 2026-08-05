@@ -74,7 +74,16 @@ _DE_METHODS_PER_ENTITY = {
 # (e.g. metabolite NI is upstream-gated as of 2026-05-27).
 _PIPELINES_PER_ENTITY = {
     "protein": ["normalisation_imputation", "pairwise_comparison", "anova", "dose_response"],
-    "peptide": ["normalisation_imputation", "pairwise_comparison", "anova", "dose_response"],
+    # `ptm_intensity_table` is peptide-IN / PTM-OUT: it reads the PTM_sites
+    # table that only a peptide dataset carries, and emits a PTM dataset. It is
+    # therefore reachable FROM peptide, not from ptm.
+    "peptide": [
+        "normalisation_imputation",
+        "pairwise_comparison",
+        "anova",
+        "dose_response",
+        "ptm_intensity_table",
+    ],
     "gene": ["normalisation_imputation", "pairwise_comparison", "anova"],
     "metabolite": ["normalisation_imputation", "pairwise_comparison", "anova"],
     "ptm": ["normalisation_imputation", "pairwise_comparison", "anova"],
@@ -145,9 +154,15 @@ _NOTES_PER_ENTITY = {
         "Pairwise / ANOVA accept only de_method='limma' — gene-only count "
         "engines are not relevant for PTM intensities.",
         "Re-running the site rollup with custom settings (summarisation "
-        "method, modification subset, probability threshold) is the PTM "
-        "Intensity Table dataset job, which has NO MCP tool — it is web-app "
-        "only. The MCP can analyse the resulting dataset afterwards.",
+        "method, modification subset, probability threshold, imputation, "
+        "flanking window) is `run_ptm_intensity_table` — it takes the PEPTIDE "
+        "dataset (which carries PTM_sites) as input and emits a new PTM "
+        "dataset. With all defaults it reproduces the upload-time PTM tables "
+        "exactly, so only call it when the user wants something DIFFERENT.",
+        "The threshold filters PTMProbSample (per-sample), NOT PTMProbMax "
+        "(best across all samples) — name which you mean. Site GroupIds are "
+        "re-assigned on every rollup, so join two rollups on PTMProtein, "
+        "never on GroupId.",
     ],
 }
 

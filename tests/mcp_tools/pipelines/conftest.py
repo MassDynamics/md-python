@@ -43,6 +43,7 @@ def patch_pipeline_client(mock_client):
         patch("mcp_tools.pipelines.normalisation.get_client", return_value=mock_client),
         patch("mcp_tools.pipelines.ora.get_client", return_value=mock_client),
         patch("mcp_tools.pipelines.pairwise.get_client", return_value=mock_client),
+        patch("mcp_tools.pipelines.ptm_intensity.get_client", return_value=mock_client),
         patch("mcp_tools.pipelines.wgcna.get_client", return_value=mock_client),
     ):
         yield mock_client

@@ -135,7 +135,7 @@ TOOL CATEGORIES — use roughly in this order:
                      run_pairwise_comparison_bulk, run_anova,
                      run_dose_response, run_dose_response_from_upload,
                      run_dose_response_bulk, run_mofa, run_ora, run_gsea,
-                     run_wgcna
+                     run_wgcna, run_ptm_intensity_table
   5. Visualise tools: list_module_types, describe_module_type,
                      create_workspace, list_workspaces, get_workspace,
                      update_workspace, delete_workspace,

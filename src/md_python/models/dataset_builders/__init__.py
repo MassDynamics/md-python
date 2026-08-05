@@ -15,6 +15,7 @@ from .mofa import MOFADataset
 from .normalisation import NormalisationImputationDataset
 from .ora import OraDataset
 from .pairwise import PairwiseComparisonDataset
+from .ptm_intensity import PtmIntensityTableDataset
 from .wgcna import WgcnaDataset
 
 __all__ = [
@@ -26,5 +27,6 @@ __all__ = [
     "NormalisationImputationDataset",
     "OraDataset",
     "PairwiseComparisonDataset",
+    "PtmIntensityTableDataset",
     "WgcnaDataset",
 ]

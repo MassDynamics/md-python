@@ -25,6 +25,7 @@ from .pairwise import (
     run_pairwise_comparison,
     run_pairwise_comparison_bulk,
 )
+from .ptm_intensity import run_ptm_intensity_table
 from .wgcna import run_wgcna
 
 # Append the binding LLM-behaviour mandates to every analysis tool's docstring.
@@ -41,6 +42,7 @@ _attach(
     run_ora,
     run_pairwise_comparison,
     run_pairwise_comparison_bulk,
+    run_ptm_intensity_table,
     run_wgcna,
 )
 
@@ -59,5 +61,6 @@ __all__ = [
     "run_ora",
     "run_pairwise_comparison",
     "run_pairwise_comparison_bulk",
+    "run_ptm_intensity_table",
     "run_wgcna",
 ]
