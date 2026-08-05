@@ -83,3 +83,32 @@ def test_metabolite_upload_source_is_md_format_metabolite():
 def test_gene_upload_source_is_md_format_gene():
     result = json.loads(describe_entity_type("gene"))
     assert result["upload_sources"] == ["md_format_gene"]
+
+
+def test_ptm_upload_sources_include_diann_and_spectronaut():
+    """Regression: `ptm` used to report md_format only.
+
+    md-converter builds the PTM dataset in the diann_matrix, spectronaut AND
+    md_format runners (each writes PTM_sites, then calls
+    create_and_check_ptm_table). Reporting md_format alone pushed callers
+    towards converting DIA-NN / Spectronaut reports to md_format, which
+    silently discards PTM localisation probabilities.
+    """
+    result = json.loads(describe_entity_type("ptm"))
+    assert set(result["upload_sources"]) == {
+        "diann_tabular",
+        "spectronaut",
+        "md_format",
+    }
+
+
+def test_ptm_notes_warn_md_format_has_no_localisation_probabilities():
+    """The md_format probability caveat must be discoverable from the tool.
+
+    Without it, `by ptm localization probability` reads as working quality
+    control on an md_format dataset when it filters nothing.
+    """
+    result = json.loads(describe_entity_type("ptm"))
+    combined = " ".join(result["notes"]).lower()
+    assert "md_format" in combined
+    assert "1.0" in combined or "no-op" in combined

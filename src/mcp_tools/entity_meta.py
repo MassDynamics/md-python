@@ -47,7 +47,14 @@ _SOURCES_PER_ENTITY = {
     ],
     "gene": ["md_format_gene"],
     "metabolite": ["md_format_metabolite"],
-    "ptm": ["md_format"],
+    # A PTM dataset is built at upload by every runner that can see modified
+    # peptide sequences — not just md_format. Confirmed on 2026-08-06 by
+    # reading md-converter: diann_matrix/runner.py, spectronaut/runner.py and
+    # md_format/runner.py all write PTM_sites and then call
+    # `create_and_check_ptm_table`. Ordered probabilities-capable-first,
+    # because that distinction (see _NOTES_PER_ENTITY) is what should drive
+    # the choice between them.
+    "ptm": ["diann_tabular", "spectronaut", "md_format"],
 }
 
 # DE methods available per entity_type at the MDFlexiComparisons layer.
@@ -119,10 +126,28 @@ _NOTES_PER_ENTITY = {
     ],
     "ptm": [
         "PTM behaves like a peptide on the wire (it IS a localised peptide); "
-        "filtration includes `by ptm localization probability`. Use for "
-        "phospho-proteomics dual-file md_format uploads.",
+        "filtration includes `by ptm localization probability`.",
+        "A PTM dataset is created AT UPLOAD, automatically, whenever the data "
+        "contains modified peptides — there is no opt-in flag. It is built by "
+        "the diann_tabular, spectronaut and md_format runners alike.",
+        "ONLY diann_tabular and spectronaut can supply real PTM localisation "
+        "probabilities. md_format has no column for them, so every "
+        "probability is set to 1.0 and `by ptm localization probability` "
+        "becomes a NO-OP that still looks like a filter. Never advise "
+        "converting a DIA-NN or Spectronaut report to md_format in order to "
+        "get PTMs — that destroys the localisation data.",
+        "Probabilities also require the right export: Spectronaut needs the "
+        "PTM-localisation schema (EG.PrecursorId, "
+        "EG.PTMLocalizationProbabilities, EG.TotalQuantity) AND Minor "
+        "(Peptide) Grouping set to 'Modified Sequence'; DIA-NN needs "
+        "report.parquet (v2.0+) alongside the pr_matrix. Without the "
+        "pr_matrix, a DIA-NN upload yields no PTM sites at all.",
         "Pairwise / ANOVA accept only de_method='limma' — gene-only count "
         "engines are not relevant for PTM intensities.",
+        "Re-running the site rollup with custom settings (summarisation "
+        "method, modification subset, probability threshold) is the PTM "
+        "Intensity Table dataset job, which has NO MCP tool — it is web-app "
+        "only. The MCP can analyse the resulting dataset afterwards.",
     ],
 }
 
