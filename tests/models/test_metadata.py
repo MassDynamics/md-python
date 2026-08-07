@@ -81,6 +81,34 @@ class TestExperimentDesign:
         )
         # normalized header
         assert ed.data[0] == ["filename", "sample_name", "condition"]
+        assert ed.data[1] == ["a.d", "1", "q"]
+        assert ed.data[2] == ["b.d", "2", "e"]
+
+    def test_normalization_fills_in_blanks(self):
+        ed = ExperimentDesign(
+            data=[
+                ["filename", "sample_name", "condition"],
+                ["a.d", "1"],
+                ["b.d", "2", "e"],
+            ]
+        )
+        # normalized header
+        assert ed.data[0] == ["filename", "sample_name", "condition"]
+        assert ed.data[1] == ["a.d", "1", ""]
+        assert ed.data[2] == ["b.d", "2", "e"]
+
+    def test_normalization_keeps_important_cols(self):
+        ed = ExperimentDesign(
+            data=[
+                ["filename", "fraction", "fraction_group", "sample_name", "condition", "channel"],
+                ["111222_ZZZ_1", "1", "ZZZ_1", "control_1_16h", "control", "1"],
+                ["111222_ZZZ_1", "1", "ZZZ_1", "BTZ_2_16h", "QTZ", "2"],
+            ]
+        )
+        assert ed.data[0] == ["filename", "fraction", "fraction_group", "sample_name", "condition", "channel"]
+        assert ed.data[1] == ["111222_ZZZ_1", "1", "ZZZ_1", "control_1_16h", "control", "1"]
+        assert ed.data[2] == ["111222_ZZZ_1", "1", "ZZZ_1", "BTZ_2_16h", "QTZ", "2"]
+
 
 
 class TestSampleMetadata:

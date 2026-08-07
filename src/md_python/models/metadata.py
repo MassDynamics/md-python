@@ -93,7 +93,9 @@ class ExperimentDesign(Metadata):
         """Normalize to required header and column order.
 
         Required header: ["filename", "sample_name", "condition"].
-        Accepts common synonyms and reorders columns accordingly.
+        Accepts common synonyms for the required columns. Additional
+        "important" columns (``fraction``, ``fraction_group``, ``channel``)
+        are preserved. All kept columns retain their original input order.
         """
         if not raw:
             raise ValueError("experiment_design is empty")
@@ -110,24 +112,25 @@ class ExperimentDesign(Metadata):
         normalized_header = [synonyms.get(h, h) for h in header]
 
         required = ["filename", "sample_name", "condition"]
-        try:
-            idx_filename = normalized_header.index("filename")
-            idx_sample = normalized_header.index("sample_name")
-            idx_condition = normalized_header.index("condition")
-        except ValueError as e:
+        allowed = ["fraction", "fraction_group", "channel"]
+
+        missing = [col for col in required if col not in normalized_header]
+        if missing:
             raise ValueError(
                 f"Missing required columns {required}; got {raw[0]}"
-            ) from e
+            )
 
-        fixed_rows: List[List[str]] = [required]
+        keep = set(required) | set(allowed)
+        kept_indices = [
+            i for i, name in enumerate(normalized_header) if name in keep
+        ]
+        kept_header = [normalized_header[i] for i in kept_indices]
+
+        fixed_rows: List[List[str]] = [kept_header]
         for row in raw[1:]:
             if not isinstance(row, list):
                 continue
-            vals = [
-                row[idx_filename] if len(row) > idx_filename else "",
-                row[idx_sample] if len(row) > idx_sample else "",
-                row[idx_condition] if len(row) > idx_condition else "",
-            ]
+            vals = [row[i] if len(row) > i else "" for i in kept_indices]
             fixed_rows.append(vals)
 
         return fixed_rows
