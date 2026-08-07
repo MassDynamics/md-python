@@ -116,14 +116,10 @@ class ExperimentDesign(Metadata):
 
         missing = [col for col in required if col not in normalized_header]
         if missing:
-            raise ValueError(
-                f"Missing required columns {required}; got {raw[0]}"
-            )
+            raise ValueError(f"Missing required columns {required}; got {raw[0]}")
 
         keep = set(required) | set(allowed)
-        kept_indices = [
-            i for i, name in enumerate(normalized_header) if name in keep
-        ]
+        kept_indices = [i for i, name in enumerate(normalized_header) if name in keep]
         kept_header = [normalized_header[i] for i in kept_indices]
 
         fixed_rows: List[List[str]] = [kept_header]
