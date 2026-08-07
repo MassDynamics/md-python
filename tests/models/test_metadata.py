@@ -100,15 +100,35 @@ class TestExperimentDesign:
     def test_normalization_keeps_important_cols(self):
         ed = ExperimentDesign(
             data=[
-                ["filename", "fraction", "fraction_group", "sample_name", "condition", "channel"],
+                [
+                    "filename",
+                    "fraction",
+                    "fraction_group",
+                    "sample_name",
+                    "condition",
+                    "channel",
+                ],
                 ["111222_ZZZ_1", "1", "ZZZ_1", "control_1_16h", "control", "1"],
                 ["111222_ZZZ_1", "1", "ZZZ_1", "BTZ_2_16h", "QTZ", "2"],
             ]
         )
-        assert ed.data[0] == ["filename", "fraction", "fraction_group", "sample_name", "condition", "channel"]
-        assert ed.data[1] == ["111222_ZZZ_1", "1", "ZZZ_1", "control_1_16h", "control", "1"]
+        assert ed.data[0] == [
+            "filename",
+            "fraction",
+            "fraction_group",
+            "sample_name",
+            "condition",
+            "channel",
+        ]
+        assert ed.data[1] == [
+            "111222_ZZZ_1",
+            "1",
+            "ZZZ_1",
+            "control_1_16h",
+            "control",
+            "1",
+        ]
         assert ed.data[2] == ["111222_ZZZ_1", "1", "ZZZ_1", "BTZ_2_16h", "QTZ", "2"]
-
 
 
 class TestSampleMetadata:
