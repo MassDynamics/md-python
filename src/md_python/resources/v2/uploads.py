@@ -231,6 +231,60 @@ class Uploads:
                 f"Failed to query uploads: {response.status_code} - {response.text}"
             )
 
+    def update(
+        self,
+        upload_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        experiment_design: Optional[ExperimentDesign] = None,
+    ) -> bool:
+        """Update an upload's name, description and/or experiment_design.
+
+        At least one field must be supplied; any field left as ``None`` is
+        omitted from the request and left unchanged server-side. Pass
+        ``description=""`` to clear the description.
+
+        ``experiment_design`` can only be updated while the upload is in the
+        ``draft`` status (before ``start_workflow`` has been called); the
+        server rejects the change with 409 once the workflow has started.
+
+        Args:
+            upload_id: Upload UUID.
+            name: New name. Must be unique within the organization.
+            description: New description; pass "" to clear it.
+            experiment_design: New experiment design.
+
+        Returns:
+            True if the update succeeded.
+        """
+        payload: Dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        if description is not None:
+            payload["description"] = description
+        if experiment_design is not None:
+            payload["experiment_design"] = experiment_design.data
+
+        if not payload:
+            raise ValueError(
+                "At least one of name, description or experiment_design "
+                "must be supplied"
+            )
+
+        response = self._client._make_request(
+            method="PUT",
+            endpoint=f"/uploads/{upload_id}",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+
+        if response.status_code == 200:
+            return True
+        else:
+            raise Exception(
+                f"Failed to update upload: {response.status_code} - {response.text}"
+            )
+
     def update_sample_metadata(
         self, upload_id: str, sample_metadata: SampleMetadata
     ) -> bool:
@@ -267,9 +321,14 @@ class Uploads:
                 continue
 
             s = status.upper()
+            if s == "DRAFT":
+                raise Exception(
+                    f"Upload {upload_id} is in draft status; call start_workflow "
+                    "before waiting for it to complete"
+                )
             if s in {"COMPLETED"}:
                 return upload  # type: ignore[return-value]
-            if s in {"FAILED", "ERROR", "CANCELLED"}:
+            if s in {"FAILED", "ERROR", "CANCELLED", "PROCESSING_FAILED"}:
                 raise Exception(f"Upload {upload_id} failed: {status}")
 
             time.sleep(poll_s)

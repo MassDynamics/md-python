@@ -356,6 +356,61 @@ class TestV2Uploads:
         with pytest.raises(Exception, match="Failed to query uploads: 500"):
             uploads.query()
 
+    def test_update_all_fields(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_client._make_request.return_value = mock_response
+
+        result = uploads.update(
+            "upload-1",
+            name="new name",
+            description="new desc",
+            experiment_design=DESIGN,
+        )
+
+        assert result is True
+        call_args = mock_client._make_request.call_args
+        assert call_args[1]["method"] == "PUT"
+        assert call_args[1]["endpoint"] == "/uploads/upload-1"
+        assert call_args[1]["json"] == {
+            "name": "new name",
+            "description": "new desc",
+            "experiment_design": DESIGN.data,
+        }
+
+    def test_update_omits_unset_fields(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_client._make_request.return_value = mock_response
+
+        uploads.update("upload-1", name="only name")
+
+        assert mock_client._make_request.call_args[1]["json"] == {"name": "only name"}
+
+    def test_update_empty_description_clears(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_client._make_request.return_value = mock_response
+
+        uploads.update("upload-1", description="")
+
+        assert mock_client._make_request.call_args[1]["json"] == {"description": ""}
+
+    def test_update_requires_at_least_one_field(self, uploads, mock_client):
+        with pytest.raises(ValueError, match="At least one of name"):
+            uploads.update("upload-1")
+
+        mock_client._make_request.assert_not_called()
+
+    def test_update_failure(self, uploads, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 409
+        mock_response.text = "experiment_design can only be updated while draft"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Failed to update upload: 409"):
+            uploads.update("upload-1", experiment_design=DESIGN)
+
     def test_update_sample_metadata_success(self, uploads, mock_client):
         sm = SampleMetadata(data=[["group"], ["a"], ["b"]])
 
@@ -408,6 +463,22 @@ class TestV2Uploads:
 
         with pytest.raises(Exception, match="failed"):
             uploads.wait_until_complete("upload-1", poll_s=0, timeout_s=1)
+
+    def test_wait_until_complete_draft_fails_fast(self, uploads, mock_client, mocker):
+        upload = Upload(
+            name="x",
+            source=Source.diann_tabular,
+            s3_bucket="b",
+            filenames=[],
+            status="draft",
+        )
+        get_by_id = mocker.patch.object(uploads, "get_by_id", return_value=upload)
+
+        with pytest.raises(Exception, match="draft status"):
+            uploads.wait_until_complete("upload-1", poll_s=0, timeout_s=60)
+
+        # Fails fast on the first poll rather than looping until timeout.
+        assert get_by_id.call_count == 1
 
     def test_uploader_uses_uploads_resource_path(self, uploads):
         assert uploads._uploader._resource_path == "/uploads"
