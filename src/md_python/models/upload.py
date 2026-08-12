@@ -29,6 +29,7 @@ class LabellingMethod(StrEnum):
 
 
 class Status(StrEnum):
+    draft = "draft"
     processing = "processing"
     verifying = "verifying"
     investigating = "investigating"

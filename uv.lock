@@ -1183,12 +1183,13 @@ wheels = [
 
 [[package]]
 name = "md-python"
-version = "0.3.9"
+version = "0.3.10"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -1236,6 +1237,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.25.0" },
     { name = "types-requests", marker = "extra == 'dev'", specifier = ">=2.32.0" },
+    { name = "typing-extensions", specifier = ">=4.5.0" },
 ]
 provides-extras = ["dev", "notebook"]
 

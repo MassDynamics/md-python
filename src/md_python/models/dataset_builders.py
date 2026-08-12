@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import deprecated
 
 from .dataset import Dataset
 from .metadata import SampleMetadata
@@ -175,6 +176,10 @@ def _batch_correction_technique_key(entity_type: str) -> str:
     )
 
 
+@deprecated(
+    "NormalisationImputationDataset is deprecated and may be removed in a "
+    "future release."
+)
 @pydantic_dataclass
 class NormalisationImputationDataset(BaseDatasetBuilder):
     """Builder for the normalisation + imputation + filtration pipeline.
@@ -624,6 +629,7 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
                 )
 
 
+@deprecated("DoseResponseDataset is deprecated and may be removed in a future release.")
 @pydantic_dataclass
 class DoseResponseDataset(BaseDatasetBuilder):
     """Builder for a dose response analysis dataset.
@@ -711,6 +717,9 @@ class DoseResponseDataset(BaseDatasetBuilder):
             raise ValueError("span_rollmean_k must be >= 1")
 
 
+@deprecated(
+    "PairwiseComparisonDataset is deprecated and may be removed in a future " "release."
+)
 @pydantic_dataclass
 class PairwiseComparisonDataset(BaseDatasetBuilder):
     """Builder for a pairwise comparison dataset with run support.
