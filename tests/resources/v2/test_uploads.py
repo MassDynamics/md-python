@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from md_python.client_v2 import MDClientV2
-from md_python.models import ExperimentDesign, SampleMetadata, Upload
+from md_python.models import Dataset, ExperimentDesign, SampleMetadata, Upload
 from md_python.resources.v2.uploads import Uploads
 from src.md_python.models.upload import Source
 
@@ -233,9 +233,34 @@ class TestV2Uploads:
 
         assert isinstance(result, Upload)
         assert result.name == "Test Upload"
+        assert result.intensity_dataset is None
 
         call_args = mock_client._make_request.call_args
         assert call_args[1]["endpoint"] == "/uploads/upload-1"
+
+    def test_get_by_id_parses_intensity_dataset(self, uploads, mock_client):
+        dataset_id = "123e4567-e89b-12d3-a456-426614174000"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "name": "Test Upload",
+            "source": "maxquant",
+            "status": "completed",
+            "intensity_dataset": {
+                "id": dataset_id,
+                "name": "Intensity",
+                "job_slug": "normalisation_imputation",
+                "input_dataset_ids": [],
+                "job_run_params": {},
+            },
+        }
+        mock_client._make_request.return_value = mock_response
+
+        result = uploads.get_by_id("upload-1")
+
+        assert isinstance(result.intensity_dataset, Dataset)
+        assert str(result.intensity_dataset.id) == dataset_id
+        assert result.intensity_dataset.name == "Intensity"
 
     def test_get_by_id_failure(self, uploads, mock_client):
         mock_response = Mock()

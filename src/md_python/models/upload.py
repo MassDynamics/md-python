@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from .dataset import Dataset
 from .metadata import ExperimentDesign, SampleMetadata
 
 
@@ -54,6 +55,7 @@ class Upload:
     sample_metadata: Optional[SampleMetadata] = None
     created_at: Optional[datetime] = None
     status: Optional[Status] = None
+    intensity_dataset: Optional[Dataset] = None
 
     def __str__(self) -> str:
         lines = [f"Upload: {self.name}"]
@@ -118,4 +120,9 @@ class Upload:
             ),
             created_at=created_at,
             status=data.get("status"),
+            intensity_dataset=(
+                Dataset.from_json(data.get("intensity_dataset", {}))
+                if data.get("intensity_dataset") is not None
+                else None
+            ),
         )
