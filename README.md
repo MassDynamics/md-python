@@ -7,8 +7,18 @@ A Python client for the Mass Dynamics API.
 ## Installation
 
 ```bash
-pip install https://github.com/MassDynamics/md-python/archive/refs/tags/v0.2.4-33.tar.gz
+pip install "git+https://github.com/MassDynamics/md-python.git"
 ```
+
+That tracks `main`. To pin a specific release instead, append its tag — the full list is on the
+[tags page](https://github.com/MassDynamics/md-python/tags):
+
+```bash
+pip install "git+https://github.com/MassDynamics/md-python.git@v0.3.12-60"
+```
+
+CI mints a new tag on every merge to `main`, so prefer the unpinned form unless you have a reason
+to hold a specific version.
 
 ## Quick Start
 
