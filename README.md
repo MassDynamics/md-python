@@ -175,10 +175,41 @@ result = client.entities.mappings.peptide_to_protein_same_dataset(
 
 ## Jobs
 
+`client.jobs.list()` returns `Job` objects describing every analysis flow the API exposes.
+Each carries a `properties` dict — the parameter definition the UI renders — which is the
+source of truth for what belongs in a dataset's `job_run_params`.
+
 ```python
+from md_python.models import Job
+
 # List available dataset jobs
 jobs = client.jobs.list()
+
+job = next(j for j in jobs if j.slug == "pairwise_comparison")
+job.slug            # "pairwise_comparison"
+job.name            # "pairwise comparison"
+job.run_type        # "PAIRWISE"
+job.is_published    # True
+job.description     # HTML description shown in the UI
+job.properties      # {field_name: {fieldType, default, rules, ...}, ...}
+
+# Inspect the parameters a job accepts
+for name, spec in job.properties.items():
+    required = any(r.get("name") == "is_required" for r in spec.get("rules", []))
+    print(name, spec.get("fieldType"), spec.get("default"), "REQUIRED" if required else "")
 ```
+
+Two things to know when turning `properties` into `job_run_params`:
+
+- **`input_datasets` is listed but is not a `job_run_params` key.** The server populates it from
+  the `input_dataset_ids` you pass to `client.datasets.create()`.
+- **Some fields only apply in combination.** For example `filter_values_criteria` is a string
+  selector (`"percentage"` or `"count"`) with a matching sibling field —
+  `filter_threshold_percentage` or `filter_threshold_count`. Send the one that matches.
+
+> **Changed in 0.3.5:** `client.jobs.list()` previously returned `List[Dict[str, Any]]` and now
+> returns `List[Job]`. Code that read `job["slug"]` should read `job.slug`. Note also that the
+> raw payload spelled the published flag `isPublished`, where `Job` exposes `is_published`.
 
 ## Health
 
