@@ -33,6 +33,7 @@ class Workspace:
     id: UUID
     name: str
     description: Optional[str] = None
+    workspace_link: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -42,6 +43,7 @@ class Workspace:
             id=UUID(data["id"]),
             name=data.get("name", ""),
             description=data.get("description"),
+            workspace_link=data.get("workspace_link"),
             created_at=_parse_iso_datetime(data.get("created_at")),
             updated_at=_parse_iso_datetime(data.get("updated_at")),
         )

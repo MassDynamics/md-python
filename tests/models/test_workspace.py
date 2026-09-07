@@ -17,6 +17,7 @@ class TestWorkspaceFromJson:
                 "id": WS_ID,
                 "name": "Project A",
                 "description": "Notes",
+                "workspace_link": "https://app.example.com/workspaces/abc",
                 "created_at": "2026-05-01T12:00:00Z",
                 "updated_at": "2026-05-02T08:30:00Z",
             }
@@ -24,12 +25,14 @@ class TestWorkspaceFromJson:
         assert ws.id == UUID(WS_ID)
         assert ws.name == "Project A"
         assert ws.description == "Notes"
+        assert ws.workspace_link == "https://app.example.com/workspaces/abc"
         assert ws.created_at == datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
         assert ws.updated_at == datetime(2026, 5, 2, 8, 30, tzinfo=timezone.utc)
 
     def test_optional_fields_missing(self):
         ws = Workspace.from_json({"id": WS_ID, "name": "Bare"})
         assert ws.description is None
+        assert ws.workspace_link is None
         assert ws.created_at is None
         assert ws.updated_at is None
 
