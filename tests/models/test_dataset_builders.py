@@ -1,4 +1,8 @@
+import importlib
+import warnings
 from uuid import UUID
+
+import pytest
 
 from md_python.models import SampleMetadata
 from md_python.models.dataset_builders import (
@@ -586,3 +590,57 @@ def test_ni_extra_params_overrides_typed_field():
     p = ni.to_dataset().job_run_params
     assert p["std_position"] == 9.9
     assert p["custom_future_field"] == "x"
+
+
+def test_every_concrete_builder_warns_on_use():
+    """Each builder emits a DeprecationWarning naming what to use instead.
+
+    The abstract base is deliberately excluded: ``@deprecated`` on an ABC fires
+    at class-definition time, so decorating it would warn on import of
+    ``md_python`` even for callers that never build a dataset.
+    """
+    common = {"input_dataset_ids": [str(UUID(int=1))], "dataset_name": "n"}
+    builders = [
+        (MinimalDataset, {**common, "job_slug": "ora"}),
+        (
+            DoseResponseDataset,
+            {**common, "sample_names": ["1", "2"], "control_samples": ["1"]},
+        ),
+        (
+            PairwiseComparisonDataset,
+            {
+                **common,
+                "sample_metadata": SampleMetadata(
+                    data=[["sample_name", "condition"], ["1", "a"], ["2", "b"]]
+                ),
+                "condition_column": "condition",
+                "condition_comparisons": [["a", "b"]],
+            },
+        ),
+        (
+            NormalisationImputationDataset,
+            {
+                **common,
+                "normalisation_method": "median",
+                "imputation_method": "skip",
+                "filtration_method": "skip",
+            },
+        ),
+    ]
+    for builder, kwargs in builders:
+        with pytest.warns(DeprecationWarning) as record:
+            builder(**kwargs)
+        message = str(record[0].message)
+        assert builder.__name__ in message
+        assert (
+            "client.datasets.create()" in message
+        ), f"{builder.__name__} does not say what to use instead"
+
+
+def test_importing_md_python_does_not_warn():
+    """Importing the package must stay silent; only using a builder warns."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        importlib.reload(importlib.import_module("md_python.models.dataset_builders"))
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert not deprecations, [str(w.message) for w in deprecations]
