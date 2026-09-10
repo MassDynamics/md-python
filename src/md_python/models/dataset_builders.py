@@ -33,6 +33,18 @@ def _dose_column_to_numbers(values: List[Any]) -> List[float]:
 class BaseDatasetBuilder(ABC):
     """Abstract base for dataset builders that produce Dataset objects.
 
+    .. deprecated::
+        Every builder in this module is deprecated. Build a :class:`Dataset`
+        directly and pass it to ``client.datasets.create()``. The builders
+        duplicate each job's parameter schema in Python, so they drift whenever
+        a job changes server-side; ``client.jobs.list()`` is the live schema.
+
+    This base class carries no ``@deprecated`` decorator on purpose. The
+    decorator fires at class-definition time for an ABC, so decorating it would
+    emit a warning for every subclass as soon as ``md_python`` is imported, even
+    for callers that never touch a builder. The concrete subclasses carry it
+    instead, where it fires on use.
+
     Shared parameters across dataset builders.
     """
 
@@ -54,9 +66,19 @@ class BaseDatasetBuilder(ABC):
         return client.datasets.create(self.to_dataset())  # type: ignore[attr-defined, no-any-return]
 
 
+@deprecated(
+    "MinimalDataset is deprecated and may be removed in a future release. "
+    "Build a Dataset directly and pass it to client.datasets.create(): Dataset(input_dataset_ids=..., name=..., job_slug=..., job_run_params=...). The job's own parameter schema is available from client.jobs.list()."
+)
 @pydantic_dataclass
 class MinimalDataset(BaseDatasetBuilder):
-    """Builder for a minimal dataset (name, inputs, job slug only)."""
+    """Builder for a minimal dataset (name, inputs, job slug only).
+
+    .. deprecated::
+        Use :class:`Dataset` directly. This builder only forwards its four
+        fields, so ``Dataset(input_dataset_ids=..., name=..., job_slug=...,
+        job_run_params=...)`` is the same call with one fewer layer.
+    """
 
     job_slug: str
     job_run_params: Optional[Dict[str, Any]] = None
@@ -178,7 +200,7 @@ def _batch_correction_technique_key(entity_type: str) -> str:
 
 @deprecated(
     "NormalisationImputationDataset is deprecated and may be removed in a "
-    "future release."
+    "future release. Build a Dataset directly and pass it to client.datasets.create(): Dataset(input_dataset_ids=..., name=..., job_slug=..., job_run_params=...). The job's own parameter schema is available from client.jobs.list()."
 )
 @pydantic_dataclass
 class NormalisationImputationDataset(BaseDatasetBuilder):
@@ -629,7 +651,10 @@ class NormalisationImputationDataset(BaseDatasetBuilder):
                 )
 
 
-@deprecated("DoseResponseDataset is deprecated and may be removed in a future release.")
+@deprecated(
+    "DoseResponseDataset is deprecated and may be removed in a future release. "
+    "Build a Dataset directly and pass it to client.datasets.create(): Dataset(input_dataset_ids=..., name=..., job_slug=..., job_run_params=...). The job's own parameter schema is available from client.jobs.list()."
+)
 @pydantic_dataclass
 class DoseResponseDataset(BaseDatasetBuilder):
     """Builder for a dose response analysis dataset.
@@ -718,7 +743,8 @@ class DoseResponseDataset(BaseDatasetBuilder):
 
 
 @deprecated(
-    "PairwiseComparisonDataset is deprecated and may be removed in a future " "release."
+    "PairwiseComparisonDataset is deprecated and may be removed in a future "
+    "release. Build a Dataset directly and pass it to client.datasets.create(): Dataset(input_dataset_ids=..., name=..., job_slug=..., job_run_params=...). The job's own parameter schema is available from client.jobs.list()."
 )
 @pydantic_dataclass
 class PairwiseComparisonDataset(BaseDatasetBuilder):
