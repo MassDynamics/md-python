@@ -6,11 +6,20 @@ from typing import Optional
 
 from .base_client import BaseMDClient
 from .resources import Health
-from .resources.v2 import Datasets, Entities, Jobs, ModuleRegistry, Uploads, Workspaces
+from .resources.v2 import (
+    Datasets,
+    Entities,
+    Jobs,
+    ModuleRegistry,
+    ReferenceData,
+    Uploads,
+    Workspaces,
+)
 
 
 class MDClientV2(BaseMDClient):
-    """V2 API client — uploads, datasets, entities, jobs, workspaces, health"""
+    """V2 API client — uploads, datasets, reference data, entities, jobs,
+    workspaces, health"""
 
     ACCEPT_HEADER = "application/vnd.md-v2+json"
 
@@ -19,6 +28,7 @@ class MDClientV2(BaseMDClient):
         self.health = Health(self)
         self.uploads = Uploads(self)
         self.datasets = Datasets(self)
+        self.reference_data = ReferenceData(self)
         self.entities = Entities(self)
         self.jobs = Jobs(self)
         self.module_registry = ModuleRegistry(self)
