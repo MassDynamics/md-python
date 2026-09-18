@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from md_python.client_v2 import MDClientV2
+from md_python.models import ReferenceDataFile
 from md_python.resources.v2.reference_data import ReferenceData
 
 # id is "<org_uuid>/<file_uuid>"
@@ -34,8 +35,14 @@ class TestV2ReferenceData:
 
         result = reference_data.create_upload("genes.csv", 0)
 
-        assert result["id"] == REF_ID
-        assert result["upload"]["mode"] == "single"
+        assert result["reference_data"] == ReferenceDataFile(
+            id=REF_ID, filename="genes.csv"
+        )
+        assert result["upload"] == {
+            "filename": "genes.csv",
+            "url": "https://s3/put",
+            "mode": "single",
+        }
 
         call_args = mock_client._make_request.call_args
         assert call_args[1]["method"] == "POST"
@@ -77,9 +84,9 @@ class TestV2ReferenceData:
         assert result is True
         call_args = mock_client._make_request.call_args
         assert call_args[1]["method"] == "POST"
-        assert call_args[1]["endpoint"] == f"/reference_data/{REF_ID}/complete"
+        assert call_args[1]["endpoint"] == "/reference_data/complete"
         assert call_args[1]["json"] == {
-            "filename": "big.parquet",
+            "reference_data": {"id": REF_ID, "filename": "big.parquet"},
             "upload_session_id": "session-abc",
         }
 
@@ -104,7 +111,8 @@ class TestV2ReferenceData:
 
         result = reference_data.list()
 
-        assert result == [{"id": REF_ID, "filename": "genes.csv"}]
+        assert result == [ReferenceDataFile(id=REF_ID, filename="genes.csv")]
+        assert isinstance(result[0], ReferenceDataFile)
         call_args = mock_client._make_request.call_args
         assert call_args[1]["method"] == "GET"
         assert call_args[1]["endpoint"] == "/reference_data"
@@ -131,7 +139,7 @@ class TestV2ReferenceData:
             reference_data,
             "create_upload",
             return_value={
-                "id": REF_ID,
+                "reference_data": ReferenceDataFile(id=REF_ID, filename="genes.csv"),
                 "upload": {"url": "https://s3/put", "mode": "single"},
             },
         )
@@ -140,7 +148,7 @@ class TestV2ReferenceData:
 
         result = reference_data.upload("/tmp/genes.csv")
 
-        assert result == REF_ID
+        assert result == ReferenceDataFile(id=REF_ID, filename="genes.csv")
         create.assert_called_once_with("genes.csv", 0)
         single.assert_called_once_with("https://s3/put", "/tmp/genes.csv", "genes.csv")
         complete.assert_not_called()
@@ -159,7 +167,7 @@ class TestV2ReferenceData:
             reference_data,
             "create_upload",
             return_value={
-                "id": REF_ID,
+                "reference_data": ReferenceDataFile(id=REF_ID, filename="ref.parquet"),
                 "upload": {
                     "mode": "multipart",
                     "upload_session_id": "session-xyz",
@@ -174,7 +182,7 @@ class TestV2ReferenceData:
 
         result = reference_data.upload("/tmp/big.parquet", filename="ref.parquet")
 
-        assert result == REF_ID
+        assert result == ReferenceDataFile(id=REF_ID, filename="ref.parquet")
         create.assert_called_once_with("ref.parquet", 104857600)
         multipart.assert_called_once_with(parts, "/tmp/big.parquet", "ref.parquet")
         complete.assert_called_once_with(REF_ID, "ref.parquet", "session-xyz")

@@ -15,6 +15,7 @@ from .experiment import Experiment
 from .jobs import Job
 from .metadata import ExperimentDesign, SampleMetadata
 from .pagination import Page, Pagination
+from .reference_data import ReferenceDataFile
 from .registered_module import RegisteredModule
 from .upload import Upload
 from .visualisation import PlotlyVisualisation, VisualisationPending
@@ -29,6 +30,7 @@ __all__ = [
     "Dataset",
     "DatasetState",
     "DatasetTable",
+    "ReferenceDataFile",
     "BaseDatasetBuilder",
     "DoseResponseDataset",
     "MinimalDataset",

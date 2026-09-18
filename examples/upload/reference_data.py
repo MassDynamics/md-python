@@ -22,14 +22,14 @@ def main() -> None:
     client = MDClient(api_token=API_TOKEN, base_url=BASE_URL)
 
     # Upload a local file as reference data (handles single vs multipart).
-    reference_data_id = client.reference_data.upload(FILE_PATH)
-    print(f"Uploaded reference data: id={reference_data_id}")
+    uploaded = client.reference_data.upload(FILE_PATH)
+    print(f"Uploaded reference data: id={uploaded.id} filename={uploaded.filename}")
 
     # List everything the current organisation has uploaded.
     files = client.reference_data.list()
     print(f"Found {len(files)} reference data file(s):")
     for entry in files:
-        print(f"  {entry['id']}: {entry['filename']}")
+        print(f"  {entry.id}: {entry.filename}")
 
 
 if __name__ == "__main__":

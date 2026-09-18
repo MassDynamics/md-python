@@ -8,12 +8,25 @@ Reference data files are organisation-scoped and stored in S3 under
 """
 
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
+from ...models import ReferenceDataFile
 from ...uploads import Uploads as FileUploader
 
 if TYPE_CHECKING:
     from ...base_client import BaseMDClient
+
+
+class CreateUploadResult(TypedDict):
+    """Return type of :meth:`ReferenceData.create_upload`.
+
+    ``reference_data`` identifies the file; ``upload`` carries the presigned
+    S3 payload, with ``mode`` ``"single"`` (with ``url``) or ``"multipart"``
+    (with ``upload_session_id`` and ``parts``).
+    """
+
+    reference_data: ReferenceDataFile
+    upload: Dict[str, Any]
 
 
 class ReferenceData:
@@ -32,7 +45,7 @@ class ReferenceData:
             complete_path="/complete",
         )
 
-    def create_upload(self, filename: str, file_size: int) -> Dict[str, Any]:
+    def create_upload(self, filename: str, file_size: int) -> CreateUploadResult:
         """Request a presigned S3 upload URL for a single reference data file.
 
         This is the low-level endpoint wrapper; most callers want
@@ -46,9 +59,11 @@ class ReferenceData:
                 URLs; pass ``0`` to request a single PUT URL instead.
 
         Returns:
-            ``{"id": "<org_uuid>/<file_uuid>", "upload": {...}}``. The
-            ``upload`` dict has ``mode`` ``"single"`` (with ``url``) or
-            ``"multipart"`` (with ``upload_session_id`` and ``parts``).
+            ``{"reference_data": ReferenceDataFile, "upload": {...}}``. The
+            ``reference_data`` identifies the file (``id``/``filename``); the
+            ``upload`` dict carries the presigned payload, with ``mode``
+            ``"single"`` (with ``url``) or ``"multipart"`` (with
+            ``upload_session_id`` and ``parts``).
         """
         response = self._client._make_request(
             method="POST",
@@ -58,8 +73,13 @@ class ReferenceData:
         )
 
         if response.status_code in (200, 201):
-            result: Dict[str, Any] = response.json()
-            return result
+            data = response.json()
+            upload = data.get("upload") or {}
+            reference_data = ReferenceDataFile(
+                id=str(data["id"]),
+                filename=str(upload.get("filename", "")),
+            )
+            return {"reference_data": reference_data, "upload": upload}
         raise Exception(
             f"Failed to create reference data upload: "
             f"{response.status_code} - {response.text}"
@@ -82,8 +102,11 @@ class ReferenceData:
         """
         response = self._client._make_request(
             method="POST",
-            endpoint=f"/reference_data/{reference_data_id}/complete",
-            json={"filename": filename, "upload_session_id": upload_session_id},
+            endpoint="/reference_data/complete",
+            json={
+                "reference_data": {"id": reference_data_id, "filename": filename},
+                "upload_session_id": upload_session_id,
+            },
             headers={"Content-Type": "application/json"},
         )
 
@@ -94,12 +117,11 @@ class ReferenceData:
             f"{response.status_code} - {response.text}"
         )
 
-    def list(self) -> List[Dict[str, str]]:
+    def list(self) -> List[ReferenceDataFile]:
         """List reference data files for the current organisation.
 
         Returns:
-            A list of ``{"id": "<org_uuid>/<file_uuid>", "filename": ...}``
-            dicts.
+            A list of :class:`ReferenceDataFile` objects.
         """
         response = self._client._make_request(
             method="GET",
@@ -107,14 +129,15 @@ class ReferenceData:
         )
 
         if response.status_code == 200:
-            result: List[Dict[str, str]] = response.json()
-            return result
+            return [ReferenceDataFile.from_json(d) for d in response.json()]
         raise Exception(
             f"Failed to list reference data: "
             f"{response.status_code} - {response.text}"
         )
 
-    def upload(self, file_path: str, filename: Optional[str] = None) -> str:
+    def upload(
+        self, file_path: str, filename: Optional[str] = None
+    ) -> ReferenceDataFile:
         """Upload a local file as organisation-scoped reference data.
 
         Drives the full flow: request a presigned URL, transfer the bytes
@@ -127,8 +150,9 @@ class ReferenceData:
                 of ``file_path``.
 
         Returns:
-            The reference data ``id`` (``"<org_uuid>/<file_uuid>"``); match it
-            against the entries returned by :meth:`list`.
+            The uploaded :class:`ReferenceDataFile` (its ``id`` is
+            ``"<org_uuid>/<file_uuid>"``); it matches an entry returned by
+            :meth:`list`.
         """
         self._uploader._validate_file_exists(file_path)
         if filename is None:
@@ -140,15 +164,17 @@ class ReferenceData:
         # file_size is required server-side; a positive value requests a
         # multipart session, 0 requests a single PUT URL.
         result = self.create_upload(filename, file_size if use_multipart else 0)
-        reference_data_id = str(result["id"])
+        reference_data = result["reference_data"]
         upload = result["upload"]
 
         if upload.get("mode") == "multipart":
             self._uploader.upload_multipart_file(upload["parts"], file_path, filename)
             self.complete_upload(
-                reference_data_id, filename, upload["upload_session_id"]
+                reference_data.id, filename, upload["upload_session_id"]
             )
         else:
             self._uploader.upload_single_file(upload["url"], file_path, filename)
 
-        return reference_data_id
+        return reference_data
+
+        return reference_data.id
