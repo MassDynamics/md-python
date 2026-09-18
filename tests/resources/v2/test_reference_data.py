@@ -24,7 +24,7 @@ class TestV2ReferenceData:
         mock_response = Mock()
         mock_response.status_code = 201
         mock_response.json.return_value = {
-            "id": REF_ID,
+            "reference_data": {"id": REF_ID, "filename": "genes.csv"},
             "upload": {
                 "filename": "genes.csv",
                 "url": "https://s3/put",
@@ -53,7 +53,7 @@ class TestV2ReferenceData:
         mock_response = Mock()
         mock_response.status_code = 201
         mock_response.json.return_value = {
-            "id": REF_ID,
+            "reference_data": {"id": REF_ID, "filename": "big.parquet"},
             "upload": {"mode": "multipart"},
         }
         mock_client._make_request.return_value = mock_response

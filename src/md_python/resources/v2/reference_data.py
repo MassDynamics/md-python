@@ -59,11 +59,11 @@ class ReferenceData:
                 URLs; pass ``0`` to request a single PUT URL instead.
 
         Returns:
-            ``{"reference_data": ReferenceDataFile, "upload": {...}}``. The
-            ``reference_data`` identifies the file (``id``/``filename``); the
-            ``upload`` dict carries the presigned payload, with ``mode``
-            ``"single"`` (with ``url``) or ``"multipart"`` (with
-            ``upload_session_id`` and ``parts``).
+            ``{"reference_data": ReferenceDataFile, "upload": {...}}`` —
+            mirroring the server response. The ``reference_data`` identifies
+            the file (``id``/``filename``); the ``upload`` dict carries the
+            presigned payload, with ``mode`` ``"single"`` (with ``url``) or
+            ``"multipart"`` (with ``upload_session_id`` and ``parts``).
         """
         response = self._client._make_request(
             method="POST",
@@ -74,12 +74,10 @@ class ReferenceData:
 
         if response.status_code in (200, 201):
             data = response.json()
-            upload = data.get("upload") or {}
-            reference_data = ReferenceDataFile(
-                id=str(data["id"]),
-                filename=str(upload.get("filename", "")),
-            )
-            return {"reference_data": reference_data, "upload": upload}
+            return {
+                "reference_data": ReferenceDataFile.from_json(data["reference_data"]),
+                "upload": data.get("upload") or {},
+            }
         raise Exception(
             f"Failed to create reference data upload: "
             f"{response.status_code} - {response.text}"
