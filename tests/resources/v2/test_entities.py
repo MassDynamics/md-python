@@ -102,7 +102,9 @@ class TestV2Entities:
         mock_client._make_request.return_value = mock_response
 
         result = entities.graph(
-            mode='protein_to_protein', dataset_ids=["abc-123"], entity_ids=["P12345;Q67890"]
+            mode="protein_to_protein",
+            dataset_ids=["abc-123"],
+            entity_ids=["P12345;Q67890"],
         )
 
         assert result == {
@@ -113,7 +115,11 @@ class TestV2Entities:
         assert mock_client._make_request.call_args.kwargs == {
             "method": "POST",
             "endpoint": "/entities/graph",
-            "json": {"mode": "protein_to_protein", "dataset_ids": ["abc-123"], "entity_ids": ["P12345;Q67890"]},
+            "json": {
+                "mode": "protein_to_protein",
+                "dataset_ids": ["abc-123"],
+                "entity_ids": ["P12345;Q67890"],
+            },
             "headers": {"Content-Type": "application/json"},
         }
 
@@ -124,4 +130,8 @@ class TestV2Entities:
         mock_client._make_request.return_value = mock_response
 
         with pytest.raises(Exception, match="Graph error: 502"):
-            entities.graph(mode='protein_to_protein', dataset_ids=["abc-123"], entity_ids=["P12345"])
+            entities.graph(
+                mode="protein_to_protein",
+                dataset_ids=["abc-123"],
+                entity_ids=["P12345"],
+            )

@@ -13,7 +13,7 @@ def protein_to_protein_example():
     client = MDClientV2(api_token=os.getenv("API_TOKEN"))
 
     result = client.entities.graph(
-        mode='protein_to_metabolite',
+        mode="protein_to_metabolite",
         dataset_ids=[
             "c7215a65-dd68-4051-a158-f369b6eeed6a",
             "82d4d3ba-3733-4987-91d8-7f83d2afba09",
@@ -26,7 +26,7 @@ def protein_to_protein_example():
             "48ee0eeb-3d2e-422f-bdeb-41938ffad5b4",
             "5a6ce013-d77a-4eb4-8eb6-715f044ef2bc",
             "8a02d25c-68e5-4def-b090-fc4fe39f011d",
-            "def259ea-9caa-4416-b2bd-750983138041"
+            "def259ea-9caa-4416-b2bd-750983138041",
         ],
         entity_ids=[
             "P19367",
