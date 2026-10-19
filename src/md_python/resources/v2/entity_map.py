@@ -3,6 +3,7 @@ Entities mappings sub-resource for the MD Python v2 client
 """
 
 from typing import TYPE_CHECKING, Any, Dict, List
+
 from typing_extensions import deprecated
 
 if TYPE_CHECKING:
