@@ -12,21 +12,24 @@ def protein_to_protein_example():
 
     client = MDClientV2(api_token=os.getenv("API_TOKEN"))
 
-    result = client.entities.mappings.protein_to_protein(
+    result = client.entities.graph(
+        mode='protein_to_metabolite',
         dataset_ids=[
-            "cb6fcbaa-6b0b-49ec-ac59-696ca6ff4366",
-            "adc1942c-e513-4adc-ab9b-d45483308883",
+            "c7215a65-dd68-4051-a158-f369b6eeed6a",
+            "82d4d3ba-3733-4987-91d8-7f83d2afba09",
+            "7e880efc-349d-42c6-869e-671af57bb970",
+            "643d23ec-65a2-44c4-ada4-694032183945",
+            "8b398f3e-6f3f-4a37-a5ea-bfe0a2edb4d6",
+            "de83ea45-45fc-4242-9455-64b8236a6aac",
+            "d7d5582f-7b15-405a-bed2-9d81f1a32ff6",
+            "d2a485ca-df13-4974-8c05-c5adcdf7669c",
             "48ee0eeb-3d2e-422f-bdeb-41938ffad5b4",
             "5a6ce013-d77a-4eb4-8eb6-715f044ef2bc",
             "8a02d25c-68e5-4def-b090-fc4fe39f011d",
-            "def259ea-9caa-4416-b2bd-750983138041",
+            "def259ea-9caa-4416-b2bd-750983138041"
         ],
         entity_ids=[
-            "A0A3B3ISV8;Q8IZF0",
-            "Q14061;H7C4E5;C9J8T6",
-            "Q14696;H0YLI4;Q14696",
-            "Q9NX09",
-            "Q9UBK9;Q9UBK9;S4R2Z4",
+            "P19367",
         ],
     )
 

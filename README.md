@@ -158,28 +158,27 @@ ds = client.datasets.wait_until_complete(upload_id, dataset_id)
 result = client.entities.query(keyword="BRCA1", dataset_ids=["dataset-id-1", "dataset-id-2"])
 entities = result["results"]
 
-# Map protein groups to protein groups through their shared individual proteins
-result = client.entities.mappings.protein_to_protein(
-    dataset_ids=["00000000-0000-0000-0000-000000000001"],
-    entity_ids=["P12345;Q67890"],
-)
-
-# Map protein groups to protein groups through their shared peptides
-result = client.entities.mappings.protein_to_protein_via_peptides(
-    dataset_ids=["00000000-0000-0000-0000-000000000001"],
-    entity_ids=["P12345;Q67890"],
-)
-
-# Map protein groups to their peptides within the same dataset
-result = client.entities.mappings.protein_to_peptide_same_dataset(
-    dataset_ids=["00000000-0000-0000-0000-000000000001"],
-    entity_ids=["P12345;Q67890"],
-)
-
-# Map peptides to their protein groups within the same dataset
-result = client.entities.mappings.peptide_to_protein_same_dataset(
-    dataset_ids=["00000000-0000-0000-0000-000000000001"],
-    entity_ids=["AAS(UniMod:21)PEK"],
+# Returns network graph that represents the mapping of input `entity_ids`
+# to other entities using the specified mapping mode
+result = client.entities.graph(
+    mode='protein_to_metabolite',
+    dataset_ids=[
+        "c7215a65-dd68-4051-a158-f369b6eeed6a",
+        "82d4d3ba-3733-4987-91d8-7f83d2afba09",
+        "7e880efc-349d-42c6-869e-671af57bb970",
+        "643d23ec-65a2-44c4-ada4-694032183945",
+        "8b398f3e-6f3f-4a37-a5ea-bfe0a2edb4d6",
+        "de83ea45-45fc-4242-9455-64b8236a6aac",
+        "d7d5582f-7b15-405a-bed2-9d81f1a32ff6",
+        "d2a485ca-df13-4974-8c05-c5adcdf7669c",
+        "48ee0eeb-3d2e-422f-bdeb-41938ffad5b4",
+        "5a6ce013-d77a-4eb4-8eb6-715f044ef2bc",
+        "8a02d25c-68e5-4def-b090-fc4fe39f011d",
+        "def259ea-9caa-4416-b2bd-750983138041"
+    ],
+    entity_ids=[
+        "P19367",
+    ],
 )
 ```
 

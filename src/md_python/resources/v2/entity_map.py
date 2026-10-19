@@ -3,11 +3,16 @@ Entities mappings sub-resource for the MD Python v2 client
 """
 
 from typing import TYPE_CHECKING, Any, Dict, List
+from typing_extensions import deprecated
 
 if TYPE_CHECKING:
     from ...base_client import BaseMDClient
 
 
+@deprecated(
+    "EntityMap is deprecated and may be removed in a future release. "
+    "Use Entities.graph() function instead."
+)
 class EntityMap:
     """V2 entities mappings sub-resource"""
 

@@ -5,6 +5,11 @@ All notable changes to `md-python` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project loosely adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.17]
+
+- added `client.entities.graph` function and deprecated the individual `client.entities.mappings.*` graph functions.
+
+
 ## [0.3.4]
 
 - Updated `client.entities.mappings.peptide_to_protein_same_dataset` and `client.entities.mappings.protein_to_protein_via_peptides` to accept a list of datasets instead of a single dataset.

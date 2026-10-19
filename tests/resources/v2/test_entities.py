@@ -89,3 +89,39 @@ class TestV2Entities:
 
         with pytest.raises(Exception, match="Failed to query entities: 400"):
             entities.query(keyword="A", dataset_ids=["abc-123"])
+
+    def test_graph_success(self, entities, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 200
+
+        mock_response.json.return_value = {
+            "nodes": [{"~id": "protein:P12345"}, {"~id": "protein_group:10"}],
+            "edges": [{"~id": "e1"}],
+        }
+
+        mock_client._make_request.return_value = mock_response
+
+        result = entities.graph(
+            mode='protein_to_protein', dataset_ids=["abc-123"], entity_ids=["P12345;Q67890"]
+        )
+
+        assert result == {
+            "nodes": [{"~id": "protein:P12345"}, {"~id": "protein_group:10"}],
+            "edges": [{"~id": "e1"}],
+        }
+
+        assert mock_client._make_request.call_args.kwargs == {
+            "method": "POST",
+            "endpoint": "/entities/graph",
+            "json": {"mode": "protein_to_protein", "dataset_ids": ["abc-123"], "entity_ids": ["P12345;Q67890"]},
+            "headers": {"Content-Type": "application/json"},
+        }
+
+    def test_graph_failure(self, entities, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 502
+        mock_response.text = "upstream boom"
+        mock_client._make_request.return_value = mock_response
+
+        with pytest.raises(Exception, match="Graph error: 502"):
+            entities.graph(mode='protein_to_protein', dataset_ids=["abc-123"], entity_ids=["P12345"])
