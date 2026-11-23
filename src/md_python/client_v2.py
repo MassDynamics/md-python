@@ -11,6 +11,7 @@ from .resources.v2 import (
     Entities,
     Jobs,
     ModuleRegistry,
+    Projects,
     ReferenceData,
     Uploads,
     Workspaces,
@@ -18,7 +19,7 @@ from .resources.v2 import (
 
 
 class MDClientV2(BaseMDClient):
-    """V2 API client — uploads, datasets, reference data, entities, jobs,
+    """V2 API client — uploads, projects, datasets, reference data, entities, jobs,
     workspaces, health"""
 
     ACCEPT_HEADER = "application/vnd.md-v2+json"
@@ -27,6 +28,7 @@ class MDClientV2(BaseMDClient):
         super().__init__(api_token=api_token, base_url=base_url)
         self.health = Health(self)
         self.uploads = Uploads(self)
+        self.projects = Projects(self)
         self.datasets = Datasets(self)
         self.reference_data = ReferenceData(self)
         self.entities = Entities(self)

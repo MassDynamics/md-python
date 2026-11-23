@@ -56,6 +56,7 @@ class Upload:
     created_at: Optional[datetime] = None
     status: Optional[Status] = None
     intensity_dataset: Optional[Dataset] = None
+    tags: Optional[List[str]] = None
 
     def __str__(self) -> str:
         lines = [f"Upload: {self.name}"]
@@ -76,6 +77,8 @@ class Upload:
             lines.append(f"S3 Prefix: {self.s3_prefix}")
         if self.filenames:
             lines.append(f"Files: {len(self.filenames)} files")
+        if self.tags:
+            lines.append(f"Tags: {', '.join(self.tags)}")
         if self.experiment_design:
             lines.append("Experiment Design:")
             lines.append(str(self.experiment_design))
@@ -125,4 +128,5 @@ class Upload:
                 if data.get("intensity_dataset") is not None
                 else None
             ),
+            tags=data.get("tags"),
         )

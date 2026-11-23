@@ -15,7 +15,9 @@ def query_uploads_example():
     """Example of querying uploads with various filters"""
 
     # Initialize client (replace with your actual API token)
-    client = MDClient(api_token=os.getenv("API_TOKEN"))
+    client = MDClient(
+        api_token=os.getenv("MD_AUTH_TOKEN"), base_url=os.getenv("MD_BASE_URL")
+    )
 
     # Query all uploads (paginated)
     try:
@@ -47,7 +49,7 @@ def query_uploads_example():
     # Query with sample metadata filters
     try:
         result = client.uploads.query(
-            sample_metadata=[{"key": "condition", "value": "treated"}],
+            sample_metadata=[{"column": "condition", "value": "treated"}],
         )
         print(f"Found {len(result['data'])} uploads matching metadata filter")
     except Exception as e:

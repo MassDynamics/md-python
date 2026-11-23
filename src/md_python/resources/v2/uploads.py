@@ -85,8 +85,17 @@ class Uploads:
             "sample_metadata": upload.sample_metadata.data,
         }
 
+        if upload.description is not None:
+            payload["description"] = upload.description
+
+        if upload.labelling_method is not None:
+            payload["labelling_method"] = upload.labelling_method
+
         if upload.experiment_design:
             payload["experiment_design"] = upload.experiment_design.data
+
+        if upload.tags is not None:
+            payload["tags"] = upload.tags
 
         if upload.file_location:
             payload["file_location"] = upload.file_location

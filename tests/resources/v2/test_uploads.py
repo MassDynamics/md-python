@@ -62,6 +62,79 @@ class TestV2Uploads:
         assert payload["experiment_design"] == DESIGN.data
         assert payload["sample_metadata"] == METADATA.data
 
+    def test_create_with_tags(self, uploads, mock_client):
+        upload = Upload(
+            name="Tagged Upload",
+            source="maxquant",
+            s3_bucket="my-bucket",
+            s3_prefix="data/",
+            filenames=["a.txt"],
+            sample_metadata=METADATA,
+            tags=["pilot", "plasma"],
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"id": "upload-123"}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.create(upload)
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload["tags"] == ["pilot", "plasma"]
+
+    def test_create_sends_description_and_labelling_method(self, uploads, mock_client):
+        upload = Upload(
+            name="Described Upload",
+            description="TMT time course",
+            source="diann_tabular",
+            labelling_method="tmt",
+            s3_bucket="my-bucket",
+            filenames=["a.txt"],
+            sample_metadata=METADATA,
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"id": "upload-123"}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.create(upload)
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert payload["description"] == "TMT time course"
+        assert payload["labelling_method"] == "tmt"
+
+    def test_create_without_tags_omits_key(self, uploads, mock_client):
+        upload = Upload(
+            name="Untagged Upload",
+            source="maxquant",
+            s3_bucket="my-bucket",
+            filenames=["a.txt"],
+            sample_metadata=METADATA,
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"id": "upload-123"}
+        mock_client._make_request.return_value = mock_response
+
+        uploads.create(upload)
+
+        payload = mock_client._make_request.call_args[1]["json"]
+        assert "tags" not in payload
+
+    def test_upload_from_json_parses_tags(self):
+        upload = Upload.from_json(
+            {"name": "x", "source": "maxquant", "tags": ["pilot", "plasma"]}
+        )
+        assert upload.tags == ["pilot", "plasma"]
+        assert "Tags: pilot, plasma" in str(upload)
+
+    def test_upload_from_json_without_tags(self):
+        upload = Upload.from_json({"name": "x", "source": "maxquant"})
+        assert upload.tags is None
+
     def test_create_with_file_location(self, uploads, mock_client):
         upload = Upload(
             name="Local Upload",

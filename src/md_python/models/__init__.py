@@ -15,6 +15,7 @@ from .experiment import Experiment
 from .jobs import Job
 from .metadata import ExperimentDesign, SampleMetadata
 from .pagination import Page, Pagination
+from .project import Project
 from .reference_data import ReferenceDataFile
 from .registered_module import RegisteredModule
 from .upload import Upload
@@ -27,6 +28,7 @@ __all__ = [
     "Experiment",
     "Job",
     "Upload",
+    "Project",
     "Dataset",
     "DatasetState",
     "DatasetTable",

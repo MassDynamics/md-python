@@ -5,6 +5,13 @@ All notable changes to `md-python` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project loosely adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0]
+
+- `Upload` now has optional `tags` (names of existing tags): sent on `client.uploads.create` and populated from upload responses (`get_by_id`).
+- `client.uploads.create` now sends `description` and `labelling_method` (previously dropped).
+- added `client.projects.list()`, returning the projects you can access as `Project` objects (`id`, `name`, `description`, and the tag names of its data collection as `tags`).
+
+
 ## [0.3.17]
 
 - added `client.entities.graph` function and deprecated the individual `client.entities.mappings.*` graph functions.
