@@ -7,6 +7,7 @@ project loosely adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.4.0]
 
+- added `client.uploads.run_upload_agent(id, name, filenames, description=None)`, which calls `POST /uploads/upload_agent_run` to have the AI upload agent create and start an upload from files already staged under `<id>/upload/`. Blocks until the agent finishes (up to ~15 minutes); a failed run comes back as a result with `status == "failed"`. Needs the `upload_agent` feature flag.
 - `Upload` now has optional `tags` (names of existing tags): sent on `client.uploads.create` and populated from upload responses (`get_by_id`).
 - `client.uploads.create` now sends `description` and `labelling_method` (previously dropped).
 - added `client.projects.list()`, returning the projects you can access as `Project` objects (`id`, `name`, `description`, and the tag names of its data collection as `tags`).

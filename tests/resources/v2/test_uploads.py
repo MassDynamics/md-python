@@ -580,3 +580,96 @@ class TestV2Uploads:
 
     def test_uploader_uses_uploads_resource_path(self, uploads):
         assert uploads._uploader._resource_path == "/uploads"
+
+
+class TestV2UploadAgentRun:
+    RUN_ID = "0b7e6c2a-3f1d-4b8e-9a6c-1d2e3f4a5b6c"
+
+    @pytest.fixture
+    def mock_client(self):
+        return Mock(spec=MDClientV2)
+
+    @pytest.fixture
+    def uploads(self, mock_client):
+        return Uploads(mock_client)
+
+    def _respond(self, mock_client, status_code, body=None, text=""):
+        response = Mock()
+        response.status_code = status_code
+        response.json.return_value = body
+        response.text = text
+        mock_client._make_request.return_value = response
+
+    def test_posts_run_and_returns_result(self, uploads, mock_client):
+        result = {
+            "id": self.RUN_ID,
+            "status": "succeeded",
+            "upload_id": "upload-1",
+            "source": "diann_tabular",
+            "failure_reason": None,
+            "message": "Started.",
+        }
+        self._respond(mock_client, 200, result)
+
+        out = uploads.run_upload_agent(
+            id=self.RUN_ID,
+            name="My dataset",
+            filenames=["report.pg_matrix.tsv"],
+            description="Some notes",
+        )
+
+        assert out == result
+        kwargs = mock_client._make_request.call_args[1]
+        assert kwargs["method"] == "POST"
+        assert kwargs["endpoint"] == "/uploads/upload_agent_run"
+        assert kwargs["json"] == {
+            "id": self.RUN_ID,
+            "name": "My dataset",
+            "filenames": ["report.pg_matrix.tsv"],
+            "description": "Some notes",
+        }
+        assert kwargs["timeout"] > 15 * 60
+
+    def test_omits_description_when_none(self, uploads, mock_client):
+        self._respond(mock_client, 200, {"status": "succeeded"})
+
+        uploads.run_upload_agent(id=self.RUN_ID, name="n", filenames=["a.tsv"])
+
+        assert "description" not in mock_client._make_request.call_args[1]["json"]
+
+    def test_failed_run_is_returned_not_raised(self, uploads, mock_client):
+        failed = {"status": "failed", "failure_reason": "unsupported_format"}
+        self._respond(mock_client, 200, failed)
+
+        assert (
+            uploads.run_upload_agent(id=self.RUN_ID, name="n", filenames=["a"])
+            == failed
+        )
+
+    @pytest.mark.parametrize("status_code", [400, 404, 422, 503])
+    def test_error_status_raises(self, uploads, mock_client, status_code):
+        self._respond(mock_client, status_code, text="nope")
+
+        with pytest.raises(Exception, match=f"{status_code} - nope"):
+            uploads.run_upload_agent(id=self.RUN_ID, name="n", filenames=["a"])
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"id": "not-a-uuid"},
+            {"name": "  "},
+            {"filenames": []},
+            {"filenames": ["a", "a"]},
+            {"filenames": ["dir/a"]},
+            {"filenames": ["..a"]},
+            {"filenames": ["a\\b"]},
+            {"filenames": ["."]},
+        ],
+    )
+    def test_invalid_input_raises_without_request(self, uploads, mock_client, kwargs):
+        args = {"id": self.RUN_ID, "name": "n", "filenames": ["a"], **kwargs}
+
+        with pytest.raises(ValueError):
+            uploads.run_upload_agent(**args)
+
+        mock_client._make_request.assert_not_called()

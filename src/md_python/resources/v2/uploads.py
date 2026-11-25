@@ -5,6 +5,7 @@ Uploads resource for the MD Python v2 client
 import concurrent.futures
 import threading
 import time
+import uuid
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ...models import ExperimentDesign, SampleMetadata, Upload
@@ -33,6 +34,11 @@ ALLOWED_UPLOAD_SOURCES: frozenset[str] = frozenset(
         "md_format_gene",
     }
 )
+
+
+# The upload agent call blocks until the agent finishes (the server allows up
+# to 15 minutes), so the client waits a little longer than that.
+UPLOAD_AGENT_TIMEOUT_S = 16 * 60
 
 
 class Uploads:
@@ -158,6 +164,70 @@ class Uploads:
             method="POST",
             endpoint=f"/uploads/{upload_id}/start_workflow",
             headers={"Content-Type": "application/json"},
+        )
+
+    def run_upload_agent(
+        self,
+        id: str,
+        name: str,
+        filenames: List[str],
+        description: Optional[str] = None,
+        timeout: float = UPLOAD_AGENT_TIMEOUT_S,
+    ) -> Dict[str, Any]:
+        """Run the AI upload agent on files already in the upload bucket.
+
+        The files must already be uploaded under ``<id>/upload/<filename>``.
+        The agent inspects them, creates the upload and starts its workflow
+        as the calling user. The call blocks until the agent finishes, which
+        can take several minutes. Requires the ``upload_agent`` feature flag;
+        without it the server answers 404.
+
+        Args:
+            id: UUID the files were uploaded under.
+            name: Name for the new upload.
+            filenames: Bare, unique names of the uploaded files.
+            description: Optional notes about the data, passed to the agent.
+            timeout: Seconds to wait for the agent's response.
+
+        Returns:
+            The agent's result: ``id``, ``status`` ("succeeded" or "failed"),
+            ``upload_id``, ``source``, ``failure_reason`` and ``message``.
+            A run the agent could not complete is returned (not raised) with
+            ``status == "failed"``.
+        """
+        try:
+            uuid.UUID(id)
+        except (ValueError, TypeError, AttributeError):
+            raise ValueError("id must be a UUID")
+        if not name or not name.strip():
+            raise ValueError("name is required")
+        if not filenames or len(set(filenames)) != len(filenames):
+            raise ValueError("filenames must be a non-empty list of unique names")
+        for filename in filenames:
+            if (
+                not filename
+                or filename == "."
+                or any(part in filename for part in ("/", "\\", "..", "\0"))
+            ):
+                raise ValueError(f"filename {filename!r} must be a bare file name")
+
+        payload: Dict[str, Any] = {"id": id, "name": name, "filenames": filenames}
+        if description is not None:
+            payload["description"] = description
+
+        response = self._client._make_request(
+            method="POST",
+            endpoint="/uploads/upload_agent_run",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=timeout,
+        )
+
+        if response.status_code == 200:
+            result: Dict[str, Any] = response.json()
+            return result
+        raise Exception(
+            f"Failed to run upload agent: {response.status_code} - {response.text}"
         )
 
     def get_by_id(self, upload_id: str) -> Optional[Upload]:
