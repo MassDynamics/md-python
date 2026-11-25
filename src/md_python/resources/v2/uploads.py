@@ -5,7 +5,6 @@ Uploads resource for the MD Python v2 client
 import concurrent.futures
 import threading
 import time
-import uuid
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ...models import ExperimentDesign, SampleMetadata, Upload
@@ -48,6 +47,12 @@ class Uploads:
         self._client = client
         self._uploader = FileUploader(
             client, resource_path="/uploads", complete_path="/complete"
+        )
+        self._agent_uploader = FileUploader(
+            client,
+            resource_path="/uploads/upload_agent_run",
+            complete_path="/file_upload_complete",
+            complete_method="PUT",
         )
 
     def create(
@@ -168,37 +173,33 @@ class Uploads:
 
     def run_upload_agent(
         self,
-        id: str,
         name: str,
+        file_location: str,
         filenames: List[str],
         description: Optional[str] = None,
         timeout: float = UPLOAD_AGENT_TIMEOUT_S,
     ) -> Dict[str, Any]:
-        """Run the AI upload agent on files already in the upload bucket.
+        """Upload local files and have the AI upload agent create the upload.
 
-        The files must already be uploaded under ``<id>/upload/<filename>``.
-        The agent inspects them, creates the upload and starts its workflow
-        as the calling user. The call blocks until the agent finishes, which
-        can take several minutes. Requires the ``upload_agent`` feature flag;
-        without it the server answers 404.
+        The agent inspects the files, works out the source and experiment
+        design, creates the upload and starts its workflow as the calling
+        user. This uploads the files, then blocks until the agent finishes,
+        which can take several minutes. Requires the ``upload_agent`` feature
+        flag; without it the server answers 404.
 
         Args:
-            id: UUID the files were uploaded under.
             name: Name for the new upload.
-            filenames: Bare, unique names of the uploaded files.
+            file_location: Local directory containing the files.
+            filenames: Bare, unique names of the files in ``file_location``.
             description: Optional notes about the data, passed to the agent.
-            timeout: Seconds to wait for the agent's response.
+            timeout: Seconds to wait for the agent once the files are uploaded.
 
         Returns:
-            The agent's result: ``id``, ``status`` ("succeeded" or "failed"),
-            ``upload_id``, ``source``, ``failure_reason`` and ``message``.
-            A run the agent could not complete is returned (not raised) with
-            ``status == "failed"``.
+            The agent's result: ``id`` (the run id), ``status`` ("SUCCEEDED"
+            or "FAILED"), ``upload_id``, ``source``, ``failure_reason`` and
+            ``message``. A run the agent could not complete is returned (not
+            raised) with ``status == "FAILED"``.
         """
-        try:
-            uuid.UUID(id)
-        except (ValueError, TypeError, AttributeError):
-            raise ValueError("id must be a UUID")
         if not name or not name.strip():
             raise ValueError("name is required")
         if not filenames or len(set(filenames)) != len(filenames):
@@ -211,23 +212,48 @@ class Uploads:
             ):
                 raise ValueError(f"filename {filename!r} must be a bare file name")
 
-        payload: Dict[str, Any] = {"id": id, "name": name, "filenames": filenames}
+        response = self._client._make_request(
+            method="POST",
+            endpoint="/uploads/upload_agent_run",
+            json={
+                "filenames": filenames,
+                "file_sizes": self._agent_uploader.file_sizes_for_api(
+                    filenames, file_location
+                ),
+            },
+            headers={"Content-Type": "application/json"},
+        )
+        if response.status_code not in (200, 201):
+            raise Exception(
+                f"Failed to create upload agent run: {response.status_code} - {response.text}"
+            )
+        created = response.json()
+        run_id = str(created["id"])
+
+        self._agent_uploader.upload_files(
+            created["file_uploads"], file_location, run_id
+        )
+
+        payload: Dict[str, Any] = {
+            "status": "UPLOAD_COMPLETE",
+            "name": name,
+            "filenames": filenames,
+        }
         if description is not None:
             payload["description"] = description
 
         response = self._client._make_request(
-            method="POST",
-            endpoint="/uploads/upload_agent_run",
+            method="PUT",
+            endpoint=f"/uploads/upload_agent_run/{run_id}",
             json=payload,
             headers={"Content-Type": "application/json"},
             timeout=timeout,
         )
-
         if response.status_code == 200:
             result: Dict[str, Any] = response.json()
             return result
         raise Exception(
-            f"Failed to run upload agent: {response.status_code} - {response.text}"
+            f"Failed to run upload agent {run_id}: {response.status_code} - {response.text}"
         )
 
     def get_by_id(self, upload_id: str) -> Optional[Upload]:

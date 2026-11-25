@@ -19,10 +19,12 @@ class Uploads:
         client: "BaseMDClient",
         resource_path: str = "/experiments",
         complete_path: str = "/uploads/complete",
+        complete_method: str = "POST",
     ):
         self._client = client
         self._resource_path = resource_path
         self._complete_path = complete_path
+        self._complete_method = complete_method
 
     def _get_file_path(self, file_location: str, filename: str) -> str:
         """File path from location and filename
@@ -175,7 +177,7 @@ class Uploads:
             Exception: If completion fails
         """
         response = self._client._make_request(
-            method="POST",
+            method=self._complete_method,
             endpoint=f"{self._resource_path}/{experiment_id}{self._complete_path}",
             json={"filename": filename, "upload_id": upload_session_id},
             headers={"Content-Type": "application/json"},

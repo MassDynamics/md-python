@@ -593,70 +593,185 @@ class TestV2UploadAgentRun:
     def uploads(self, mock_client):
         return Uploads(mock_client)
 
-    def _respond(self, mock_client, status_code, body=None, text=""):
+    @pytest.fixture
+    def files(self, tmp_path):
+        (tmp_path / "report.pg_matrix.tsv").write_bytes(b"x" * 10)
+        (tmp_path / "report.log.txt").write_bytes(b"y" * 5)
+        return str(tmp_path)
+
+    @staticmethod
+    def _response(status_code, body=None, text=""):
         response = Mock()
         response.status_code = status_code
         response.json.return_value = body
         response.text = text
-        mock_client._make_request.return_value = response
+        return response
 
-    def test_posts_run_and_returns_result(self, uploads, mock_client):
+    def _created(self, file_uploads=None):
+        return self._response(
+            201,
+            {
+                "id": self.RUN_ID,
+                "status": "WAITING_FOR_UPLOAD",
+                "file_uploads": file_uploads
+                or [
+                    {
+                        "filename": "report.pg_matrix.tsv",
+                        "url": "https://s3/1",
+                        "mode": "single",
+                    },
+                    {
+                        "filename": "report.log.txt",
+                        "url": "https://s3/2",
+                        "mode": "single",
+                    },
+                ],
+            },
+        )
+
+    @patch("md_python.uploads.requests.put")
+    def test_creates_run_uploads_files_and_runs_agent(
+        self, mock_put, uploads, mock_client, files
+    ):
+        mock_put.return_value = Mock(status_code=200)
         result = {
             "id": self.RUN_ID,
-            "status": "succeeded",
+            "status": "SUCCEEDED",
             "upload_id": "upload-1",
             "source": "diann_tabular",
             "failure_reason": None,
             "message": "Started.",
         }
-        self._respond(mock_client, 200, result)
+        mock_client._make_request.side_effect = [
+            self._created(),
+            self._response(200, result),
+        ]
 
         out = uploads.run_upload_agent(
-            id=self.RUN_ID,
             name="My dataset",
-            filenames=["report.pg_matrix.tsv"],
+            file_location=files,
+            filenames=["report.pg_matrix.tsv", "report.log.txt"],
             description="Some notes",
         )
 
         assert out == result
-        kwargs = mock_client._make_request.call_args[1]
-        assert kwargs["method"] == "POST"
-        assert kwargs["endpoint"] == "/uploads/upload_agent_run"
-        assert kwargs["json"] == {
-            "id": self.RUN_ID,
+        create, finish = mock_client._make_request.call_args_list
+        assert create[1]["method"] == "POST"
+        assert create[1]["endpoint"] == "/uploads/upload_agent_run"
+        assert create[1]["json"] == {
+            "filenames": ["report.pg_matrix.tsv", "report.log.txt"],
+            "file_sizes": [None, None],
+        }
+        assert [c[0][0] for c in mock_put.call_args_list] == [
+            "https://s3/1",
+            "https://s3/2",
+        ]
+        assert finish[1]["method"] == "PUT"
+        assert finish[1]["endpoint"] == f"/uploads/upload_agent_run/{self.RUN_ID}"
+        assert finish[1]["json"] == {
+            "status": "UPLOAD_COMPLETE",
             "name": "My dataset",
-            "filenames": ["report.pg_matrix.tsv"],
+            "filenames": ["report.pg_matrix.tsv", "report.log.txt"],
             "description": "Some notes",
         }
-        assert kwargs["timeout"] > 15 * 60
+        assert finish[1]["timeout"] > 15 * 60
 
-    def test_omits_description_when_none(self, uploads, mock_client):
-        self._respond(mock_client, 200, {"status": "succeeded"})
+    @patch("md_python.uploads.requests.put")
+    def test_completes_multipart_files_with_put(
+        self, mock_put, uploads, mock_client, files
+    ):
+        mock_put.return_value = Mock(status_code=200, headers={"ETag": '"e1"'})
+        multipart = [
+            {
+                "filename": "report.pg_matrix.tsv",
+                "mode": "multipart",
+                "upload_session_id": "session-1",
+                "parts": [{"part_number": 1, "url": "https://s3/p1"}],
+            }
+        ]
+        mock_client._make_request.side_effect = [
+            self._created(multipart),
+            self._response(200, {}),
+            self._response(200, {"status": "SUCCEEDED"}),
+        ]
 
-        uploads.run_upload_agent(id=self.RUN_ID, name="n", filenames=["a.tsv"])
-
-        assert "description" not in mock_client._make_request.call_args[1]["json"]
-
-    def test_failed_run_is_returned_not_raised(self, uploads, mock_client):
-        failed = {"status": "failed", "failure_reason": "unsupported_format"}
-        self._respond(mock_client, 200, failed)
-
-        assert (
-            uploads.run_upload_agent(id=self.RUN_ID, name="n", filenames=["a"])
-            == failed
+        uploads.run_upload_agent(
+            name="n", file_location=files, filenames=["report.pg_matrix.tsv"]
         )
 
-    @pytest.mark.parametrize("status_code", [400, 404, 422, 503])
-    def test_error_status_raises(self, uploads, mock_client, status_code):
-        self._respond(mock_client, status_code, text="nope")
+        complete = mock_client._make_request.call_args_list[1][1]
+        assert complete["method"] == "PUT"
+        assert (
+            complete["endpoint"]
+            == f"/uploads/upload_agent_run/{self.RUN_ID}/file_upload_complete"
+        )
+        assert complete["json"] == {
+            "filename": "report.pg_matrix.tsv",
+            "upload_id": "session-1",
+        }
+
+    @patch("md_python.uploads.requests.put")
+    def test_omits_description_and_returns_failed_run(
+        self, mock_put, uploads, mock_client, files
+    ):
+        mock_put.return_value = Mock(status_code=200)
+        failed = {"status": "FAILED", "failure_reason": "unsupported_format"}
+        mock_client._make_request.side_effect = [
+            self._created(),
+            self._response(200, failed),
+        ]
+
+        out = uploads.run_upload_agent(
+            name="n",
+            file_location=files,
+            filenames=["report.pg_matrix.tsv", "report.log.txt"],
+        )
+
+        assert out == failed
+        assert "description" not in mock_client._make_request.call_args[1]["json"]
+
+    @pytest.mark.parametrize("status_code", [400, 404])
+    def test_create_error_raises(self, uploads, mock_client, files, status_code):
+        mock_client._make_request.return_value = self._response(
+            status_code, text="nope"
+        )
 
         with pytest.raises(Exception, match=f"{status_code} - nope"):
-            uploads.run_upload_agent(id=self.RUN_ID, name="n", filenames=["a"])
+            uploads.run_upload_agent(
+                name="n", file_location=files, filenames=["report.log.txt"]
+            )
+
+    @pytest.mark.parametrize("status_code", [400, 422, 503])
+    @patch("md_python.uploads.requests.put")
+    def test_finish_error_raises(
+        self, mock_put, uploads, mock_client, files, status_code
+    ):
+        mock_put.return_value = Mock(status_code=200)
+        mock_client._make_request.side_effect = [
+            self._created(),
+            self._response(status_code, text="nope"),
+        ]
+
+        with pytest.raises(Exception, match=f"{status_code} - nope"):
+            uploads.run_upload_agent(
+                name="n",
+                file_location=files,
+                filenames=["report.pg_matrix.tsv", "report.log.txt"],
+            )
+
+    def test_missing_local_file_raises_without_request(
+        self, uploads, mock_client, files
+    ):
+        with pytest.raises(FileNotFoundError):
+            uploads.run_upload_agent(
+                name="n", file_location=files, filenames=["missing.tsv"]
+            )
+
+        mock_client._make_request.assert_not_called()
 
     @pytest.mark.parametrize(
         "kwargs",
         [
-            {"id": "not-a-uuid"},
             {"name": "  "},
             {"filenames": []},
             {"filenames": ["a", "a"]},
@@ -666,8 +781,10 @@ class TestV2UploadAgentRun:
             {"filenames": ["."]},
         ],
     )
-    def test_invalid_input_raises_without_request(self, uploads, mock_client, kwargs):
-        args = {"id": self.RUN_ID, "name": "n", "filenames": ["a"], **kwargs}
+    def test_invalid_input_raises_without_request(
+        self, uploads, mock_client, files, kwargs
+    ):
+        args = {"name": "n", "file_location": files, "filenames": ["a"], **kwargs}
 
         with pytest.raises(ValueError):
             uploads.run_upload_agent(**args)
