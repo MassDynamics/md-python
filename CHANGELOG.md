@@ -5,6 +5,11 @@ All notable changes to `md-python` are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project loosely adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.1]
+
+- `client.uploads.run_upload_agent` now uploads local files via the upload agent run API; added an upload agent example.
+
+
 ## [0.4.0]
 
 - added `client.uploads.run_upload_agent(name, file_location, filenames, description=None)`: uploads local files through `POST /uploads/upload_agent_run` (multipart for files of 30MB or more), then calls `PUT /uploads/upload_agent_run/:id` with `UPLOAD_COMPLETE` so the AI upload agent works out the source and design, creates the upload and starts its workflow. Blocks until the agent finishes (up to ~15 minutes) and returns its result; a failed run comes back with `status == "FAILED"`. Needs the `upload_agent` feature flag.
